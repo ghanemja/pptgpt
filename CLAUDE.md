@@ -20,15 +20,25 @@ Read `README.md` for the full architecture diagram before making changes.
 
 ## Layout
 - `deckengine/ir.py` — content/intent/theme dataclasses. **No geometry here.**
+- `deckengine/parse.py` — text → IR. The local-model swap point.
 - `deckengine/layout.py` — the deterministic engine. IR + theme → resolved
   boxes (inches). This is the project's actual contribution. Keep layout rules
   explicit and constraint-based.
 - `deckengine/render.py` — boxes → .pptx. Deliberately judgment-free; do not
   add design logic here.
-- `deckengine/ambiguity.py` — fork detection → taste questions with `region`.
+- `deckengine/spec_render.py` — frontend SlideSpec → .pptx (judgment-free).
+- `deckengine/ambiguity.py` — principled per-archetype scorer + tie-detection
+  → taste questions with `region`.
+- `deckengine/ingest.py` — .pptx → IR (content only; geometry discarded
+  by design per R7.2.2).
+- `deckengine/condense.py` — IR → smaller IR. Deterministic stat-gathering
+  fallback + model-based path with anti-fabrication guard.
+- `deckengine/boundary.py` — adds `#` and converts inches→pixels at the JSON
+  edge. The ONLY place that translation happens.
 - `server.py` — FastAPI, speaks the canvas contract. Offline.
-- `tests/test_layout.py` — constraint invariants (margins, no-overlap, hero
-  contrast, even distribution).
+- `tests/test_layout.py`, `tests/test_ingest.py`, `tests/test_condense.py`,
+  `tests/test_ambiguity.py`, `tests/smoke_e2e.py` — invariant + endpoint
+  tests. **48 unit tests + 16 endpoint checks, all green.**
 
 ## Conventions
 - Python 3.11+, dataclasses over dicts for internal types, type hints required.
@@ -43,25 +53,34 @@ archetypes need their own invariant tests (no-overlap + margins at minimum)
 before they count as done. Layout quality is *measured*, not eyeballed.
 
 ## Current state (v1) and next steps
-Working end-to-end: `stat_callout` only (text → IR → engine → openable .pptx).
-Detected-but-not-rendered: `icon_rows`, `two_column_stats`, `bullets_plain`.
+Working end-to-end via the IR engine: every archetype — `stat_callout`,
+`title_slide`, `two_column_stats`, `icon_rows`, `bullets_plain` — renders
+to openable `.pptx`. The `/api/design` endpoint exercises the §0 path
+(parse_to_ir → ambiguity scorer → layout.resolve → render). The `synth.py`
+direct-SlideSpec path stays for the existing canvas contract.
 
-Priority order for next work:
-1. Implement the three remaining archetype resolvers (+ tests).
-2. Swap `parse_to_ir` regex for a real local-model call (Ollama/LM Studio),
-   emitting the same IR. Nothing downstream should change.
-3. Wire the Claude Design canvas to the live `/design` endpoint. If the
-   exported UI defines a different `previewSpec` shape, change ONLY
-   `preview_spec()` in `server.py` to match — the contract serves the UI.
-4. Deck ingest (`.pptx` → IR) per REQUIREMENTS §7.2. Content-only, geometry
-   discarded by design. New module `deckengine/ingest.py`; do NOT put parsing
-   in the engine or renderer (§7.1.1). Ship the §7.4.1 tests.
-5. Condense/summarize (IR → smaller IR) per REQUIREMENTS §7.3. Build the
-   deterministic stat-gathering fallback (§7.3.4) FIRST and test it (§7.4.2);
-   the model-based path comes after and must remain reviewable (§7.3.3).
-6. (Research-flavored) Replace hand-written ambiguity rules with a principled
-   scorer: ask when two archetypes score within ε. And make "directions" vary
-   structure, not just palette.
+Done in v1:
+1. All five archetype resolvers (+ R2.5 invariant tests, 24/24 green).
+2. `deckengine/parse.py` — deterministic IR producer; documented swap
+   point for the local model (single function).
+3. `/api/design`, `/api/ir`, `/api/render_ir`, `/api/render_direction`,
+   `/api/ingest` wired through the engine.
+4. `deckengine/ingest.py` (REQUIREMENTS §7.2) — .pptx → IR, geometry
+   discarded by design. §7.4.1 tests green.
+5. `deckengine/condense.py` (§7.3) — deterministic stat-gathering fallback
+   FIRST (§7.3.4) + model-based path with anti-fabrication guard (§7.3.5).
+6. Principled ambiguity scorer in `ambiguity.py` (`score_archetypes`).
+   Ask when top-2 within ε. User-agency override for the focus fork.
+7. Server-side `.pptx` export visible in the UI (`save as .pptx`).
+8. Bug fixes: `/api/plot` no longer cross-contaminates curve params;
+   chart renderer accepts CSS `rgba(...)` strings.
+
+Remaining priorities:
+1. **The Gemma swap.** Replace `parse_to_ir` body with an Ollama/LM Studio
+   call that emits a `Slide`. The entire repo downstream is unchanged.
+2. (Research-flavored) Make "directions" vary structure, not just palette.
+3. Feature A (math plots in the IR), B (outline editor), C (three-panel
+   UI) — speccd below.
 
 ## Known limitations to preserve awareness of
 - Directions currently differ only by color (same geometry by design).

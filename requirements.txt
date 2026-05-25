@@ -3,3 +3,25 @@ fastapi>=0.110
 uvicorn>=0.29
 pydantic>=2.0
 matplotlib>=3.8
+python-multipart>=0.0.9   # required by /api/ingest upload route
+httpx>=0.27               # test-only: tests/smoke_e2e.py uses the ASGI transport
+
+# Semantic narrative analysis (storyboard recommendations + thread map).
+# Pulls in torch on first install (~700MB). When sentence-transformers is
+# absent, the code falls back to bag-of-words token overlap and prints a
+# one-line notice to stderr — no crash.
+sentence-transformers>=2.7
+numpy>=1.26
+
+# Narrative analysis: an LLM reads the deck and identifies story structure
+# (spine, orphans with reasons, gaps, tensions, concrete recommendations).
+#
+# Two backends are wired; pick via env var DECKENGINE_NARRATIVE_BACKEND:
+#   anthropic (default) — needs ANTHROPIC_API_KEY + the `anthropic` SDK below
+#   ollama              — fully local, no key, no SDK. Just install Ollama
+#                         (`brew install ollama && ollama serve`) and
+#                         `ollama pull gemma4` (or :e2b / :26b / :31b).
+#                         Override OLLAMA_HOST / OLLAMA_MODEL as needed.
+# When neither is reachable, the cascade falls through to semantic embeddings
+# and then to lexical token overlap; nothing crashes.
+anthropic>=0.39

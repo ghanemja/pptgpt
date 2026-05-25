@@ -141,47 +141,146 @@ def _recommendations(outline: list[dict], mode: str, audience: str | None) -> li
             recs.append({"id": "status-actions", "kind": "add-actions",
                          "text": "No action items detected. Add a closing slide with next steps and owners?"})
 
-    # Thread / narrative analysis
+    # Thread / narrative analysis. Cascade:
+    #   1. LLM (narrative.py)  — reads the deck, names the through-line,
+    #                            spots contradictions and missing concepts.
+    #   2. semantic (embeddings) — catches synonyms/paraphrase.
+    #   3. lexical (token overlap) — honest fallback when no model loaded.
     if len(outline) >= 2:
-        stops = {"the","a","an","and","or","of","to","for","in","on","at","is","it","this","that","with","from","as","by","be","are","was","were","but","so","if","we","our","you","your","their","they","will","can","have","has","had","about","into","than","then","what","which","who","one","more","less","most","any","some","no"}
-        def tok(s: str) -> set[str]:
-            return {w for w in re.findall(r"\b[a-z][a-z0-9]+\b", (s or "").lower()) if w not in stops}
-        slide_tokens = [tok(" ".join([s.get("title", ""), *(s.get("messages") or []), s.get("bumper", "")])) for s in outline]
+        from . import narrative
+        if narrative.available():
+            narr = narrative.analyze_narrative(outline, audience=audience, mode=mode)
+            if narr is not None:
+                recs.extend(narrative.to_storyboard_recs(narr))
+                return recs
+        semantic_recs = _semantic_narrative_recs(outline)
+        if semantic_recs is not None:
+            recs.extend(semantic_recs)
+        else:
+            recs.extend(_lexical_narrative_recs(outline))
+    return recs
 
-        counts: dict[str, int] = {}
-        for ts in slide_tokens:
-            for w in ts:
-                counts[w] = counts.get(w, 0) + 1
-        candidates = sorted([(w, c) for w, c in counts.items() if c >= 3], key=lambda x: -x[1])
-        if candidates and len(outline) >= 3:
-            word, count = candidates[0]
-            recs.append({"id": f"spine-{word}", "kind": "spine", "advisory": True,
-                         "text": f"\"{word}\" appears in {count} of {len(outline)} slides — your strongest spine candidate. Promote it into every slide title to make the through-line obvious."})
 
-        for i, t in enumerate(slide_tokens):
-            if not t:
+# ---- thread analysis: semantic + lexical paths --------------------------
+
+def _semantic_narrative_recs(outline: list[dict]) -> list[dict] | None:
+    """Embedding-based spine / orphan / gap / bridge detection. Returns
+    None if embeddings aren't available so the caller can fall back."""
+    from . import semantics
+    if not semantics.available():
+        return None
+    vecs = semantics.embed_outline(outline)
+    if vecs is None:
+        return None
+    sim = semantics.pairwise_sim(vecs)
+    if sim is None:
+        return None
+
+    # threshold constants — tuned for all-MiniLM-L6-v2 normalized vectors
+    LINK    = 0.42
+    GAP     = 0.35
+    ORPHAN  = 0.32
+    RIBBON  = 0.40
+
+    n = len(outline)
+    recs: list[dict] = []
+
+    # spine: centroid + nearest candidate phrase that touches ≥half the deck
+    import numpy as np
+    centroid = np.mean(np.stack(vecs), axis=0)
+    norm = float(np.linalg.norm(centroid))
+    if norm > 0:
+        centroid = centroid / norm
+    deck_text = "  ".join(
+        " ".join([s.get("title", ""), *(s.get("messages") or []), s.get("bumper", "")])
+        for s in outline
+    )
+    candidates = semantics.extract_candidate_phrases(deck_text, max_phrases=24)
+    threshold = max(2, (n + 1) // 2)
+    if candidates and n >= 3:
+        ranked = []
+        for p in candidates:
+            pv = semantics.embed_text(p)
+            if pv is None:
                 continue
-            shares = any(j != i and (t & slide_tokens[j]) for j in range(len(slide_tokens)))
-            if not shares:
-                recs.append({"id": f"orphan-{outline[i]['id']}", "kind": "orphan", "advisory": True,
-                             "text": f"Slide {i+1:02d} (\"{(outline[i].get('title') or 'untitled')[:40]}\") shares no keywords with any other slide. It reads as an orphan — add a thread that ties it in."})
+            touched = sum(1 for sv in vecs if float(np.dot(sv, pv)) >= RIBBON)
+            if touched >= 2:
+                ranked.append((touched, float(np.dot(centroid, pv)), p))
+        ranked.sort(key=lambda x: (-x[0], -x[1]))
+        for touched, _, word in ranked:
+            if touched >= threshold:
+                recs.append({"id": f"spine-{word.replace(' ','-')}", "kind": "spine", "advisory": True,
+                             "text": f"\"{word}\" runs through {touched} of {n} slides — your strongest spine. Weave it through the remaining {n - touched} title{'s' if n - touched != 1 else ''} so the through-line reads on first scan."})
+                break
 
-        for i in range(len(outline) - 1):
-            a, b = slide_tokens[i], slide_tokens[i + 1]
-            if not a or not b:
-                continue
-            if not (a & b):
-                recs.append({"id": f"gap-{i}", "kind": "gap", "advisory": True,
-                             "text": f"Hard cut between slide {i+1:02d} and {i+2:02d} — no shared concepts. Add a bridging bumper or rework the next title."})
+    # orphan — nearest neighbor below ORPHAN threshold
+    for i, s in enumerate(outline):
+        best = max((sim[i][j] for j in range(n) if j != i), default=0.0)
+        if best < ORPHAN:
+            title = (s.get("title") or "untitled")[:40]
+            recs.append({"id": f"orphan-{s.get('id') or 's'+str(i)}", "kind": "orphan", "advisory": True,
+                         "text": f"Slide {i+1:02d} (\"{title}\") doesn't connect semantically to any other slide. Either tie it to the deck's spine or move it out."})
 
-        bridge_count = 0
-        for i in range(len(outline) - 2):
-            a, b, c = slide_tokens[i], slide_tokens[i + 1], slide_tokens[i + 2]
-            skipped = [w for w in a if (w in c) and (w not in b)]
-            if skipped and bridge_count < 3:
+    # gap — adjacent slides below GAP threshold
+    for i in range(n - 1):
+        if sim[i][i + 1] < GAP:
+            recs.append({"id": f"gap-{i}", "kind": "gap", "advisory": True,
+                         "text": f"Hard cut between slide {i+1:02d} and {i+2:02d} — they don't share an idea. Add a bridging bumper or rework the next title to pick up where the last left off."})
+
+    # bridge — A and C are linked but B isn't to either (skipped middle)
+    bridge_count = 0
+    for i in range(n - 2):
+        if sim[i][i + 2] >= LINK and sim[i][i + 1] < LINK and sim[i + 1][i + 2] < LINK:
+            if bridge_count < 3:
                 recs.append({"id": f"bridge-{i}", "kind": "bridge", "advisory": True,
-                             "text": f"Slides {i+1:02d} and {i+3:02d} share \"{skipped[0]}\" but slide {i+2:02d} drops it. Weave \"{skipped[0]}\" through the middle slide to bridge the idea."})
+                             "text": f"Slides {i+1:02d} and {i+3:02d} share an idea that slide {i+2:02d} drops. Pull that thread through the middle slide to bridge the arc."})
                 bridge_count += 1
+
+    return recs
+
+
+def _lexical_narrative_recs(outline: list[dict]) -> list[dict]:
+    """Bag-of-words fallback. Honest about its limits in the rec text."""
+    stops = {"the","a","an","and","or","of","to","for","in","on","at","is","it","this","that","with","from","as","by","be","are","was","were","but","so","if","we","our","you","your","their","they","will","can","have","has","had","about","into","than","then","what","which","who","one","more","less","most","any","some","no"}
+    def tok(s: str) -> set[str]:
+        return {w for w in re.findall(r"\b[a-z][a-z0-9]+\b", (s or "").lower()) if w not in stops}
+    slide_tokens = [tok(" ".join([s.get("title", ""), *(s.get("messages") or []), s.get("bumper", "")])) for s in outline]
+
+    recs: list[dict] = []
+    counts: dict[str, int] = {}
+    for ts in slide_tokens:
+        for w in ts:
+            counts[w] = counts.get(w, 0) + 1
+    candidates = sorted([(w, c) for w, c in counts.items() if c >= 3], key=lambda x: -x[1])
+    if candidates and len(outline) >= 3:
+        word, count = candidates[0]
+        recs.append({"id": f"spine-{word}", "kind": "spine", "advisory": True,
+                     "text": f"\"{word}\" appears in {count} of {len(outline)} slides — your strongest spine candidate. Promote it into every slide title to make the through-line obvious."})
+
+    for i, t in enumerate(slide_tokens):
+        if not t:
+            continue
+        shares = any(j != i and (t & slide_tokens[j]) for j in range(len(slide_tokens)))
+        if not shares:
+            recs.append({"id": f"orphan-{outline[i]['id']}", "kind": "orphan", "advisory": True,
+                         "text": f"Slide {i+1:02d} (\"{(outline[i].get('title') or 'untitled')[:40]}\") shares no keywords with any other slide. It reads as an orphan — add a thread that ties it in."})
+
+    for i in range(len(outline) - 1):
+        a, b = slide_tokens[i], slide_tokens[i + 1]
+        if not a or not b:
+            continue
+        if not (a & b):
+            recs.append({"id": f"gap-{i}", "kind": "gap", "advisory": True,
+                         "text": f"Hard cut between slide {i+1:02d} and {i+2:02d} — no shared concepts. Add a bridging bumper or rework the next title."})
+
+    bridge_count = 0
+    for i in range(len(outline) - 2):
+        a, b, c = slide_tokens[i], slide_tokens[i + 1], slide_tokens[i + 2]
+        skipped = [w for w in a if (w in c) and (w not in b)]
+        if skipped and bridge_count < 3:
+            recs.append({"id": f"bridge-{i}", "kind": "bridge", "advisory": True,
+                         "text": f"Slides {i+1:02d} and {i+3:02d} share \"{skipped[0]}\" but slide {i+2:02d} drops it. Weave \"{skipped[0]}\" through the middle slide to bridge the idea."})
+            bridge_count += 1
     return recs
 
 

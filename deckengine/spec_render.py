@@ -179,13 +179,14 @@ def _render_plot_png(block: dict) -> bytes | None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    bg = block.get("bg") or "#0F0F1E"
+    bg = _mpl_color(block.get("bg") or "#0F0F1E")
     xR = block.get("xRange") or [-1, 1]
     yR = block.get("yRange") or [-1, 1]
     fig = plt.figure(figsize=(block["w"] / 100.0, block["h"] / 100.0), dpi=200)
     ax = fig.add_subplot(111)
-    fig.patch.set_facecolor(bg)
-    ax.set_facecolor(bg)
+    save_bg = bg if not isinstance(bg, tuple) else bg[:3]
+    fig.patch.set_facecolor(save_bg)
+    ax.set_facecolor(save_bg)
     ax.set_xlim(xR); ax.set_ylim(yR)
 
     if block.get("showGrid", True):
@@ -204,7 +205,7 @@ def _render_plot_png(block: dict) -> bytes | None:
     xs = [xR[0] + (xR[1] - xR[0]) * i / (n - 1) for i in range(n)]
     for curve in block.get("curves", []):
         ys = _eval_curve(curve.get("fn", "sine"), xs, curve.get("params") or {})
-        ax.plot(xs, ys, color=curve.get("color") or "#4ec5ff", linewidth=curve.get("width") or 3)
+        ax.plot(xs, ys, color=_mpl_color(curve.get("color") or "#4ec5ff"), linewidth=curve.get("width") or 3)
 
     if block.get("xLabel"):
         ax.set_xlabel(block["xLabel"], color=(1, 1, 1, 0.7))
@@ -212,9 +213,30 @@ def _render_plot_png(block: dict) -> bytes | None:
         ax.set_ylabel(block["yLabel"], color=(1, 1, 1, 0.7))
 
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", facecolor=bg, bbox_inches="tight", pad_inches=0.05)
+    fig.savefig(buf, format="png", facecolor=save_bg, bbox_inches="tight", pad_inches=0.05)
     plt.close(fig)
     return buf.getvalue()
+
+
+def _mpl_color(c: str | None):
+    """Coerce a CSS color string to something matplotlib accepts.
+
+    CSS `rgba(r,g,b,a)` is converted to a 4-tuple; everything else passes
+    through. matplotlib already handles `#rrggbb` natively.
+    """
+    if not c:
+        return None
+    s = c.strip()
+    if s.startswith("rgba") or s.startswith("rgb"):
+        nums = re.findall(r"[\d.]+", s)
+        if len(nums) >= 3:
+            r, g, b = float(nums[0]), float(nums[1]), float(nums[2])
+            a = float(nums[3]) if len(nums) >= 4 else 1.0
+            # CSS rgba uses 0-255; matplotlib needs 0-1 floats
+            if max(r, g, b) > 1.0:
+                r, g, b = r / 255.0, g / 255.0, b / 255.0
+            return (r, g, b, a)
+    return s
 
 
 def _render_chart_png(block: dict) -> bytes | None:
@@ -224,8 +246,8 @@ def _render_chart_png(block: dict) -> bytes | None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    bg = block.get("bg") or "#FFFFFF"
-    primary = block.get("primaryColor") or "#1E2761"
+    bg = _mpl_color(block.get("bg") or "#FFFFFF")
+    primary = _mpl_color(block.get("primaryColor") or "#1E2761")
     fig = plt.figure(figsize=(block["w"] / 100.0, block["h"] / 100.0), dpi=200)
     ax = fig.add_subplot(111)
     fig.patch.set_facecolor(bg)
@@ -242,19 +264,21 @@ def _render_chart_png(block: dict) -> bytes | None:
     ax.set_xticks(range(len(values)))
     ax.set_xticklabels(labels)
 
-    label_color = block.get("labelColor") or "#6C7A89"
+    label_color = _mpl_color(block.get("labelColor") or "#6C7A89")
     ax.tick_params(colors=label_color)
-    grid_color = block.get("gridColor") or "#F1F5F9"
+    grid_color = _mpl_color(block.get("gridColor") or "#F1F5F9")
     ax.grid(True, color=grid_color, linewidth=0.6)
     for s in ax.spines.values():
-        s.set_color(block.get("axisColor") or "#E5E7EB")
+        s.set_color(_mpl_color(block.get("axisColor") or "#E5E7EB"))
 
     if block.get("showValueLabels"):
         for i, v in enumerate(values):
             ax.text(i, v, str(v), ha="center", va="bottom", color=label_color, fontsize=9)
 
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", facecolor=bg, bbox_inches="tight", pad_inches=0.05)
+    # savefig facecolor needs alpha-stripped if it's a 4-tuple
+    save_bg = bg if not isinstance(bg, tuple) else bg[:3]
+    fig.savefig(buf, format="png", facecolor=save_bg, bbox_inches="tight", pad_inches=0.05)
     plt.close(fig)
     return buf.getvalue()
 
