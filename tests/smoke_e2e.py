@@ -147,6 +147,20 @@ async def run():
         else:
             print(f"SKIP  /api/plot (status {r.status_code} — matplotlib absent)")
 
+        # --- /api/storyboard_view ---
+        r = await ac.post("/api/storyboard_view", json={
+            "outline": sb["outline"], "mode": "condense",
+        })
+        assert r.status_code == 200, r.text
+        sv = r.json()
+        for k in ("outline", "threads", "suggestions", "spine", "tensions", "engine", "stats"):
+            assert k in sv, f"/api/storyboard_view missing {k}"
+        # threads list items have the design's shape
+        for t in sv["threads"]:
+            for k in ("id", "label", "color", "slideIds", "strength", "type"):
+                assert k in t, f"thread missing {k}: {t}"
+        print(f"PASS  /api/storyboard_view (engine={sv['engine']}, {len(sv['threads'])} threads, {len(sv['suggestions'])} suggestions)")
+
         # --- /api/thread_map ---
         r = await ac.post("/api/thread_map", json={
             "outline": sb["outline"],

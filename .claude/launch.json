@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pptgpt",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["-m", "uvicorn", "server:app", "--port", "8002", "--host", "127.0.0.1", "--reload"],
+      "port": 8002
+    },
+    {
+      "name": "netlify-dist",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8005", "--directory", "netlify-dist"],
+      "port": 8005
+    }
+  ]
+}

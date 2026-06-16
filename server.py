@@ -135,6 +135,12 @@ class NarrativeReq(BaseModel):
     mode: str | None = None
 
 
+class StoryboardViewReq(BaseModel):
+    outline: list[dict] = []
+    audience: str | None = None
+    mode: str | None = None
+
+
 # ---- API routes ----------------------------------------------------------
 
 @app.post("/api/backend")
@@ -271,6 +277,23 @@ def api_narrative(req: NarrativeReq):
     return {"available": True, **info, **result}
 
 
+@app.post("/api/storyboard_view")
+def api_storyboard_view(req: StoryboardViewReq):
+    """Unified payload for the new storyboard page.
+
+    Returns one bundle: outline (with role tags), threads, suggestions,
+    spine, tensions, engine, stats. Single fetch per outline edit — the
+    page never has to coordinate multiple endpoints.
+
+    Cascade lives inside threadmap+narrative; this endpoint just shapes
+    the response to what the design's JSX expects.
+    """
+    from deckengine.storyboard_view import compute_storyboard_view
+    return compute_storyboard_view(
+        req.outline or [], audience=req.audience, mode=req.mode,
+    )
+
+
 @app.post("/api/thread_map")
 def api_thread_map(req: ThreadMapReq):
     """Compute the before/after thread visualization for an outline.
@@ -331,36 +354,85 @@ def health():
 
 
 # ---- static frontend -----------------------------------------------------
+#
+# Layout:
+#   /            -> the v3 landing page (frontend/v2-assets/landing.html)
+#   /storyboard  -> the new storyboard page with thread tracks
+#   /workbench   -> the new three-panel workbench
+#   /canvas      -> the original single-slide canvas (kept for back-compat)
+#   /workbench-v1 -> the previous workbench we built today (kept for diff)
+#
+# All asset files (css/jsx/js) are served from the `frontend/` directory.
+# The v2 assets live at `frontend/v2-assets/`; the catch-all serves both.
+
+V2_ASSETS = os.path.join(FRONTEND, "v2-assets")
+
+
+def _serve_html(relpath: str) -> HTMLResponse:
+    target = os.path.join(FRONTEND, relpath)
+    with open(target, "r", encoding="utf-8") as f:
+        return HTMLResponse(f.read())
+
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    with open(os.path.join(FRONTEND, "index.html"), "r", encoding="utf-8") as f:
-        return HTMLResponse(f.read())
+    """v3 landing (scrollytelling marketing page)."""
+    return _serve_html("v2-assets/landing.html")
+
+
+@app.get("/setup", response_class=HTMLResponse)
+@app.get("/setup/", response_class=HTMLResponse)
+def setup():
+    """Step 02 · pick the goal. Audience + mode + stakes picker."""
+    return _serve_html("v2-assets/setup.html")
+
+
+@app.get("/storyboard", response_class=HTMLResponse)
+@app.get("/storyboard/", response_class=HTMLResponse)
+def storyboard():
+    """The new storyboard page — thread tracks + AI-noticed cards."""
+    return _serve_html("v2-assets/storyboard-v2.html")
 
 
 @app.get("/workbench", response_class=HTMLResponse)
 @app.get("/workbench/", response_class=HTMLResponse)
 def workbench():
-    with open(os.path.join(FRONTEND, "workbench.html"), "r", encoding="utf-8") as f:
-        return HTMLResponse(f.read())
+    """The new three-panel workbench."""
+    return _serve_html("v2-assets/workbench-v2.html")
 
 
-# All the JSX/CSS/JS assets live under /frontend/* so the HTML's relative
-# `<script src="mockBackend.js">` and `<link href="styles.css">` resolve.
-# We also mount the same dir at root so those bare paths work.
+@app.get("/canvas", response_class=HTMLResponse)
+@app.get("/canvas/", response_class=HTMLResponse)
+def canvas():
+    """Back-compat: the original single-slide canvas (v1)."""
+    return _serve_html("index.html")
+
+
+@app.get("/workbench-v1", response_class=HTMLResponse)
+@app.get("/workbench-v1/", response_class=HTMLResponse)
+def workbench_v1():
+    """Back-compat: the workbench we built earlier today, kept for diff."""
+    return _serve_html("workbench.html")
+
+
+# Asset mounts + catch-all
 if os.path.isdir(FRONTEND):
     app.mount("/frontend", StaticFiles(directory=FRONTEND), name="frontend")
     app.mount("/assets",   StaticFiles(directory=FRONTEND), name="assets")
-    # Catch-all for relative asset paths from index.html / workbench.html
-    # (e.g. `styles.css`, `mockBackend.js`) by serving them at the root.
+    if os.path.isdir(V2_ASSETS):
+        app.mount("/v2-assets", StaticFiles(directory=V2_ASSETS), name="v2-assets")
+
     @app.get("/{filename:path}")
     def root_assets(filename: str):
-        # Don't shadow /api or /health
+        # Don't shadow API or health
         if filename.startswith(("api/", "health")):
             return Response(status_code=404)
-        target = os.path.normpath(os.path.join(FRONTEND, filename))
-        if not target.startswith(FRONTEND):
-            return Response(status_code=403)
-        if os.path.isfile(target):
-            return FileResponse(target)
+        # Try v2-assets first so the new pages' relative `<script src="...">`
+        # work without rewriting their HTML to add a path prefix.
+        for base in (V2_ASSETS, FRONTEND):
+            target = os.path.normpath(os.path.join(base, filename))
+            if not target.startswith(base):
+                continue
+            if os.path.isfile(target):
+                return FileResponse(target)
         return Response(status_code=404)

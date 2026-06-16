@@ -1,0 +1,30 @@
+[build]
+  publish = "netlify-dist"
+  command = ""
+
+# Pretty URLs are on by default — Netlify will serve /setup as
+# /setup.html, /workbench as /workbench.html, etc. No redirects
+# needed for the canonical 5-phase flow. A catch-all 404 falls
+# through to /login.html so unknown paths still gate.
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options    = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy    = "strict-origin-when-cross-origin"
+
+# Cache the JSX/JS/CSS assets briefly so iteration on the demo
+# doesn't get blocked by stale CDN copies. Set short, not zero.
+[[headers]]
+  for = "/*.jsx"
+  [headers.values]
+    Cache-Control = "public, max-age=60"
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=60"
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=60"

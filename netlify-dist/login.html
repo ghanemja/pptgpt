@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>pptgpt — sign in</title>
+  <link rel="stylesheet" href="/storyboard-v2.css" />
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+    .login {
+      width: 100%;
+      max-width: 380px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: var(--shadow-card);
+    }
+    .login__brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+    .login__brand-mark {
+      width: 24px; height: 24px;
+      border-radius: 6px;
+      background: var(--accent);
+    }
+    .login__sub {
+      color: var(--mute);
+      font-size: 13px;
+      margin: 0 0 24px;
+    }
+    .login__field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .login__label {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: var(--mute);
+      text-transform: uppercase;
+    }
+    .login__input {
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg-3);
+      font-size: 15px;
+      font-family: var(--sans);
+      color: var(--ink);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .login__input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .login__cta {
+      width: 100%;
+      padding: 13px 18px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--ink);
+      color: var(--bg);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .login__cta:hover { background: var(--accent); }
+    .login__err {
+      color: var(--burgundy);
+      font-size: 13px;
+      margin: 12px 0 0;
+      display: none;
+    }
+    .login__err.is-visible { display: block; }
+    .login__hint {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--mute);
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px dashed var(--border);
+    }
+  </style>
+</head>
+<body>
+  <form class="login" id="loginForm" autocomplete="off">
+    <div class="login__brand">
+      <span class="login__brand-mark"></span>
+      pptgpt
+    </div>
+    <p class="login__sub">Sign in to view the demo.</p>
+
+    <div class="login__field">
+      <label class="login__label" for="u">Username</label>
+      <input class="login__input" id="u" name="u" autofocus required />
+    </div>
+    <div class="login__field">
+      <label class="login__label" for="p">Password</label>
+      <input class="login__input" id="p" name="p" type="password" required />
+    </div>
+
+    <button class="login__cta" type="submit">Continue</button>
+    <p class="login__err" id="err">Wrong username or password.</p>
+
+    <p class="login__hint">Demo gate only — not real auth.</p>
+  </form>
+
+  <script>
+    (function () {
+      // Cred check is INTENTIONALLY client-side. This is a demo gate
+      // visible to anyone who reads the source, not real auth.
+      var EXPECTED = { u: 'apples', p: 'apples' };
+      var form = document.getElementById('loginForm');
+      var err = document.getElementById('err');
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var u = document.getElementById('u').value.trim();
+        var p = document.getElementById('p').value;
+        if (u === EXPECTED.u && p === EXPECTED.p) {
+          sessionStorage.setItem('pptgpt.gate', 'ok');
+          var params = new URLSearchParams(location.search);
+          var next = params.get('next') || '/';
+          // Defense against open-redirect via the next param.
+          if (!next.startsWith('/') || next.startsWith('//')) next = '/';
+          location.replace(next);
+        } else {
+          err.classList.add('is-visible');
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -275,12 +275,14 @@ You are a deck-narrative editor. You read a slide outline and identify:
 
 1. The actual through-line (the one argument or question the deck is making).
 2. The arc shape (problem→cause→solution, before→after, claim→evidence→takeaway, etc.).
-3. Orphan slides — slides that don't serve the through-line, with WHY.
-4. Gaps — adjacent slides that don't connect, with WHAT'S MISSING and a
+3. A role for each slide — does it set up the question, summarize, dig
+   deep on a finding, name a risk, or call for a decision?
+4. Orphan slides — slides that don't serve the through-line, with WHY.
+5. Gaps — adjacent slides that don't connect, with WHAT'S MISSING and a
    concrete bridge suggestion.
-5. Tensions — contradictions, redundancies, or claims not supported by other
+6. Tensions — contradictions, redundancies, or claims not supported by other
    slides in the deck.
-6. Concrete recommendations — specific edits, each tied to slide IDs that
+7. Concrete recommendations — specific edits, each tied to slide IDs that
    actually exist in the input.
 
 Output STRICT JSON only (no commentary, no markdown fences). Schema:
@@ -288,6 +290,7 @@ Output STRICT JSON only (no commentary, no markdown fences). Schema:
 {
   "spine": "<one sentence stating the through-line>",
   "arc": "<one of: problem→evidence→takeaway | before→after | claim→evidence→takeaway | setup→escalation→resolution | status→risk→ask | other>",
+  "roles": {"<slide_id>": "summary|setup|deep-dive|decision|risk"},
   "orphans": [{"slide_id": "<id>", "reason": "<one-sentence why>"}],
   "gaps": [{"from": "<id>", "to": "<id>", "missing": "<what's missing>",
             "bridge_suggestion": "<concrete sentence to add>"}],
@@ -475,7 +478,15 @@ def _validate(payload: dict, outline: list[dict]) -> dict:
         "gaps":    [],
         "tensions":[],
         "recommendations": [],
+        "roles":   {},
     }
+
+    # roles — only keep entries whose slide_id is in the source outline
+    raw_roles = payload.get("roles") or {}
+    if isinstance(raw_roles, dict):
+        for sid, role in raw_roles.items():
+            if isinstance(sid, str) and sid in valid_ids and isinstance(role, str):
+                out["roles"][sid] = role.strip().lower()
 
     for o in payload.get("orphans") or []:
         sid = o.get("slide_id") if isinstance(o, dict) else None
