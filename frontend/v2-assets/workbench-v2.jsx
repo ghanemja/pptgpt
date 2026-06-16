@@ -1557,8 +1557,408 @@ function StoryboardCanvas({ outline, allowMulti, onEdit, onAdd, onRemove, onMove
   );
 }
 
-function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAdd, onRemove, onMove, onAcceptRec, onDismissRec, onContinue, onBack }) {
+// ───────────────────────────────────────────────────────────────
+// Thread Map — visualizes the deck's narrative messiness.
+// Ported from v1 frontend/workbench.jsx. Calls /api/thread_map when
+// a backend is reachable; renders an inline placeholder when not
+// (Netlify static build has no backend, so the tab degrades to a
+// "wire up the backend" hint instead of crashing).
+// ───────────────────────────────────────────────────────────────
+
+function ThreadMapView({ outline, recs, dismissedRecs, acceptedIds }) {
+  const [vizMode, setVizMode] = useState('graph');
+  const [recMode, setRecMode] = useState('potential');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [unreachable, setUnreachable] = useState(false);
+
+  const liveRecs = useMemo(
+    () => (recs || []).filter(r => !dismissedRecs.has(r.id)),
+    [recs, dismissedRecs]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    async function go() {
+      if (!outline || outline.length === 0) { setData(null); return; }
+      setLoading(true);
+      setUnreachable(false);
+      try {
+        const url = (location.protocol === 'http:' || location.protocol === 'https:')
+          ? location.origin + '/api/thread_map'
+          : '/api/thread_map';
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            outline,
+            recommendations: liveRecs,
+            acceptedIds: Array.from(acceptedIds || []),
+            mode: recMode,
+          }),
+        });
+        if (!res.ok) throw new Error('thread_map ' + res.status);
+        const json = await res.json();
+        if (!cancelled) setData(json);
+      } catch (err) {
+        if (!cancelled) { setData(null); setUnreachable(true); }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    go();
+    return () => { cancelled = true; };
+  }, [outline, liveRecs, acceptedIds, recMode]);
+
+  if (!data) {
+    return (
+      <div className="tm-empty">
+        {loading
+          ? 'computing thread map…'
+          : unreachable
+            ? 'Thread map needs the FastAPI backend. Run server.py locally or wire /api/thread_map.'
+            : 'no outline yet — add some slides to see the thread map.'}
+      </div>
+    );
+  }
+
+  const before = data.before;
+  const after = data.after;
+  const beforeStats = before.stats || {};
+  const afterStats  = after.stats  || {};
+
+  function delta(b, a) {
+    const d = a - b;
+    if (d === 0) return <span className="tm-delta tm-delta--zero">no change</span>;
+    if (d < 0)   return <span className="tm-delta tm-delta--good">−{Math.abs(d)}</span>;
+    return <span className="tm-delta tm-delta--bad">+{d}</span>;
+  }
+
+  return (
+    <div className="tm">
+      <div className="tm-bar">
+        <div className="tm-bar__seg">
+          <button
+            className={`tm-pill ${vizMode === 'graph' ? 'is-active' : ''}`}
+            onClick={() => setVizMode('graph')}
+          >concept graph</button>
+          <button
+            className={`tm-pill ${vizMode === 'ribbons' ? 'is-active' : ''}`}
+            onClick={() => setVizMode('ribbons')}
+          >concept ribbons</button>
+          {data?.before?.engine && (
+            <span className={`tm-engine-badge tm-engine-badge--${data.before.engine}`}
+                  title={
+                    data.before.engine === 'narrative'
+                      ? 'LLM reads the deck and reasons about story structure.'
+                      : data.before.engine === 'semantic'
+                      ? 'Sentence-transformer embeddings — synonyms link, no reasoning.'
+                      : 'Bag-of-words token overlap fallback.'
+                  }>
+              {data.before.engine === 'narrative'
+                ? '◆ narrative (LLM)'
+                : data.before.engine === 'semantic'
+                ? '◉ semantic'
+                : '○ lexical fallback'}
+            </span>
+          )}
+        </div>
+        <div className="tm-bar__seg tm-bar__seg--right">
+          <span className="tm-bar__label">compare:</span>
+          <button
+            className={`tm-pill ${recMode === 'potential' ? 'is-active' : ''}`}
+            onClick={() => setRecMode('potential')}
+            title="Show what the deck could be if every advisory were applied"
+          >potential</button>
+          <button
+            className={`tm-pill ${recMode === 'accepted' ? 'is-active' : ''}`}
+            onClick={() => setRecMode('accepted')}
+            title="Show only the recommendations you've actually accepted"
+          >accepted only</button>
+        </div>
+      </div>
+
+      {data?.before?.narrative_spine && (
+        <div className="tm-spine-card">
+          <div className="tm-spine-card__label">through-line</div>
+          <div className="tm-spine-card__text">{data.before.narrative_spine}</div>
+          {data.before.narrative_arc && (
+            <div className="tm-spine-card__arc">
+              <span className="tm-spine-card__arc-k">arc</span>
+              <code>{data.before.narrative_arc}</code>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="tm-stats">
+        <span className="tm-stat">
+          <span className="tm-stat__k">messiness</span>
+          <span className="tm-stat__v">{beforeStats.messiness} → <strong>{afterStats.messiness}</strong></span>
+        </span>
+        <span className="tm-stat"><span className="tm-stat__k">orphans</span><span className="tm-stat__v">{beforeStats.orphans} → {afterStats.orphans} {delta(beforeStats.orphans, afterStats.orphans)}</span></span>
+        <span className="tm-stat"><span className="tm-stat__k">hard cuts</span><span className="tm-stat__v">{beforeStats.gaps} → {afterStats.gaps} {delta(beforeStats.gaps, afterStats.gaps)}</span></span>
+        <span className="tm-stat"><span className="tm-stat__k">connections</span><span className="tm-stat__v">{beforeStats.edges} → {afterStats.edges} {delta(beforeStats.edges, afterStats.edges)}</span></span>
+        {data?.before?.engine !== 'narrative' && (
+          <span className="tm-stat"><span className="tm-stat__k">spine</span><span className="tm-stat__v">
+            {beforeStats.spine_word ? <em>{beforeStats.spine_word}</em> : <span className="tm-none">none</span>}
+            {' → '}
+            {afterStats.spine_word ? <em>{afterStats.spine_word}</em> : <span className="tm-none">none</span>}
+          </span></span>
+        )}
+      </div>
+
+      {data?.before?.graph?.tensions?.length > 0 && (
+        <div className="tm-tensions">
+          <div className="tm-tensions__label">tensions detected</div>
+          <ul>
+            {data.before.graph.tensions.map((t, i) => (
+              <li key={i} className={`tm-tension tm-tension--${t.kind}`}>
+                <span className="tm-tension__kind">{t.kind}</span>
+                <span className="tm-tension__text">{t.issue}</span>
+                <span className="tm-tension__slides">slides {t.slides.map(s => {
+                  const idx = (data.before.graph.nodes.find(n => n.id === s) || {}).index;
+                  return idx != null ? String(idx + 1).padStart(2, '0') : s;
+                }).join(' · ')}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="tm-split">
+        <div className="tm-pane">
+          <div className="tm-pane__title">before <span className="tm-pane__hint">as it stands</span></div>
+          {vizMode === 'graph'
+            ? <ConceptGraph view={before} faded={false} />
+            : <ConceptRibbons view={before} faded={false} />}
+        </div>
+        <div className="tm-pane">
+          <div className="tm-pane__title">
+            after {' '}
+            <span className="tm-pane__hint">{recMode === 'potential' ? `all ${data.applied.length} advisories applied` : `${data.applied.length} accepted recs applied`}</span>
+          </div>
+          {vizMode === 'graph'
+            ? <ConceptGraph view={after} faded={data.applied.length === 0} />
+            : <ConceptRibbons view={after} faded={data.applied.length === 0} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── force-directed concept graph (SVG) ──────────────────────────
+function ConceptGraph({ view, faded }) {
+  const W = 480, H = 360;
+  const nodes = view?.graph?.nodes || [];
+  const edges = view?.graph?.edges || [];
+  const orphans = new Set(view?.graph?.orphans || []);
+  const spine = view?.graph?.spine;
+  const spineSlides = new Set(spine?.slides || []);
+  const gapPairs = new Set((view?.graph?.gaps || []).map(g => g.from + '|' + g.to));
+
+  const layout = useMemo(() => {
+    if (nodes.length === 0) return [];
+    const idIdx = new Map(nodes.map((n, i) => [n.id, i]));
+    const N = nodes.length;
+    const pts = nodes.map((_, i) => {
+      const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
+      return { x: W/2 + Math.cos(angle) * 120, y: H/2 + Math.sin(angle) * 120 };
+    });
+    const k = Math.sqrt((W * H) / N);
+    for (let step = 0; step < 220; step++) {
+      const t = 6 * (1 - step / 220);
+      const disp = pts.map(() => ({ x: 0, y: 0 }));
+      for (let i = 0; i < N; i++) {
+        for (let j = i + 1; j < N; j++) {
+          let dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
+          let d = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+          const force = (k * k) / d;
+          dx /= d; dy /= d;
+          disp[i].x += dx * force; disp[i].y += dy * force;
+          disp[j].x -= dx * force; disp[j].y -= dy * force;
+        }
+      }
+      for (const e of edges) {
+        const a = idIdx.get(e.from), b = idIdx.get(e.to);
+        if (a == null || b == null) continue;
+        let dx = pts[a].x - pts[b].x, dy = pts[a].y - pts[b].y;
+        let d = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+        const force = (d * d) / k * (0.4 + 0.15 * e.weight);
+        dx /= d; dy /= d;
+        disp[a].x -= dx * force; disp[a].y -= dy * force;
+        disp[b].x += dx * force; disp[b].y += dy * force;
+      }
+      for (let i = 0; i < N; i++) {
+        const dx = disp[i].x, dy = disp[i].y;
+        const d = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+        pts[i].x += (dx / d) * Math.min(d, t);
+        pts[i].y += (dy / d) * Math.min(d, t);
+        pts[i].x += (W/2 - pts[i].x) * 0.005;
+        pts[i].y += (H/2 - pts[i].y) * 0.005;
+        const pad = 28;
+        pts[i].x = Math.max(pad, Math.min(W - pad, pts[i].x));
+        pts[i].y = Math.max(pad, Math.min(H - pad, pts[i].y));
+      }
+    }
+    return pts;
+  }, [nodes.length, JSON.stringify(edges.map(e => [e.from, e.to, e.weight]))]);
+
+  if (nodes.length === 0) {
+    return <div className="tm-empty">no slides yet</div>;
+  }
+
+  const maxW = Math.max(1, ...edges.map(e => e.weight));
+
+  return (
+    <svg className={`tm-svg ${faded ? 'is-faded' : ''}`} viewBox={`0 0 ${W} ${H}`}>
+      {edges.map((e, idx) => {
+        const a = nodes.findIndex(n => n.id === e.from);
+        const b = nodes.findIndex(n => n.id === e.to);
+        if (a < 0 || b < 0) return null;
+        const isGap = gapPairs.has(e.from + '|' + e.to) || gapPairs.has(e.to + '|' + e.from);
+        if (isGap) return null;
+        const strokeW = 0.6 + (e.weight / maxW) * 2.2;
+        return (
+          <line
+            key={'e' + idx}
+            className={`tm-edge ${e.adjacent ? 'tm-edge--adjacent' : ''}`}
+            x1={layout[a].x} y1={layout[a].y}
+            x2={layout[b].x} y2={layout[b].y}
+            strokeWidth={strokeW}
+          >
+            <title>{e.shared.join(', ')}</title>
+          </line>
+        );
+      })}
+      {(view?.graph?.gaps || []).map((g, idx) => {
+        const a = nodes.findIndex(n => n.id === g.from);
+        const b = nodes.findIndex(n => n.id === g.to);
+        if (a < 0 || b < 0) return null;
+        return (
+          <line
+            key={'gap' + idx}
+            className="tm-gap"
+            x1={layout[a].x} y1={layout[a].y}
+            x2={layout[b].x} y2={layout[b].y}
+          >
+            <title>hard cut between adjacent slides — no shared concept</title>
+          </line>
+        );
+      })}
+      {nodes.map((n, i) => {
+        const isOrphan = orphans.has(n.id);
+        const isSpine = spineSlides.has(n.id);
+        return (
+          <g
+            key={n.id}
+            className={`tm-node ${isOrphan ? 'is-orphan' : ''} ${isSpine ? 'is-spine' : ''}`}
+            transform={`translate(${layout[i].x},${layout[i].y})`}
+          >
+            <circle r={isOrphan ? 10 : 12} />
+            <text textAnchor="middle" dy={4} fontSize="11">{String(n.index + 1).padStart(2, '0')}</text>
+            <text className="tm-node__title" textAnchor="middle" y={26} fontSize="10">
+              {n.title.length > 22 ? n.title.slice(0, 21) + '…' : n.title}
+            </text>
+            <title>{n.title}{isOrphan ? '  (orphan — shares nothing)' : ''}{isSpine ? '  (carries spine word)' : ''}</title>
+          </g>
+        );
+      })}
+      {spine && (
+        <g className="tm-spine-tag" transform={`translate(${W - 8}, 16)`}>
+          <text textAnchor="end" fontSize="11">spine · <tspan className="tm-spine-tag__word">{spine.word}</tspan></text>
+        </g>
+      )}
+    </svg>
+  );
+}
+
+// ── concept ribbons (Sankey-style flow) ─────────────────────────
+function ConceptRibbons({ view, faded }) {
+  const W = 480, H = 360;
+  const nodes = view?.graph?.nodes || [];
+  const ribbons = view?.ribbons || [];
+  if (nodes.length === 0) return <div className="tm-empty">no slides yet</div>;
+
+  const padX = 36, padY = 30;
+  const colW = (W - padX * 2) / Math.max(1, nodes.length - 1 || 1);
+  const slideY = padY;
+  const slideH = 36;
+  const flowTop = slideY + slideH + 18;
+  const flowBottom = H - padY - 18;
+  const flowH = flowBottom - flowTop;
+
+  const ribbonsToDraw = ribbons.slice(0, 8);
+  const lanes = ribbonsToDraw.length;
+  const laneH = flowH / Math.max(1, lanes);
+
+  const palette = ['#4ec5ff', '#ffd166', '#a3e635', '#f97070', '#c084fc', '#22d3ee', '#fb923c', '#34d399'];
+
+  function nodeX(i) {
+    if (nodes.length === 1) return W / 2;
+    return padX + i * colW;
+  }
+
+  return (
+    <svg className={`tm-svg tm-svg--ribbons ${faded ? 'is-faded' : ''}`} viewBox={`0 0 ${W} ${H}`}>
+      {nodes.map((n, i) => (
+        <g key={n.id} transform={`translate(${nodeX(i) - 30},${slideY})`}>
+          <rect className="tm-slide-tile" width={60} height={slideH} rx={4} />
+          <text x={30} y={16} textAnchor="middle" fontSize="11">{String(n.index + 1).padStart(2, '0')}</text>
+          <text className="tm-slide-tile__title" x={30} y={30} textAnchor="middle" fontSize="9">
+            {n.title.length > 14 ? n.title.slice(0, 13) + '…' : n.title}
+          </text>
+        </g>
+      ))}
+      {ribbonsToDraw.map((r, ri) => {
+        const color = r.is_spine ? '#ffd166' : palette[ri % palette.length];
+        const y = flowTop + laneH * ri + laneH / 2;
+        const slides = r.slides;
+        const segs = [];
+        for (let i = 0; i < slides.length - 1; i++) {
+          const a = slides[i], b = slides[i + 1];
+          segs.push({ a, b, broken: (b - a) > 1 });
+        }
+        return (
+          <g key={r.token}>
+            {segs.map((seg, si) => {
+              const x1 = nodeX(seg.a), x2 = nodeX(seg.b);
+              const mid = (x1 + x2) / 2;
+              const d = `M${x1},${y} C${mid},${y} ${mid},${y} ${x2},${y}`;
+              return (
+                <path
+                  key={si}
+                  d={d}
+                  className={`tm-ribbon ${seg.broken ? 'is-broken' : ''} ${r.is_spine ? 'is-spine' : ''}`}
+                  stroke={color}
+                  strokeWidth={r.is_spine ? 4 : 2 + r.weight * 0.35}
+                  fill="none"
+                  strokeLinecap="round"
+                />
+              );
+            })}
+            {slides.map(si => (
+              <circle key={si} cx={nodeX(si)} cy={y} r={r.is_spine ? 4 : 3} fill={color} />
+            ))}
+            <text x={padX - 10} y={y + 3} textAnchor="end" fontSize="10"
+                  className={`tm-ribbon-label ${r.is_spine ? 'is-spine' : ''}`}>
+              {r.token}{r.broken ? ' ·' : ''}
+            </text>
+          </g>
+        );
+      })}
+      {ribbonsToDraw.length === 0 && (
+        <text x={W/2} y={H/2} textAnchor="middle" fontSize="12" className="tm-empty-text">
+          no recurring concepts — every slide is its own island
+        </text>
+      )}
+    </svg>
+  );
+}
+
+function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAdd, onRemove, onMove, onAcceptRec, onDismissRec, onContinue, onBack, acceptedIds }) {
   const liveRecs = recs.filter(r => !dismissedRecs.has(r.id));
+  const [view, setView] = useState('storyboard'); // 'storyboard' | 'threadmap'
   return (
     <div className="sm">
       <div className="sm-inner">
@@ -1573,6 +1973,27 @@ function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAd
           </p>
         </div>
 
+        <div className="sb-tabs">
+          <button
+            className={`sb-tab ${view === 'storyboard' ? 'is-active' : ''}`}
+            onClick={() => setView('storyboard')}
+          >Storyboard</button>
+          <button
+            className={`sb-tab ${view === 'threadmap' ? 'is-active' : ''}`}
+            onClick={() => setView('threadmap')}
+          >Thread map <span className="sb-tab__hint">see the messiness</span></button>
+        </div>
+
+        {view === 'threadmap' ? (
+          <div className="sb-threadmap-wrap">
+            <ThreadMapView
+              outline={outline}
+              recs={recs}
+              dismissedRecs={dismissedRecs}
+              acceptedIds={acceptedIds || new Set()}
+            />
+          </div>
+        ) : (
         <div className="sb-grid">
           <div className="sb-board">
             <div className="sm-board__head">
@@ -1622,6 +2043,7 @@ function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAd
             )}
           </aside>
         </div>
+        )}
 
         <div className="sm-foot">
           <button className="sb-back" onClick={onBack}>← back to story map</button>
@@ -1741,6 +2163,9 @@ function App() {
   const [extractedOutline, setExtractedOutline] = useState(null);
   const [extractedRecs, setExtractedRecs] = useState([]);
   const [dismissedRecs, setDismissedRecs] = useState(new Set());
+  // Accepted recs power the Thread map "accepted only" comparison.
+  // Grows as the user clicks "accept" in the suggestions side panel.
+  const [acceptedRecIds, setAcceptedRecIds] = useState(new Set());
 
   const outline = outlines[mode];
 
@@ -1842,6 +2267,7 @@ function App() {
     setExtractedOutline(null);
     setExtractedRecs([]);
     setDismissedRecs(new Set());
+    setAcceptedRecIds(new Set());
     setAnswersByMode({});
     setRemovedByMode({});
     setResponseByMode({});
@@ -1854,6 +2280,7 @@ function App() {
     setExtractedOutline(outline);
     setExtractedRecs(recommendations || []);
     setDismissedRecs(new Set());
+    setAcceptedRecIds(new Set());
     setPhase('storyboard');
   }
 
@@ -1921,6 +2348,11 @@ function App() {
         next.push({ id: uid('s'), title: 'Next steps', messages: ['Action  ·  owner  ·  by when', '', ''], bumper: '' });
       }
       return next.length === 0 ? [{ id: uid('s'), title: '', messages: ['', '', ''], bumper: '' }] : next;
+    });
+    setAcceptedRecIds(prev => {
+      const next = new Set(prev);
+      next.add(rec.id);
+      return next;
     });
     sbDismissRec(rec.id);
   }
@@ -2032,6 +2464,7 @@ function App() {
           outline={extractedOutline}
           recs={extractedRecs}
           dismissedRecs={dismissedRecs}
+          acceptedIds={acceptedRecIds}
           allowMulti={mode === 'condense'}
           onEdit={sbEdit}
           onAdd={sbAdd}
