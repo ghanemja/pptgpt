@@ -115,9 +115,7 @@
 
   <script>
     (function () {
-      // Cred check is INTENTIONALLY client-side. This is a demo gate
-      // visible to anyone who reads the source, not real auth.
-      var EXPECTED = { u: 'apples', p: 'apples' };
+      var EXPECTED = { u: 'admin', p: 'password' };
       var form = document.getElementById('loginForm');
       var err = document.getElementById('err');
       form.addEventListener('submit', function (e) {

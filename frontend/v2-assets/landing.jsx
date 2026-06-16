@@ -1230,7 +1230,7 @@ function Nav() {
         <button className="btn btn--ghost">Log in</button>
         <button
           className="btn btn--primary"
-          onClick={() => { window.location.href = '/setup'; }}
+          onClick={() => { window.location.href = '/workbench'; }}
         >Try it free</button>
       </div>
     </nav>

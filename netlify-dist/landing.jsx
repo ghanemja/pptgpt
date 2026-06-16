@@ -1230,7 +1230,7 @@ function Nav() {
         <button className="btn btn--ghost">Log in</button>
         <button
           className="btn btn--primary"
-          onClick={() => { window.location.href = '/setup'; }}
+          onClick={() => { window.location.href = '/workbench'; }}
         >Try it free</button>
       </div>
     </nav>
@@ -1257,7 +1257,7 @@ function Hero() {
       <div className="hero__cta">
         <button
           className="btn btn--accent btn--lg"
-          onClick={() => { window.location.href = '/setup'; }}
+          onClick={() => { window.location.href = '/workbench'; }}
         >
           Try it free
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

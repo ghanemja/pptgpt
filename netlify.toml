@@ -2,10 +2,20 @@
   publish = "netlify-dist"
   command = ""
 
-# Pretty URLs are on by default — Netlify will serve /setup as
-# /setup.html, /workbench as /workbench.html, etc. No redirects
-# needed for the canonical 5-phase flow. A catch-all 404 falls
-# through to /login.html so unknown paths still gate.
+# Pretty URLs are on by default — Netlify will serve /workbench as
+# /workbench.html, /storyboard as /storyboard.html, etc.
+#
+# /setup was a thin warmup page that duplicated workbench step 01
+# without its upload + paste affordances. Redirected away so the
+# canonical 5-phase app at /workbench is the single entry point.
+[[redirects]]
+  from = "/setup"
+  to = "/workbench"
+  status = 301
+[[redirects]]
+  from = "/setup.html"
+  to = "/workbench"
+  status = 301
 
 [[headers]]
   for = "/*"
