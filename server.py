@@ -49,6 +49,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from auth import auth_middleware, mint_token, check_password
+
 from deckengine.synth import backend as synth_backend
 from deckengine.storyboard import extract_storyboard, generate_critique
 from deckengine.spec_render import render_specs, _render_plot_png
@@ -66,9 +68,18 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 FRONTEND = os.path.join(ROOT, "frontend")
 
 app = FastAPI(title="DeckEngine")
+
+# CORS — defaults to * for dev; in prod set CORS_ORIGINS to the Netlify URL
+# (comma-separated allowed). Same env var name as the rest of the portfolio.
+_cors_raw = os.environ.get("CORS_ORIGINS", "*").strip()
+_cors_origins = ["*"] if _cors_raw == "*" else [o.strip() for o in _cors_raw.split(",") if o.strip()]
 app.add_middleware(
-    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+    CORSMiddleware, allow_origins=_cors_origins, allow_methods=["*"], allow_headers=["*"],
 )
+
+# Bearer-token auth — gated by BU_AUTH_* env vars (same pattern across all
+# portfolio projects, so the shared secret means one login works everywhere).
+app.middleware("http")(auth_middleware)
 
 
 # ---- request models (loose: passthrough dicts) ---------------------------
@@ -351,6 +362,25 @@ def api_render_ir(req: RenderIrReq):
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+# ---- auth ----------------------------------------------------------------
+
+class LoginReq(BaseModel):
+    username: str = ""
+    password: str = ""
+
+
+@app.post("/login")
+def login(req: LoginReq):
+    """Issue a bearer token for valid credentials.
+
+    Shared BU_AUTH_* env vars across portfolio projects mean the SAME
+    username/password works on every project's Space. Tokens are not
+    portable across projects unless BU_AUTH_SECRET is also shared."""
+    if not check_password(req.username, req.password):
+        return JSONResponse({"detail": "invalid credentials"}, status_code=401)
+    return {"token": mint_token(req.username), "user": req.username}
 
 
 # ---- static frontend -----------------------------------------------------

@@ -1,3 +1,13 @@
+---
+title: pptgpt
+emoji: 🖼️
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # DeckEngine
 
 A local-first, open-source slide generator built on one idea:

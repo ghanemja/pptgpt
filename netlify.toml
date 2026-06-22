@@ -1,6 +1,8 @@
 [build]
   publish = "netlify-dist"
-  command = ""
+  # Inject BU_API_BASE (this project's HF Space URL) into netlify-dist/config.js
+  # at build time. See PORTFOLIO_ENV.md in brain-university for env-var setup.
+  command = "node scripts/gen-config.mjs"
 
 # Pretty URLs are on by default — Netlify will serve /workbench as
 # /workbench.html, /storyboard as /storyboard.html, etc.
@@ -30,6 +32,7 @@
   for = "/*.jsx"
   [headers.values]
     Cache-Control = "public, max-age=60"
+    Content-Type = "text/babel; charset=utf-8"
 [[headers]]
   for = "/*.js"
   [headers.values]
