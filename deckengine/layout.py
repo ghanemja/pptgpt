@@ -15,7 +15,7 @@ Design philosophy (lifted from hard-won slide-design rules):
 The 16:9 canvas is 13.333 x 7.5 inches (standard PowerPoint widescreen).
 """
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional
 
 from .ir import Slide, Theme, BlockKind, ContentBlock
@@ -31,7 +31,7 @@ class Box:
     y: float
     w: float
     h: float
-    role: str                     # "title" | "stat_value" | "stat_label" | ...
+    role: str                     # "title" | "stat_value" | "stat_label" | "image" | ...
     text: str = ""
     font: str = "Calibri"
     size_pt: float = 16.0
@@ -39,6 +39,13 @@ class Box:
     color: str = "10131F"         # hex no '#'
     align: str = "left"           # left | center | right
     valign: str = "top"           # top | middle | bottom
+    # Image payload — when set, the renderer emits a PICTURE shape
+    # instead of a TEXTBOX. `image_path` is a filesystem path written
+    # at ingest time (kind='photo'/'diagram'). `image_chart` carries
+    # the {type, categories, series} payload for kind='chart' so the
+    # renderer can re-draw in the engine's own style.
+    image_path: Optional[str] = None
+    image_chart: Optional[dict] = None
 
 
 @dataclass
@@ -383,6 +390,59 @@ RESOLVERS = {
 }
 
 
+def _attach_hero_image(slide: Slide, theme: Theme, rs: ResolvedSlide) -> ResolvedSlide:
+    """Bolt a hero image onto an already-resolved slide.
+
+    Takes the first ImageRef on the slide (photo / diagram / chart) and
+    appends a Box at a fixed right-side slot inside the canvas margins.
+    Text boxes that previously spanned the full content width are
+    shrunken in-place so they don't run under the image.
+
+    This is intentionally lightweight: per-archetype tuned image
+    placements live in their own follow-up. For the demo we just want
+    the source visuals to actually appear on the rendered slide.
+    """
+    if not slide.images:
+        return rs
+    img = slide.images[0]
+    is_chart = (img.kind == "chart") and bool(img.chart_data)
+    # For server-side render we need a filesystem path. Public URL
+    # alone isn't enough — render.py can't fetch over HTTP.
+    fs_path = getattr(img, "fs_path", None) or img.path
+    if not is_chart and not fs_path:
+        return rs  # nothing to embed
+
+    m = theme.margin_in
+    # Right-side slot: ~5" wide × ~4.3" tall, vertically centered in the
+    # content band (below the title row).
+    img_w = 5.0
+    img_h = 4.3
+    img_x = CANVAS_W - m - img_w
+    img_y = max(m + 1.2, (CANVAS_H - img_h) / 2)
+
+    # Shrink any wide text Box that would underlay the image.
+    shrunken: list[Box] = []
+    for b in rs.boxes:
+        # Title spans full width by convention; leave it alone unless it
+        # would visibly intersect the image vertically.
+        intersects_v = not (b.y + b.h <= img_y or b.y >= img_y + img_h)
+        intersects_h = not (b.x + b.w <= img_x or b.x >= img_x + img_w)
+        if intersects_v and intersects_h:
+            # Trim the box to end before the image, with a small gap.
+            new_w = max(1.0, img_x - b.x - theme.gap_in)
+            shrunken.append(replace(b, w=new_w))
+        else:
+            shrunken.append(b)
+
+    image_box = Box(
+        x=img_x, y=img_y, w=img_w, h=img_h, role="image",
+        image_path=(None if is_chart else fs_path),
+        image_chart=(img.chart_data if is_chart else None),
+    )
+    shrunken.append(image_box)
+    return ResolvedSlide(boxes=shrunken, bg=rs.bg, archetype=rs.archetype)
+
+
 def resolve(slide: Slide, theme: Theme, archetype: Optional[str] = None) -> ResolvedSlide:
     """
     Dispatch: explicit `archetype` wins; else `slide.intent`; else a content-
@@ -390,19 +450,22 @@ def resolve(slide: Slide, theme: Theme, archetype: Optional[str] = None) -> Reso
     R1.3.2: fallback is deterministic and documented here.
     """
     if archetype and archetype in RESOLVERS:
-        return RESOLVERS[archetype](slide, theme)
+        rs = RESOLVERS[archetype](slide, theme)
+        return _attach_hero_image(slide, theme, rs)
 
     intent_arch = slide.intent.value if slide.intent.value in RESOLVERS else None
     if intent_arch:
         # honor the intent unless the content can't support it
         try:
-            return RESOLVERS[intent_arch](slide, theme)
+            rs = RESOLVERS[intent_arch](slide, theme)
+            return _attach_hero_image(slide, theme, rs)
         except ValueError:
             pass  # fall through to content-driven pick
 
     # content-driven fallback (R1.3.2)
     arch = _pick_archetype(slide)
-    return RESOLVERS[arch](slide, theme)
+    rs = RESOLVERS[arch](slide, theme)
+    return _attach_hero_image(slide, theme, rs)
 
 
 def _pick_archetype(slide: Slide) -> str:

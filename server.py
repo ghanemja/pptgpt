@@ -396,6 +396,28 @@ def api_render_direction(req: RenderDirectionReq):
     )
 
 
+@app.post("/api/render_uploaded")
+async def api_render_uploaded(file: UploadFile = File(...), palette: str = "clean"):
+    """Upload .pptx → re-render via the engine in one shot. Images and
+    charts extracted by ingest are re-placed by the layout engine in its
+    own style. Returns the rendered .pptx as a download."""
+    from deckengine.ingest import ingest_pptx_bytes
+    raw = await file.read()
+    try:
+        deck = ingest_pptx_bytes(raw, uploads_dir=UPLOADS, url_prefix="/uploads")
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"failed to ingest: {e}"})
+    theme = PALETTES.get(palette, Theme())
+    resolved = [layout_resolve(s, theme) for s in deck.slides]
+    fd, out = tempfile.mkstemp(prefix="deckengine-up-", suffix=".pptx")
+    os.close(fd)
+    render_deck(resolved, out)
+    return FileResponse(
+        out, filename="reengineered.pptx",
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    )
+
+
 @app.post("/api/render_ir")
 def api_render_ir(req: RenderIrReq):
     """Raw text -> .pptx via the IR engine. The architecturally correct

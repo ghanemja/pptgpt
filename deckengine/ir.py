@@ -55,11 +55,12 @@ class ImageRef:
                   series so the engine can re-render in its own style;
                   `path` is also set to a snapshot PNG fallback.
     """
-    path: str                            # filesystem path or /samples-style URL
+    path: str                            # public-facing URL (what the UI loads)
     alt: str = ""                        # title / a11y label
     source_idx: int = 0                  # source slide index this came from
     kind: str = "photo"                  # 'photo' | 'diagram' | 'chart'
     chart_data: Optional[dict] = None    # {type, categories, series:[{name, values}]}
+    fs_path: Optional[str] = None        # absolute filesystem path — for server-side renderer
 
 
 @dataclass

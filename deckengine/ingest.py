@@ -116,14 +116,16 @@ def _slide_to_ir(sl, idx: int, *, save_dir: Optional[str] = None,
                 fname = f"slide{idx:02d}_{img_seq:02d}.{ext}"
                 img_seq += 1
                 path = ""
+                fs_path_val: Optional[str] = None
                 if save_dir is not None and url_prefix is not None:
-                    fs_path = os.path.join(save_dir, fname)
-                    with open(fs_path, "wb") as f:
+                    fs_path_val = os.path.join(save_dir, fname)
+                    with open(fs_path_val, "wb") as f:
                         f.write(blob)
                     path = f"{url_prefix}/{fname}"
                 alt = (getattr(shape, "name", "") or "").strip()
                 image_refs.append(ImageRef(
                     path=path, alt=alt, source_idx=idx, kind="photo",
+                    fs_path=fs_path_val,
                 ))
             except Exception:
                 pass
