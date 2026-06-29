@@ -21,11 +21,11 @@
   --border:   #E3E8E0;        /* cool light sage */
   --border-2: #D2D9CE;
   --accent:        #0E5B36;   /* forest emerald — primary */
-  --accent-2:      #E26A2C;   /* tangerine spark — alerts / structural */
+  --accent-2:      #2E7D5A;   /* lighter emerald — was tangerine; user wants white+green only */
   --accent-soft:   #DDEADE;
   --accent-deep:   #0A4326;
-  --spark-soft:    #F8DFCB;
-  --gold:          #C99A2E;
+  --spark-soft:    #DDEADE;   /* aliased to accent-soft so any leftover refs stay green */
+  --gold:          #2E7D5A;   /* aliased — drop the gold accent */
 
   /* 3b1b palette — used inside visualize-mode chrome */
   --b3-bg:        #0F0F1E;
@@ -1453,12 +1453,15 @@ button { font: inherit; color: inherit; }
 /* ── Storyboard page (its own phase) ───────────────────────── */
 .sb-grid {
   display: grid;
-  /* 3 panels horizontal: storyboard | recommendations | thread map */
-  grid-template-columns: minmax(0, 1.4fr) 320px 380px;
-  gap: 18px;
+  /* 3 panels horizontal: storyboard | recommendations | thread map.
+     The board gets the biggest share so multi-slide decks aren't
+     squeezed into a sliver. */
+  grid-template-columns: minmax(0, 2fr) 340px 400px;
+  gap: 22px;
 }
-@media (max-width: 1400px) { .sb-grid { grid-template-columns: minmax(0, 1fr) 300px 340px; gap: 14px; } }
-@media (max-width: 1100px) { .sb-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1500px) { .sb-grid { grid-template-columns: minmax(0, 1.5fr) 310px 360px; gap: 16px; } }
+@media (max-width: 1200px) { .sb-grid { grid-template-columns: minmax(0, 1fr) 290px; gap: 14px; } }
+@media (max-width: 980px)  { .sb-grid { grid-template-columns: 1fr; } }
 .sb-board {
   display: flex;
   flex-direction: column;
@@ -1598,7 +1601,7 @@ button { font: inherit; color: inherit; }
 .sb-tile {
   position: absolute;
   top: 0; left: 0;
-  width: 252px;
+  width: 292px;
   background: var(--paper);
   border: 1px solid var(--border);
   border-left: 3px solid var(--border);
@@ -1620,7 +1623,7 @@ button { font: inherit; color: inherit; }
 .sb-tile--msg1     { border-left-color: #4ec5ff; }     /* teal */
 .sb-tile--msg2     { border-left-color: #58B07E; }     /* sage */
 .sb-tile--msg3     { border-left-color: #ffd166; }     /* warm */
-.sb-tile--bumper   { border-left-color: #C9531C; }     /* accent-2 */
+.sb-tile--bumper   { border-left-color: var(--accent-2); }
 
 .sb-tile--title  .sb-tile__head { background: #1A1A1A;         color: rgba(255,255,255,0.7); border-bottom-color: #1A1A1A; }
 .sb-tile--msg1   .sb-tile__head { background: rgba(78,197,255,0.10); color: #0f5b80; }
@@ -1636,12 +1639,12 @@ button { font: inherit; color: inherit; }
 .sb-tile__head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 7px;
+  gap: 8px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   cursor: grab;
   font-family: var(--font-mono);
-  font-size: 8.5px;
+  font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--gray);
@@ -1673,7 +1676,7 @@ button { font: inherit; color: inherit; }
 .sb-tile__actions button:hover:not(:disabled) { background: var(--bg-tint); color: var(--ink); }
 .sb-tile__actions button:disabled { opacity: 0.3; cursor: default; }
 
-.sb-tile__body { padding: 6px 10px 8px; }
+.sb-tile__body { padding: 12px 14px 14px; min-height: 56px; }
 
 .sb-tile--title { border-color: var(--ink); }
 .sb-tile--title .sb-tile__head { border-bottom-color: var(--ink); background: var(--ink); color: rgba(255,255,255,0.7); }
@@ -1692,8 +1695,8 @@ button { font: inherit; color: inherit; }
   font-family: var(--font-serif);
   font-style: italic;
   font-weight: 500;
-  font-size: 14.5px;
-  line-height: 1.25;
+  font-size: 16px;
+  line-height: 1.3;
   color: var(--ink);
 }
 .sb-tile__title-input::placeholder { color: var(--gray-2); }
@@ -2408,4 +2411,102 @@ button { font: inherit; color: inherit; }
   background: rgba(255,255,255,0.08);
   color: rgba(255,255,255,0.78);
   border-color: rgba(255,255,255,0.18);
+}
+
+/* Stale-extraction banner — shows up on step 03 when the user changed
+   mode / audience after the outline was extracted. Click "re-extract"
+   to rerun extraction against the cached source text. */
+.sb-stale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #FFF8EA;
+  border: 1px solid #E9D78F;
+  border-radius: 6px;
+  font: 500 13px/1.4 var(--font-sans);
+  color: #4A3A0A;
+}
+.sb-stale__msg { flex: 1; }
+.sb-stale__detail {
+  color: #6A582A;
+  font-weight: 400;
+  font-style: italic;
+}
+.sb-stale__btn {
+  background: var(--accent);
+  color: var(--paper);
+  border: 0;
+  padding: 6px 14px;
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.sb-stale__btn:hover { background: var(--accent-deep); }
+.sb-stale__btn:disabled { opacity: 0.55; cursor: wait; }
+
+/* Pre-extract peek panel — shows "what's in this deck" before commit. */
+.sm-peek {
+  margin-top: 14px;
+  background: var(--bg-tint);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 18px;
+  font: 400 13px/1.5 var(--font-sans);
+  color: var(--ink-2);
+}
+.sm-peek__loading {
+  font-style: italic;
+  color: var(--gray);
+}
+.sm-peek__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font: 500 12px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gray);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.sm-peek__stat strong {
+  color: var(--ink);
+  font-weight: 700;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  margin-right: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.sm-peek__stat--mute strong { color: var(--gray); }
+.sm-peek__slides {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sm-peek__slides li {
+  display: flex;
+  gap: 12px;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+.sm-peek__slides li:hover { background: var(--paper); }
+.sm-peek__idx {
+  font: 500 11px/1.5 var(--font-mono);
+  color: var(--gray);
+  min-width: 22px;
+}
+.sm-peek__title {
+  color: var(--ink);
+  line-height: 1.4;
 }

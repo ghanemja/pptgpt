@@ -122,6 +122,9 @@ PUBLIC_PATHS = {
     "/workbench", "/workbench/",
     "/canvas", "/canvas/",
     "/workbench-v1", "/workbench-v1/",
+    # Pre-extract metadata for sample browsing — public so the
+    # storymap can show "5 slides · 2 images" without auth.
+    "/api/peek",
 }
 PUBLIC_PREFIXES = ("/frontend/", "/assets/", "/v2-assets/", "/samples/", "/uploads/")
 PUBLIC_SUFFIXES = (".html", ".css", ".js", ".jsx", ".png", ".jpg", ".svg", ".ico", ".woff", ".woff2",

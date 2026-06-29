@@ -263,6 +263,57 @@ async def api_ingest(file: UploadFile = File(...)):
     return deck_to_dict(deck)
 
 
+@app.post("/api/peek")
+async def api_peek(file: UploadFile = File(...)):
+    """Lightweight pre-extraction metadata. Returns slide count, slide
+    titles, image / chart counts, and file size — enough for the UI to
+    show "what's in this deck" before the user commits to a mode +
+    extract. Does NOT persist any image blobs (unlike /api/ingest)."""
+    raw = await file.read()
+    size = len(raw)
+    try:
+        from pptx import Presentation
+        import io as _io
+        prs = Presentation(_io.BytesIO(raw))
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"failed to read pptx: {e}"})
+    slides = []
+    image_count = 0
+    chart_count = 0
+    for i, sl in enumerate(prs.slides):
+        title = ""
+        for sh in sl.shapes:
+            try:
+                ph = sh.placeholder_format
+            except Exception:
+                ph = None
+            if ph is not None and ph.idx == 0 and sh.has_text_frame:
+                title = sh.text_frame.text.split("\n", 1)[0].strip()
+                break
+        if not title:
+            for sh in sl.shapes:
+                if sh.has_text_frame and sh.text_frame.text.strip():
+                    title = sh.text_frame.text.split("\n", 1)[0].strip()
+                    break
+        for sh in sl.shapes:
+            try:
+                if getattr(sh, "shape_type", None) == 13:  # PICTURE
+                    image_count += 1
+                if getattr(sh, "has_chart", False):
+                    chart_count += 1
+            except Exception:
+                pass
+        slides.append({"index": i, "title": title or f"Slide {i + 1}"})
+    return {
+        "filename": file.filename,
+        "size_bytes": size,
+        "slide_count": len(slides),
+        "image_count": image_count,
+        "chart_count": chart_count,
+        "slides": slides,
+    }
+
+
 @app.post("/api/narrative")
 def api_narrative(req: NarrativeReq):
     """Direct access to the LLM narrative analysis.

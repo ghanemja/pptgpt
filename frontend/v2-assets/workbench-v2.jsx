@@ -935,6 +935,7 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
         recommendations: res.recommendations || [],
         sourceFile: file,
         sourceText: text,
+        targetCount,
       });
     } catch (e) {
       setError(e.message || 'Extraction failed.');
@@ -942,10 +943,25 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
     setExtracting(false);
   }
 
+  const [peek, setPeek] = useState(null);
+  const [peeking, setPeeking] = useState(false);
+
   function onFile(f) {
     if (!f) return;
     setFile(f);
     setError('');
+    setPeek(null);
+    // Only .pptx is peek-able server-side. Skip for other formats.
+    const ext = (f.name || '').toLowerCase().split('.').pop();
+    if (ext !== 'pptx') return;
+    setPeeking(true);
+    const fd = new FormData();
+    fd.append('file', f, f.name);
+    fetch('/api/peek', { method: 'POST', body: fd })
+      .then(r => r.ok ? r.json() : null)
+      .then(j => setPeek(j))
+      .catch(() => setPeek(null))
+      .finally(() => setPeeking(false));
   }
 
   async function loadSample() {
@@ -1117,7 +1133,7 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
             {file && (
               <div className="sm-upload__file">
                 <span>📄 {file.name}  ·  {Math.round(file.size / 1024)} KB</span>
-                <button className="sm-upload__clear" onClick={() => setFile(null)}>×</button>
+                <button className="sm-upload__clear" onClick={() => { setFile(null); setPeek(null); }}>×</button>
               </div>
             )}
             {!file && (
@@ -1132,6 +1148,34 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
             )}
           </div>
         </div>
+
+        {(peeking || peek) && (
+          <div className="sm-peek">
+            {peeking && <div className="sm-peek__loading">reading deck…</div>}
+            {peek && (
+              <>
+                <div className="sm-peek__stats">
+                  <span className="sm-peek__stat"><strong>{peek.slide_count}</strong> slide{peek.slide_count === 1 ? '' : 's'}</span>
+                  {peek.image_count > 0 && (
+                    <span className="sm-peek__stat"><strong>{peek.image_count}</strong> image{peek.image_count === 1 ? '' : 's'}</span>
+                  )}
+                  {peek.chart_count > 0 && (
+                    <span className="sm-peek__stat"><strong>{peek.chart_count}</strong> chart{peek.chart_count === 1 ? '' : 's'}</span>
+                  )}
+                  <span className="sm-peek__stat sm-peek__stat--mute">{Math.round((peek.size_bytes || 0) / 1024)} KB</span>
+                </div>
+                <ol className="sm-peek__slides">
+                  {(peek.slides || []).map(s => (
+                    <li key={s.index}>
+                      <span className="sm-peek__idx">{String(s.index + 1).padStart(2, '0')}</span>
+                      <span className="sm-peek__title">{s.title}</span>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            )}
+          </div>
+        )}
         </div>{/* /sm-step 01 */}
 
         {error && <div className="sm-error">{error}</div>}
@@ -1393,15 +1437,15 @@ function StoryboardCanvas({ outline, allowMulti, onEdit, onAdd, onRemove, onMove
   React.useEffect(() => {
     setPositions(prev => {
       const next = { ...prev };
-      const W = 280;
+      const W = 320;
       outline.forEach((s, i) => {
         const x = 16 + i * W;
         const ensure = (k, dy) => { if (!next[k]) next[k] = { x, y: dy }; };
         ensure(fieldAnchor(s, 'title'),       16);
-        ensure(fieldAnchor(s, 'msg', 0),      82);
-        ensure(fieldAnchor(s, 'msg', 1),     148);
-        ensure(fieldAnchor(s, 'msg', 2),     214);
-        ensure(fieldAnchor(s, 'bumper'),     286);
+        ensure(fieldAnchor(s, 'msg', 0),      96);
+        ensure(fieldAnchor(s, 'msg', 1),     180);
+        ensure(fieldAnchor(s, 'msg', 2),     264);
+        ensure(fieldAnchor(s, 'bumper'),     348);
       });
       return next;
     });
@@ -1412,14 +1456,14 @@ function StoryboardCanvas({ outline, allowMulti, onEdit, onAdd, onRemove, onMove
     // immediately reseed
     setTimeout(() => {
       const next = {};
-      const W = 280;
+      const W = 320;
       outline.forEach((s, i) => {
         const x = 16 + i * W;
         next[fieldAnchor(s, 'title')]   = { x, y: 16 };
-        next[fieldAnchor(s, 'msg', 0)]  = { x, y: 82 };
-        next[fieldAnchor(s, 'msg', 1)]  = { x, y: 148 };
-        next[fieldAnchor(s, 'msg', 2)]  = { x, y: 214 };
-        next[fieldAnchor(s, 'bumper')]  = { x, y: 286 };
+        next[fieldAnchor(s, 'msg', 0)]  = { x, y: 96 };
+        next[fieldAnchor(s, 'msg', 1)]  = { x, y: 180 };
+        next[fieldAnchor(s, 'msg', 2)]  = { x, y: 264 };
+        next[fieldAnchor(s, 'bumper')]  = { x, y: 348 };
       });
       setPositions(next);
     }, 0);
@@ -1518,10 +1562,10 @@ function StoryboardCanvas({ outline, allowMulti, onEdit, onAdd, onRemove, onMove
   const bounds = React.useMemo(() => {
     let maxX = 0, maxY = 0;
     Object.values(positions).forEach(p => {
-      maxX = Math.max(maxX, p.x + 300);
-      maxY = Math.max(maxY, p.y + 100);
+      maxX = Math.max(maxX, p.x + 320);
+      maxY = Math.max(maxY, p.y + 120);
     });
-    return { w: Math.max(maxX + 40, 960), h: Math.max(maxY + 40, 480) };
+    return { w: Math.max(maxX + 40, 960), h: Math.max(maxY + 60, 560) };
   }, [positions]);
 
   return (
@@ -2074,7 +2118,7 @@ function ConceptRibbons({ view, faded }) {
   );
 }
 
-function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAdd, onRemove, onMove, onAcceptRec, onDismissRec, onContinue, onBack, acceptedIds }) {
+function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, mode, audience, settingsStale, reextracting, onReextract, onEdit, onAdd, onRemove, onMove, onAcceptRec, onDismissRec, onContinue, onBack, acceptedIds }) {
   const liveRecs = recs.filter(r => !dismissedRecs.has(r.id));
   // Split-screen layout (no tabs): storyboard fills the left column; the
   // right column stacks thread map on top of recommendations so users
@@ -2093,6 +2137,22 @@ function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAd
             When it reads right, take it to the workbench.
           </p>
         </div>
+
+        {settingsStale && (
+          <div className="sb-stale">
+            <div className="sb-stale__msg">
+              Mode / audience changed since extraction
+              <span className="sb-stale__detail"> · current: <strong>{mode}</strong> · <strong>{audience}</strong></span>
+            </div>
+            <button
+              className="sb-stale__btn"
+              onClick={onReextract}
+              disabled={reextracting}
+            >
+              {reextracting ? 'rebuilding…' : 're-extract'}
+            </button>
+          </div>
+        )}
 
         <div className="sb-grid">
           <div className="sb-board">
@@ -2314,6 +2374,15 @@ function App() {
   // Accepted recs power the Thread map "accepted only" comparison.
   // Grows as the user clicks "accept" in the suggestions side panel.
   const [acceptedRecIds, setAcceptedRecIds] = useState(new Set());
+  // Settings signature captured at the last extraction. When the current
+  // mode/audience differs we render a "settings changed → re-extract" banner
+  // on the storyboard so the user knows the outline is stale.
+  const [extractedSignature, setExtractedSignature] = useState(null);
+  // Cached input the last extraction ran on, so the re-extract button has
+  // something to feed back to extractStoryboard without making the user
+  // re-paste / re-upload.
+  const [lastExtractInput, setLastExtractInput] = useState(null);
+  const [reextracting, setReextracting] = useState(false);
 
   const outline = outlines[mode];
 
@@ -2416,6 +2485,8 @@ function App() {
     setExtractedRecs([]);
     setDismissedRecs(new Set());
     setAcceptedRecIds(new Set());
+    setExtractedSignature(null);
+    setLastExtractInput(null);
     setAnswersByMode({});
     setRemovedByMode({});
     setResponseByMode({});
@@ -2424,13 +2495,46 @@ function App() {
     setStoryMapKey(k => k + 1);
   }
 
-  function onExtracted({ outline, recommendations, sourceFile, sourceText }) {
+  function onExtracted({ outline, recommendations, sourceFile, sourceText, targetCount }) {
     setExtractedOutline(outline);
     setExtractedRecs(recommendations || []);
     setDismissedRecs(new Set());
     setAcceptedRecIds(new Set());
+    setExtractedSignature(JSON.stringify({ mode, audience, targetCount: targetCount || null }));
+    setLastExtractInput({ text: sourceText || '', targetCount: targetCount || null });
     setPhase('storyboard');
   }
+
+  // Re-run extraction with the CURRENT mode/audience settings using the
+  // last input. Triggered by the "settings changed" banner on the
+  // storyboard. Mutates the same state path as the initial extraction.
+  async function reextractWithCurrentSettings() {
+    if (!lastExtractInput) return;
+    setReextracting(true);
+    try {
+      const res = await window.extractStoryboard({
+        text: lastExtractInput.text,
+        mode,
+        audience,
+        targetCount: lastExtractInput.targetCount || (mode === 'draft' ? 1 : 5),
+      });
+      setExtractedOutline(res.outline);
+      setExtractedRecs(res.recommendations || []);
+      setDismissedRecs(new Set());
+      setAcceptedRecIds(new Set());
+      setExtractedSignature(JSON.stringify({ mode, audience, targetCount: lastExtractInput.targetCount }));
+    } catch (_) {
+      // swallow — banner stays visible so the user can retry
+    } finally {
+      setReextracting(false);
+    }
+  }
+
+  const currentSignature = JSON.stringify({
+    mode, audience,
+    targetCount: lastExtractInput?.targetCount || null,
+  });
+  const settingsStale = !!extractedSignature && extractedSignature !== currentSignature;
 
   // ── Storyboard-phase editing handlers ────────────────────────
   function sbEdit(id, patch) {
@@ -2760,6 +2864,11 @@ function App() {
           dismissedRecs={dismissedRecs}
           acceptedIds={acceptedRecIds}
           allowMulti={mode === 'condense'}
+          mode={mode}
+          audience={audience}
+          settingsStale={settingsStale}
+          reextracting={reextracting}
+          onReextract={reextractWithCurrentSettings}
           onEdit={sbEdit}
           onAdd={sbAdd}
           onRemove={sbRemove}
