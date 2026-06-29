@@ -1359,7 +1359,9 @@ function App() {
       <ModesGlance />
       <ScrollyDemo />
       <AudienceSwitcher />
-      <Playground />
+      {/* Playground removed — was a separate in-page draft demo that
+         duplicated the workbench. One canonical entry now: the nav
+         CTA goes straight to /workbench. */}
       <Footer />
     </>
   );
