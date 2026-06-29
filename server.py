@@ -66,6 +66,8 @@ from deckengine.ambiguity import detect as detect_questions, to_dict as q_to_dic
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 FRONTEND = os.path.join(ROOT, "frontend")
+UPLOADS  = os.path.join(ROOT, "uploads")
+os.makedirs(UPLOADS, exist_ok=True)
 
 app = FastAPI(title="DeckEngine")
 
@@ -255,7 +257,7 @@ async def api_ingest(file: UploadFile = File(...)):
     from deckengine.ingest import ingest_pptx_bytes
     raw = await file.read()
     try:
-        deck = ingest_pptx_bytes(raw)
+        deck = ingest_pptx_bytes(raw, uploads_dir=UPLOADS, url_prefix="/uploads")
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"failed to ingest: {e}"})
     return deck_to_dict(deck)
@@ -451,6 +453,9 @@ if os.path.isdir(FRONTEND):
     app.mount("/assets",   StaticFiles(directory=FRONTEND), name="assets")
     if os.path.isdir(V2_ASSETS):
         app.mount("/v2-assets", StaticFiles(directory=V2_ASSETS), name="v2-assets")
+    # Mount /uploads so ingest-extracted images are reachable via the
+    # paths the IR carries (e.g. /uploads/<deck-id>/slide00_00.png).
+    app.mount("/uploads", StaticFiles(directory=UPLOADS), name="uploads")
 
     @app.get("/{filename:path}")
     def root_assets(filename: str):

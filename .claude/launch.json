@@ -5,7 +5,8 @@
       "name": "pptgpt",
       "runtimeExecutable": ".venv/bin/python",
       "runtimeArgs": ["-m", "uvicorn", "server:app", "--port", "8002", "--host", "127.0.0.1", "--reload"],
-      "port": 8002
+      "port": 8002,
+      "env": { "BU_AUTH_DISABLED": "1" }
     },
     {
       "name": "netlify-dist",

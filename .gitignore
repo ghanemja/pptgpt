@@ -31,3 +31,4 @@ dist/
 # Frontend transient
 frontend/uploads/
 frontend/.cache/
+uploads/

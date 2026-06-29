@@ -862,34 +862,37 @@
     // For condense, keep ALL chunks (capped to targetCount below).
     if (mode === 'visualize' || mode === 'synthesize' || mode === 'refine') {
       const all = chunks.join('\n');
-      const single = [textToSlide(all, 1)];
-      return { outline: single, recommendations: buildRecommendations(single, mode, req.audience) };
+      const s = textToSlide(all, 1); s.sourceIdx = 0;
+      return { outline: [s], recommendations: buildRecommendations([s], mode, req.audience) };
     }
 
     if (mode === 'draft') {
       const draftTarget = Math.max(1, Math.min(6, req.targetCount || 1));
       if (draftTarget === 1) {
         const all = chunks.join('\n');
-        const single = [textToSlide(all, 1)];
-        return { outline: single, recommendations: buildRecommendations(single, mode, req.audience) };
+        const s = textToSlide(all, 1); s.sourceIdx = 0;
+        return { outline: [s], recommendations: buildRecommendations([s], mode, req.audience) };
       }
-      // Multi-slide draft: take up to N chunks (or split a single blob)
       const src = chunks.length >= draftTarget ? chunks.slice(0, draftTarget) : chunks;
-      let slides = src.map((c, i) => textToSlide(c, i + 1));
+      let slides = src.map((c, i) => { const s = textToSlide(c, i + 1); s.sourceIdx = i; return s; });
       while (slides.length < draftTarget) slides.push(emptySlide(slides.length + 1));
       return { outline: slides, recommendations: buildRecommendations(slides, mode, req.audience) };
     }
 
     // condense — turn each chunk into a slide; user picks target count (default 5)
     const target = Math.max(2, Math.min(10, req.targetCount || 5));
-    let slides = chunks.map((c, i) => textToSlide(c, i + 1));
+    // Track the chunk-origin index so callers can re-attach per-source
+    // assets (images, charts) after condense reorders/slices the slides.
+    let slides = chunks.map((c, i) => {
+      const s = textToSlide(c, i + 1);
+      s.sourceIdx = i;
+      return s;
+    });
     if (slides.length > target) {
       // keep the strongest N (mock heuristic: longest content wins)
       slides.sort((a, b) => (b.messages.join(' ').length) - (a.messages.join(' ').length));
-      slides = slides.slice(0, target).sort((a, b) => slidesOrderOf(a, b, chunks));
+      slides = slides.slice(0, target).sort((a, b) => a.sourceIdx - b.sourceIdx);
     }
-    // No auto-padding: an empty slide is a phantom, not a real one. The user
-    // adds slides via the "+ ADD SLIDE" affordance in the storyboard editor.
     if (slides.length === 0) slides.push(emptySlide(1));
     return { outline: slides, recommendations: buildRecommendations(slides, mode, req.audience) };
   }

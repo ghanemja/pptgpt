@@ -42,10 +42,34 @@ class LayoutIntent(str, Enum):
 
 
 @dataclass
+class ImageRef:
+    """A visual asset carried alongside a slide's content. Geometry from
+    the source file is STILL discarded (R7.2.2) — only the bytes + a
+    minimal description survive ingest. The layout engine decides where
+    to place the image; the renderer decides how to scale it.
+
+    `kind`:
+      - 'photo'   raw image (PNG/JPEG) from a picture shape
+      - 'diagram' grouped vector/SmartArt rendered to PNG at ingest time
+      - 'chart'   bar/line/pie — `chart_data` carries the categories +
+                  series so the engine can re-render in its own style;
+                  `path` is also set to a snapshot PNG fallback.
+    """
+    path: str                            # filesystem path or /samples-style URL
+    alt: str = ""                        # title / a11y label
+    source_idx: int = 0                  # source slide index this came from
+    kind: str = "photo"                  # 'photo' | 'diagram' | 'chart'
+    chart_data: Optional[dict] = None    # {type, categories, series:[{name, values}]}
+
+
+@dataclass
 class Slide:
     blocks: list[ContentBlock]
     intent: LayoutIntent = LayoutIntent.AUTO
     notes: Optional[str] = None
+    # Images are CONTENT, not geometry — keep them across the ingest
+    # boundary so the engine can re-place them under its own layout rules.
+    images: list[ImageRef] = field(default_factory=list)
 
 
 @dataclass

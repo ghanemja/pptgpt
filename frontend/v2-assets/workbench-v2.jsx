@@ -867,14 +867,52 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
   async function extract() {
     setError('');
     let text = pasteText.trim();
+    let sourceImages = [];   // [{ slideIdx, path, alt, kind, chart_data? }]
     if (file) {
       setExtracting(true);
-      try {
-        text = (text ? text + '\n\n' : '') + (await extractFileText(file));
-      } catch (e) {
-        setError(e.message || 'Could not read file.');
-        setExtracting(false);
-        return;
+      // For .pptx specifically, prefer the backend ingest path when
+      // a FastAPI server is reachable: it gives us per-slide image
+      // blobs (saved to /uploads/...) and chart data. Falls back to
+      // the pure client-side text extractor on Netlify / static.
+      const isPptx = /\.pptx$/i.test(file.name || '')
+        || (file.type || '').includes('presentationml');
+      let backendDeck = null;
+      if (isPptx && (location.protocol === 'http:' || location.protocol === 'https:')) {
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          const r = await fetch(location.origin + '/api/ingest', { method: 'POST', body: fd });
+          if (r.ok) backendDeck = await r.json();
+        } catch (_e) { backendDeck = null; }
+      }
+      if (backendDeck && Array.isArray(backendDeck.slides)) {
+        // Flatten the backend deck into the same blob-of-text+separators
+        // shape window.extractStoryboard expects, AND collect the images
+        // per source slide so we can re-attach after extraction.
+        const chunks = [];
+        backendDeck.slides.forEach((s, i) => {
+          const lines = [];
+          for (const b of (s.blocks || [])) {
+            if (b.kind === 'title' && b.text) lines.push(b.text);
+            else if (b.kind === 'paragraph' && b.text) lines.push(b.text);
+            else if (b.kind === 'bullets' && Array.isArray(b.items)) lines.push(...b.items);
+            else if (b.kind === 'stat' && b.value) lines.push(`${b.value} — ${b.label || ''}`.trim());
+          }
+          if (lines.length) chunks.push(lines.join('\n'));
+          for (const im of (s.images || [])) {
+            sourceImages.push({ slideIdx: i, path: im.path, alt: im.alt, kind: im.kind, chart_data: im.chart_data });
+          }
+        });
+        const joined = chunks.join('\n---\n');
+        text = (text ? text + '\n\n' : '') + joined;
+      } else {
+        try {
+          text = (text ? text + '\n\n' : '') + (await extractFileText(file));
+        } catch (e) {
+          setError(e.message || 'Could not read file.');
+          setExtracting(false);
+          return;
+        }
       }
     }
     if (!text) {
@@ -884,8 +922,16 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
     }
     try {
       const res = await window.extractStoryboard({ text, mode, audience, targetCount });
+      // Re-attach source images. mockBackend tags each output slide with
+      // sourceIdx (the chunk index it came from), so we can route the
+      // backend-extracted images even after condense reorders/slices.
+      const enrichedOutline = res.outline.map((s, i) => {
+        const src = (typeof s.sourceIdx === 'number') ? s.sourceIdx : i;
+        const imgs = sourceImages.filter(im => im.slideIdx === src);
+        return imgs.length ? { ...s, images: imgs } : s;
+      });
       onExtracted({
-        outline: res.outline,
+        outline: enrichedOutline,
         recommendations: res.recommendations || [],
         sourceFile: file,
         sourceText: text,
@@ -1537,12 +1583,45 @@ function StoryboardCanvas({ outline, allowMulti, onEdit, onAdd, onRemove, onMove
             return (
               <React.Fragment key={slide.id}>
                 {tile(fieldAnchor(slide, 'title'), 'title', (
-                  <input
-                    className="sb-tile__title-input"
-                    value={slide.title}
-                    onChange={(e) => onEdit(slide.id, { title: e.target.value })}
-                    placeholder="Slide title…"
-                  />
+                  <>
+                    <input
+                      className="sb-tile__title-input"
+                      value={slide.title}
+                      onChange={(e) => onEdit(slide.id, { title: e.target.value })}
+                      placeholder="Slide title…"
+                    />
+                    {Array.isArray(slide.images) && slide.images.length > 0 && (
+                      <div className="sb-tile__thumbs" title="From the source deck">
+                        {slide.images.map((im, ii) => {
+                          if (im.kind === 'chart') {
+                            const t = (im.chart_data && im.chart_data.type) || 'chart';
+                            return (
+                              <div key={ii} className="sb-tile__chart-chip" title={im.alt || t}>
+                                <span aria-hidden="true">▦</span> {t}
+                              </div>
+                            );
+                          }
+                          if (im.path) {
+                            return (
+                              <img
+                                key={ii}
+                                className="sb-tile__thumb"
+                                src={im.path}
+                                alt={im.alt || ''}
+                                title={im.alt || ''}
+                                loading="lazy"
+                              />
+                            );
+                          }
+                          return (
+                            <div key={ii} className="sb-tile__thumb-placeholder" title={im.alt || im.kind}>
+                              {im.kind}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
                 ))}
                 {[0,1,2].map(m => (
                   <React.Fragment key={m}>

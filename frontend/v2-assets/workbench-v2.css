@@ -2358,3 +2358,49 @@ button { font: inherit; color: inherit; }
   font-style: italic;
   color: var(--ink-2);
 }
+
+/* Source-deck thumbnails — sit under the title in each slide column.
+   Tells the user: the engine saw these visuals from your upload.
+   Image bytes live on the FastAPI /uploads/ mount; on Netlify the
+   path is empty and we fall back to a placeholder chip. */
+.sb-tile__thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-2);
+}
+.sb-tile__thumb {
+  width: 38px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg-tint);
+}
+.sb-tile__thumb-placeholder,
+.sb-tile__chart-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  font: 500 9px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  background: var(--bg-tint);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+.sb-tile__chart-chip {
+  border-color: var(--accent-soft);
+  color: var(--accent-deep);
+}
+.sb-tile--title .sb-tile__thumbs { border-top-color: rgba(255,255,255,0.18); }
+.sb-tile--title .sb-tile__thumb-placeholder,
+.sb-tile--title .sb-tile__chart-chip {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.78);
+  border-color: rgba(255,255,255,0.18);
+}

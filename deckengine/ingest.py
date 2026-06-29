@@ -4,43 +4,68 @@ Deck ingest: .pptx -> IR.
 R7.1.1: Ingest is a *content* operation. It MUST NOT live in layout.py or
 render.py. This module sits at the model/content layer next to parse.py.
 
-R7.2.2: **Ingest is intentionally lossy.** Geometry, themes, exact fonts,
-and positioning are discarded by design. The imported deck's layout is
-not preserved — the engine re-resolves layout from the extracted content.
-A round-trip through ingest → engine WILL look different from the original.
+R7.2.2: **Geometry is intentionally lossy.** Positions, sizes, themes,
+exact fonts are discarded by design. The engine re-resolves layout
+downstream.
 
 R7.2.3: We classify conservatively. When in doubt, prefer paragraph/bullets
 over inventing a STAT.
 
-R7.2.4: No image/face data extraction. Embedded images are recorded as an
-IMAGE block with an empty/alt label only; no binary data leaves this module.
+R7.2.4 (revised 2026-06-29): Images and charts ARE content, not geometry.
+We persist image blobs to `uploads_dir` (when provided) and attach
+ImageRef entries to `slide.images`. Chart shapes are decoded into a data
+payload (`chart_data`) so the engine can re-render them in its own style.
+Geometry — where the image sat in the source slide — still does not
+survive ingest.
 
 R7.2.5: Graceful degradation — a slide we can't parse becomes a best-effort
 title+paragraph IR, never a crash.
 """
 from __future__ import annotations
 import io
+import os
 import re
-from typing import Iterable
+import uuid
+from typing import Iterable, Optional
 
-from .ir import Slide, ContentBlock, BlockKind, LayoutIntent, Deck, Theme
+from .ir import Slide, ContentBlock, BlockKind, LayoutIntent, Deck, Theme, ImageRef
 from .parse import _STAT_TOKEN, _extract_stat
 
 
-def ingest_pptx_bytes(data: bytes) -> Deck:
-    """Read a .pptx (in-memory bytes) and emit a content-only Deck.
+def ingest_pptx_bytes(data: bytes, *, uploads_dir: Optional[str] = None,
+                      url_prefix: str = "/uploads") -> Deck:
+    """Read a .pptx (in-memory bytes) and emit a content+visuals Deck.
 
-    Uses python-pptx to walk shapes. R7.2.2: no positions, no colors, no
-    fonts come out of this function.
+    Uses python-pptx to walk shapes. Geometry (positions, sizes, themes,
+    exact fonts) does NOT come out of this function (R7.2.2). Images and
+    chart data DO — they are content (R7.2.4 revised).
+
+    If `uploads_dir` is provided, persist each image blob to a fresh
+    subdirectory under it and attach an ImageRef whose `path` is the
+    public URL (uploads_dir basename joined with url_prefix). When None,
+    images are still detected and listed in `slide.images` but with an
+    empty `path` — so the IR shape is the same, the bytes just aren't
+    persisted.
     """
     from pptx import Presentation  # local import — keeps this lazy
     prs = Presentation(io.BytesIO(data))
     slides: list[Slide] = []
     deck_title = ""
 
+    deck_subdir: Optional[str] = None
+    deck_url_prefix: Optional[str] = None
+    if uploads_dir:
+        deck_id = uuid.uuid4().hex[:10]
+        deck_subdir = os.path.join(uploads_dir, deck_id)
+        os.makedirs(deck_subdir, exist_ok=True)
+        deck_url_prefix = f"{url_prefix.rstrip('/')}/{deck_id}"
+
     for idx, sl in enumerate(prs.slides):
         try:
-            slide_ir, slide_title = _slide_to_ir(sl, idx)
+            slide_ir, slide_title = _slide_to_ir(
+                sl, idx,
+                save_dir=deck_subdir, url_prefix=deck_url_prefix,
+            )
         except Exception:
             # R7.2.5: never crash on a malformed slide
             slide_ir = Slide(
@@ -63,18 +88,59 @@ def ingest_pptx_bytes(data: bytes) -> Deck:
     return Deck(slides=slides, theme=Theme(), title=deck_title or "Imported Deck")
 
 
-def _slide_to_ir(sl, idx: int) -> tuple[Slide, str]:
-    """Walk one python-pptx Slide, return (Slide IR, title-string)."""
+def _slide_to_ir(sl, idx: int, *, save_dir: Optional[str] = None,
+                 url_prefix: Optional[str] = None) -> tuple[Slide, str]:
+    """Walk one python-pptx Slide, return (Slide IR, title-string).
+
+    When `save_dir` is set, picture-shape blobs are persisted there and
+    chart shapes are recorded with their underlying data; both are
+    attached to slide.images as ImageRef entries.
+    """
     title_text = ""
     paragraphs: list[str] = []      # ordered body text (non-title shapes)
     bullet_items: list[str] = []    # flat list — placeholder type drives this
     notes_text = ""
-    saw_image = False
+    image_refs: list[ImageRef] = []
+    img_seq = 0
+    # Fallback title candidate: highest text shape on the slide. Many
+    # custom decks use plain textboxes (not title placeholders) for
+    # their headlines, so the placeholder check alone misses them.
+    fallback_title_candidate: tuple[float, str] = (10**9, "")  # (top_y, text)
 
     for shape in sl.shapes:
-        # R7.2.4: presence-only image record, no binary
+        # ── Pictures: extract blob, persist, attach ImageRef ──────
         if getattr(shape, "shape_type", None) == 13:  # MSO_SHAPE_TYPE.PICTURE
-            saw_image = True
+            try:
+                blob = shape.image.blob
+                ext = (shape.image.ext or "png").lstrip(".")
+                fname = f"slide{idx:02d}_{img_seq:02d}.{ext}"
+                img_seq += 1
+                path = ""
+                if save_dir is not None and url_prefix is not None:
+                    fs_path = os.path.join(save_dir, fname)
+                    with open(fs_path, "wb") as f:
+                        f.write(blob)
+                    path = f"{url_prefix}/{fname}"
+                alt = (getattr(shape, "name", "") or "").strip()
+                image_refs.append(ImageRef(
+                    path=path, alt=alt, source_idx=idx, kind="photo",
+                ))
+            except Exception:
+                pass
+            continue
+        # ── Charts: decode categories + series, attach as ImageRef
+        # of kind 'chart' so the renderer can re-draw in its own style.
+        if getattr(shape, "has_chart", False):
+            try:
+                chart = shape.chart
+                cdata = _chart_to_data(chart)
+                image_refs.append(ImageRef(
+                    path="", alt=(getattr(shape, "name", "") or "Chart"),
+                    source_idx=idx, kind="chart",
+                    chart_data=cdata,
+                ))
+            except Exception:
+                pass
             continue
         if not shape.has_text_frame:
             continue
@@ -95,6 +161,19 @@ def _slide_to_ir(sl, idx: int) -> tuple[Slide, str]:
         if is_title and not title_text:
             title_text = text.split("\n", 1)[0].strip()
             continue
+
+        # Track the topmost short-ish text as a fallback title candidate.
+        # Geometry is otherwise discarded, but `top` is read once here
+        # only to pick the title-like shape — the value never leaves
+        # this function.
+        try:
+            first_line = text.split("\n", 1)[0].strip()
+            if 0 < len(first_line) <= 90 and "." not in first_line.rstrip("?!"):
+                top_y = float(getattr(shape, "top", 0) or 0)
+                if top_y < fallback_title_candidate[0]:
+                    fallback_title_candidate = (top_y, first_line)
+        except Exception:
+            pass
 
         # bullet-y? heuristic — multiple short lines or "- " prefixes
         lines = [l.strip() for l in text.splitlines() if l.strip()]
@@ -119,6 +198,12 @@ def _slide_to_ir(sl, idx: int) -> tuple[Slide, str]:
         notes_text = ""
 
     # Build the IR
+    # Fall back to the topmost short text shape if no placeholder title
+    # was found — many custom decks don't use placeholders for titles.
+    if not title_text and fallback_title_candidate[1]:
+        title_text = fallback_title_candidate[1]
+        # also pop it from paragraphs so we don't double-render it
+        paragraphs = [p for p in paragraphs if p.split("\n", 1)[0].strip() != title_text]
     blocks: list[ContentBlock] = []
     blocks.append(ContentBlock(BlockKind.TITLE, text=title_text or f"Slide {idx+1}"))
 
@@ -151,8 +236,13 @@ def _slide_to_ir(sl, idx: int) -> tuple[Slide, str]:
     for p in leftover:
         blocks.append(ContentBlock(BlockKind.PARAGRAPH, text=p))
 
-    if saw_image:
-        blocks.append(ContentBlock(BlockKind.IMAGE, label="(image present in source — not embedded)"))
+    # Record a presence-only IMAGE block per asset so downstream code
+    # that only reads `blocks` still knows the slide carries visuals.
+    for ref in image_refs:
+        blocks.append(ContentBlock(
+            BlockKind.IMAGE,
+            label=ref.alt or f"({ref.kind} from source)",
+        ))
 
     # promote a hero (largest stat, parse.py-style)
     if stats:
@@ -164,4 +254,43 @@ def _slide_to_ir(sl, idx: int) -> tuple[Slide, str]:
         blocks=blocks,
         intent=LayoutIntent.AUTO,
         notes=notes_text or None,
+        images=image_refs,
     ), title_text
+
+
+def _chart_to_data(chart) -> dict:
+    """Decode a python-pptx Chart object into a JSON-safe data payload.
+
+    Catches type names defensively — python-pptx chart-type enums vary
+    between versions. We return the lower-cased name string instead of
+    the enum so the renderer can do a simple string match.
+    """
+    try:
+        ctype = str(chart.chart_type).split('.')[-1].lower()
+    except Exception:
+        ctype = "unknown"
+    categories: list[str] = []
+    try:
+        # The first plot's categories are the x-axis labels.
+        cats = list(chart.plots[0].categories)
+        categories = [str(c) for c in cats]
+    except Exception:
+        categories = []
+    series_out: list[dict] = []
+    try:
+        for s in chart.series:
+            name = ""
+            try: name = str(s.name)
+            except Exception: pass
+            try:
+                values = [None if v is None else float(v) for v in list(s.values)]
+            except Exception:
+                values = []
+            series_out.append({"name": name, "values": values})
+    except Exception:
+        pass
+    return {
+        "type": ctype,
+        "categories": categories,
+        "series": series_out,
+    }

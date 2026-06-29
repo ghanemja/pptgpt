@@ -97,11 +97,25 @@ def ir_block_to_dict(b: ContentBlock) -> dict:
 
 
 def ir_slide_to_dict(s: Slide) -> dict:
-    return {
+    out = {
         "blocks": [ir_block_to_dict(b) for b in s.blocks],
         "intent": s.intent.value,
         "notes": s.notes,
     }
+    # Surface visuals to the UI when ingest captured them. Empty list is
+    # omitted so the JSON stays compact for slides with no images.
+    if s.images:
+        out["images"] = [
+            {
+                "path":       i.path,
+                "alt":        i.alt,
+                "source_idx": i.source_idx,
+                "kind":       i.kind,
+                **({"chart_data": i.chart_data} if i.chart_data else {}),
+            }
+            for i in s.images
+        ]
+    return out
 
 
 def deck_to_dict(d: Deck) -> dict:
@@ -124,15 +138,26 @@ def dict_to_ir_block(d: dict) -> ContentBlock:
 
 
 def dict_to_ir_slide(d: dict) -> Slide:
+    from .ir import ImageRef
     intent_raw = d.get("intent") or "auto"
     try:
         intent = LayoutIntent(intent_raw)
     except ValueError:
         intent = LayoutIntent.AUTO
+    images = []
+    for im in (d.get("images") or []):
+        images.append(ImageRef(
+            path=im.get("path", ""),
+            alt=im.get("alt", ""),
+            source_idx=int(im.get("source_idx", 0)),
+            kind=im.get("kind", "photo"),
+            chart_data=im.get("chart_data"),
+        ))
     return Slide(
         blocks=[dict_to_ir_block(b) for b in (d.get("blocks") or [])],
         intent=intent,
         notes=d.get("notes"),
+        images=images,
     )
 
 
