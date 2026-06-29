@@ -1997,7 +1997,9 @@ function ConceptRibbons({ view, faded }) {
 
 function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAdd, onRemove, onMove, onAcceptRec, onDismissRec, onContinue, onBack, acceptedIds }) {
   const liveRecs = recs.filter(r => !dismissedRecs.has(r.id));
-  const [view, setView] = useState('storyboard'); // 'storyboard' | 'threadmap'
+  // Split-screen layout (no tabs): storyboard fills the left column; the
+  // right column stacks thread map on top of recommendations so users
+  // can see the structural picture and the suggested moves together.
   return (
     <div className="sm">
       <div className="sm-inner">
@@ -2007,32 +2009,12 @@ function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAd
             Here’s the <em>shape of the deck</em>.
           </h1>
           <p className="sm-sub">
-            Edit titles, swap messages, reorder. Accept or skip the recommendations on the side.
+            Edit titles, swap messages, reorder. The thread map on the right
+            visualizes the deck's narrative; the recommendations propose moves.
             When it reads right, take it to the workbench.
           </p>
         </div>
 
-        <div className="sb-tabs">
-          <button
-            className={`sb-tab ${view === 'storyboard' ? 'is-active' : ''}`}
-            onClick={() => setView('storyboard')}
-          >Storyboard</button>
-          <button
-            className={`sb-tab ${view === 'threadmap' ? 'is-active' : ''}`}
-            onClick={() => setView('threadmap')}
-          >Thread map <span className="sb-tab__hint">see the messiness</span></button>
-        </div>
-
-        {view === 'threadmap' ? (
-          <div className="sb-threadmap-wrap">
-            <ThreadMapView
-              outline={outline}
-              recs={recs}
-              dismissedRecs={dismissedRecs}
-              acceptedIds={acceptedIds || new Set()}
-            />
-          </div>
-        ) : (
         <div className="sb-grid">
           <div className="sb-board">
             <div className="sm-board__head">
@@ -2051,6 +2033,19 @@ function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAd
             />
           </div>
 
+          <div className="sb-right">
+            <section className="sb-thread-panel">
+              <div className="sb-thread-panel__head">
+                <span className="sb-thread-panel__title">Thread map</span>
+                <span className="sb-thread-panel__hint">see the messiness</span>
+              </div>
+              <ThreadMapView
+                outline={outline}
+                recs={recs}
+                dismissedRecs={dismissedRecs}
+                acceptedIds={acceptedIds || new Set()}
+              />
+            </section>
           <aside className="sb-side">
             <div className="sb-side__head">
               <span className="sb-side__title">Recommendations</span>
@@ -2073,16 +2068,19 @@ function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAd
                   : rec.kind === 'tone' ? '♪'
                   : rec.kind === 'second-person' ? '☞'
                   : '→';
+                // Tone hints are FYI — they describe how the engine is
+                // tuning the room. Nothing to apply, just show + dismiss.
+                const isInfoOnly = rec.kind === 'tone';
                 return (
-                  <div className={`sm-rec sb-rec ${rec.advisory ? 'is-advisory' : ''} ${rec.kind ? 'sb-rec--' + rec.kind : ''}`} key={rec.id}>
+                  <div className={`sm-rec sb-rec ${isInfoOnly ? 'is-info' : ''} ${rec.kind ? 'sb-rec--' + rec.kind : ''}`} key={rec.id}>
                     <span className="sm-rec__icon">{icon}</span>
                     <span className="sm-rec__text">{rec.text}</span>
                     <span className="sm-rec__actions">
-                      {rec.advisory ? (
-                        <button className="sm-rec__accept" onClick={() => onDismissRec(rec.id)}>got it</button>
+                      {isInfoOnly ? (
+                        <button className="sm-rec__reject" onClick={() => onDismissRec(rec.id)}>dismiss</button>
                       ) : (
                         <>
-                          <button className="sm-rec__accept" onClick={() => onAcceptRec(rec)}>accept</button>
+                          <button className="sm-rec__accept" onClick={() => onAcceptRec(rec)}>apply</button>
                           <button className="sm-rec__reject" onClick={() => onDismissRec(rec.id)}>reject</button>
                         </>
                       )}
@@ -2114,8 +2112,8 @@ function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAd
               );
             })()}
           </aside>
+          </div>
         </div>
-        )}
 
         <div className="sm-foot">
           <button className="sb-back" onClick={onBack}>← back to story map</button>
@@ -2388,9 +2386,39 @@ function App() {
       return next;
     });
   }
+  function _fieldGet(slide, field) {
+    if (field === 'title') return slide.title || '';
+    if (field === 'bumper') return slide.bumper || '';
+    if (field && field.startsWith('msg')) {
+      const idx = parseInt(field.slice(3), 10) - 1;
+      return (slide.messages || [])[idx] || '';
+    }
+    return '';
+  }
+  function _fieldSet(slide, field, value) {
+    if (field === 'title')  return { ...slide, title: value };
+    if (field === 'bumper') return { ...slide, bumper: value };
+    if (field && field.startsWith('msg')) {
+      const idx = parseInt(field.slice(3), 10) - 1;
+      const msgs = [...(slide.messages || ['', '', ''])];
+      msgs[idx] = value;
+      return { ...slide, messages: msgs };
+    }
+    return slide;
+  }
+  function _hasKeyword(text, word) {
+    if (!word) return false;
+    return new RegExp(`\\b${word}\\b`, 'i').test(text || '');
+  }
+  // Deterministic per-rec-kind mutations. A rec leaves the panel ONLY if
+  // it produced a real edit to the outline (or the user explicitly
+  // rejected it via sbDismissRec). Gemma can replace these stubs later
+  // by routing kind + slide context through /api/apply_suggestion.
   function sbAcceptRec(rec) {
+    let mutated = false;
     setExtractedOutline(prev => {
       let next = [...(prev || [])];
+      // ── content track ─────────────────────────────────────
       if (rec.kind === 'merge' && rec.slideIds && rec.slideIds.length >= 2) {
         const [a, b] = rec.slideIds;
         const ai = next.findIndex(s => s.id === a);
@@ -2405,22 +2433,138 @@ function App() {
           while (merged.length < 3) merged.push('');
           next[ai] = { id: aSlide.id, title: aSlide.title, messages: merged };
           next.splice(bi, 1);
+          mutated = true;
         }
       } else if (rec.kind === 'add-setup') {
         next.unshift({ id: uid('s'), title: 'Setup', messages: ['Context for what follows', '', ''], bumper: 'And here\u2019s what changed.' });
+        mutated = true;
       } else if (rec.kind === 'trim' && rec.slideIds) {
         next = next.filter(s => !rec.slideIds.includes(s.id));
+        mutated = true;
       } else if (rec.kind === 'thin') {
         next = next.map(s => {
           const kept = s.messages.filter(Boolean).slice(0, 2);
           while (kept.length < 3) kept.push('');
           return { ...s, messages: kept };
         });
+        mutated = true;
       } else if (rec.kind === 'add-actions') {
         next.push({ id: uid('s'), title: 'Next steps', messages: ['Action  ·  owner  ·  by when', '', ''], bumper: '' });
+        mutated = true;
+      } else if (rec.kind === 'spine') {
+        // Promote the spine word into every title that doesn't already
+        // reference it. Word is parsed from id "spine-<word>".
+        const word = (rec.id || '').replace(/^spine-/, '');
+        if (word) {
+          next = next.map(s => {
+            if (_hasKeyword(s.title, word)) return s;
+            const titled = (s.title || '').trim();
+            const prefixed = titled
+              ? `${word.charAt(0).toUpperCase() + word.slice(1)} · ${titled}`
+              : word;
+            mutated = true;
+            return { ...s, title: prefixed };
+          });
+        }
+      } else if (rec.kind === 'gap') {
+        // Add a bridging bumper to slide i naming a concept the next
+        // slide carries. id is "gap-<i>".
+        const i = parseInt((rec.id || '').replace(/^gap-/, ''), 10);
+        if (Number.isInteger(i) && next[i] && next[i + 1]) {
+          const nextSlide = next[i + 1];
+          const seed = (nextSlide.title || (nextSlide.messages || [])[0] || '')
+            .split(/\s+/).slice(0, 4).join(' ');
+          if (seed) {
+            next[i] = { ...next[i], bumper: `Next: ${seed}.` };
+            mutated = true;
+          }
+        }
+      } else if (rec.kind === 'bridge') {
+        // Weave the bridging token into the middle slide's first message.
+        // id is "bridge-<i>"; the token is quoted in rec.text.
+        const i = parseInt((rec.id || '').replace(/^bridge-/, ''), 10);
+        const tokenMatch = (rec.text || '').match(/share "([^"]+)"/);
+        const token = tokenMatch ? tokenMatch[1] : null;
+        if (token && Number.isInteger(i) && next[i + 1]) {
+          const mid = next[i + 1];
+          const msgs = [...(mid.messages || ['', '', ''])];
+          if (!_hasKeyword((msgs[0] || '') + ' ' + (mid.title || ''), token)) {
+            msgs[0] = msgs[0]
+              ? `${msgs[0].replace(/\.$/, '')} — ${token}.`
+              : `Carries ${token} forward.`;
+            next[i + 1] = { ...mid, messages: msgs };
+            mutated = true;
+          }
+        }
+      } else if (rec.kind === 'orphan') {
+        // Bring the orphan back by adding a phrase from a neighbor to
+        // its first empty message slot. id is "orphan-<slideId>".
+        const orphanId = (rec.id || '').replace(/^orphan-/, '');
+        const oi = next.findIndex(s => s.id === orphanId);
+        if (oi >= 0) {
+          const neighbor = next[oi + 1] || next[oi - 1];
+          const hook = neighbor && (neighbor.title || (neighbor.messages || [])[0] || '')
+            .split(/\s+/).slice(0, 3).join(' ');
+          if (hook) {
+            const msgs = [...((next[oi].messages) || ['', '', ''])];
+            const slot = msgs.findIndex(m => !m);
+            if (slot >= 0) {
+              msgs[slot] = `Ties to: ${hook}.`;
+              next[oi] = { ...next[oi], messages: msgs };
+              mutated = true;
+            }
+          }
+        }
+      // ── semantic track ────────────────────────────────────
+      } else if (rec.kind === 'word-swap') {
+        const slide = next[rec.slideIdx];
+        if (slide && rec.field && rec.badWord && rec.goodWord) {
+          const cur = _fieldGet(slide, rec.field);
+          const swapped = cur.replace(new RegExp(rec.badWord, 'gi'), (m) =>
+            m[0] === m[0].toUpperCase()
+              ? rec.goodWord.charAt(0).toUpperCase() + rec.goodWord.slice(1)
+              : rec.goodWord
+          );
+          if (swapped !== cur) {
+            next[rec.slideIdx] = _fieldSet(slide, rec.field, swapped);
+            mutated = true;
+          }
+        }
+      } else if (rec.kind === 'hedge') {
+        const slide = next[rec.slideIdx];
+        if (slide && rec.field && rec.hedgeWord) {
+          const cur = _fieldGet(slide, rec.field);
+          const stripped = cur
+            .replace(new RegExp(`\\s*\\b${rec.hedgeWord}\\b\\s*`, 'gi'), ' ')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+          if (stripped !== cur) {
+            next[rec.slideIdx] = _fieldSet(slide, rec.field, stripped);
+            mutated = true;
+          }
+        }
+      } else if (rec.kind === 'second-person') {
+        const slide = next[rec.slideIdx];
+        if (slide && rec.field) {
+          const cur = _fieldGet(slide, rec.field);
+          if (cur && !/\byou\b|\byour\b/i.test(cur)) {
+            const youified = /^[A-Z]/.test(cur)
+              ? `You ${cur.charAt(0).toLowerCase() + cur.slice(1)}`
+              : `You ${cur}`;
+            next[rec.slideIdx] = _fieldSet(slide, rec.field, youified);
+            mutated = true;
+          }
+        }
       }
       return next.length === 0 ? [{ id: uid('s'), title: '', messages: ['', '', ''], bumper: '' }] : next;
     });
+    if (!mutated) {
+      // No-op rec (kind=tone, or already-applied content): do NOT
+      // record acceptance or dismiss it — the user must explicitly
+      // reject to clear it. This enforces the gate: a rec leaves the
+      // panel only when the storyboard actually changes.
+      return;
+    }
     setAcceptedRecIds(prev => {
       const next = new Set(prev);
       next.add(rec.id);

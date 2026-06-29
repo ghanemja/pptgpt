@@ -1,21 +1,29 @@
 /* ============================================================
-   workbench.css — three-panel layout, 3b1b accents for visualize
+   workbench.css — three-panel layout. Palette inherited from
+   the landing page (warm cream + forest emerald + tangerine
+   spark) so the workbench and the rest of the site read as
+   one product. Fonts: Manrope (sans) + IBM Plex Mono.
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --ink:      #1A1A1A;
-  --ink-2:    #4A4A4A;
-  --gray:     #7B8087;
-  --gray-2:   #A0A4AB;
-  --gray-3:   #D4D6DA;
-  --bg:       #FAF8F4;
-  --bg-tint:  #F2EFE8;
+  /* Landing palette — keep semantic names workbench already uses */
+  --ink:      #11120E;   /* near-black, warm */
+  --ink-2:    #3D3F38;
+  --gray:     #807C6E;   /* landing's --mute */
+  --gray-2:   #9A9787;
+  --gray-3:   #C4BFB0;
+  --bg:       #FAF7EF;   /* warm cream */
+  --bg-tint:  #F1ECDC;   /* recessed */
   --paper:    #FFFFFF;
-  --border:   #E5E1D6;
-  --border-2: #C8C2B0;
-  --accent:   #1E2761;
-  --accent-2: #C9531C;
+  --border:   #E1DBC7;
+  --border-2: #EFEADB;
+  --accent:        #0E5B36;   /* forest emerald — primary */
+  --accent-2:      #E26A2C;   /* tangerine spark — alerts / structural */
+  --accent-soft:   #DDEADE;
+  --accent-deep:   #0A4326;
+  --spark-soft:    #F8DFCB;
+  --gold:          #C99A2E;
 
   /* 3b1b palette — used inside visualize-mode chrome */
   --b3-bg:        #0F0F1E;
@@ -27,12 +35,14 @@
   --b3-muted:     rgba(255,255,255,0.55);
   --b3-border:    rgba(255,255,255,0.08);
 
-  --font-sans:  'IBM Plex Sans', system-ui, sans-serif;
-  --font-mono:  'IBM Plex Mono', ui-monospace, monospace;
-  --font-serif: 'IBM Plex Serif', Georgia, serif;
+  --font-sans:  'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:  'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
+  /* Georgia (web-safe) reads more cleanly than IBM Plex Serif italic at
+     the small sizes the slide titles use. */
+  --font-serif: Georgia, 'IBM Plex Serif', serif;
 
-  --shadow-paper: 0 1px 2px rgba(15,23,42,.03), 0 8px 24px -12px rgba(15,23,42,.08);
-  --shadow-card:  0 1px 2px rgba(15,23,42,.03), 0 4px 12px -6px rgba(15,23,42,.06);
+  --shadow-paper: 0 1px 2px rgba(17,18,14,.04), 0 8px 24px rgba(17,18,14,.06);
+  --shadow-card:  0 1px 2px rgba(17,18,14,.04), 0 4px 12px rgba(17,18,14,.06);
 
   --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -41,11 +51,13 @@
 html, body { margin: 0; padding: 0; height: 100%; }
 body {
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1.5;
   color: var(--ink);
   background: var(--bg);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 button { font: inherit; color: inherit; }
 
@@ -1436,24 +1448,59 @@ button { font: inherit; color: inherit; }
 /* ── Storyboard page (its own phase) ───────────────────────── */
 .sb-grid {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: minmax(0, 1fr) 440px;
   gap: 22px;
 }
-@media (max-width: 1024px) { .sb-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1180px) { .sb-grid { grid-template-columns: 1fr; } }
 .sb-board {
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
+.sb-right {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.sb-thread-panel {
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 14px 16px 16px;
+}
+.sb-thread-panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.sb-thread-panel__title {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--ink);
+}
+.sb-thread-panel__hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gray);
+}
+/* In the narrow right column, stack BEFORE/AFTER vertically so the SVGs
+   stay readable instead of being squeezed into 200px-wide twins. */
+.sb-thread-panel .tm-split { grid-template-columns: 1fr; }
+.sb-thread-panel .tm-svg   { max-height: 280px; }
+
 .sb-side {
   background: var(--paper);
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent-2);
   border-radius: 4px;
   padding: 14px 16px 16px;
-  align-self: flex-start;
-  position: sticky;
-  top: 16px;
 }
 .sb-side__head {
   display: flex; align-items: baseline; justify-content: space-between;
@@ -1505,11 +1552,6 @@ button { font: inherit; color: inherit; }
 .sb-back:hover { background: var(--bg-tint); border-color: var(--border-2); }
 
 /* ── Storyboard canvas (horizontal, Figma-style flow) ───────── */
-.sb-grid {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 22px;
-}
 .sb-board { min-width: 0; }
 /* ── Figma-style tiles ─────────────────────────────────────── */
 .sb-banner-row {

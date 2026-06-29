@@ -945,7 +945,12 @@
               id: `swap-${si}-${field}-${bad.replace(/\s+/g, '_')}`,
               kind: 'word-swap',
               track: 'semantic',
-              advisory: true,
+              // Structured fields so sbAcceptRec can apply the mutation
+              // deterministically — no string-parsing the rec text.
+              slideIdx: si,
+              field,
+              badWord: bad,
+              goodWord: info.to,
               text: `Slide ${String(si + 1).padStart(2, '0')} (${field}) — swap "${bad}" → "${info.to}". ${info.why}.`,
             });
             if (out.length >= 8) return;
@@ -959,7 +964,9 @@
                 id: `hedge-${si}-${field}-${h}`,
                 kind: 'hedge',
                 track: 'semantic',
-                advisory: true,
+                slideIdx: si,
+                field,
+                hedgeWord: h,
                 text: `Slide ${String(si + 1).padStart(2, '0')} (${field}) — drop "${h}". ${audience === 'exec' ? 'Exec room reads hedges as no-confidence.' : 'Conference room loses the room when hedging.'}`,
               });
               if (out.length >= 8) return;
@@ -971,7 +978,8 @@
             id: `you-${si}-${field}`,
             kind: 'second-person',
             track: 'semantic',
-            advisory: true,
+            slideIdx: si,
+            field,
             text: `Slide ${String(si + 1).padStart(2, '0')} (${field}) — no "you" / "your". Customer rooms drift when copy is third-person.`,
           });
           if (out.length >= 8) return;
