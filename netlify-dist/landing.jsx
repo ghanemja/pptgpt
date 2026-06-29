@@ -362,13 +362,22 @@ function ScrollyDemo() {
   return (
     <section className="scrolly">
       <div className="scrolly__intro">
+        <div className="scrolly__intro-eyebrow">five modes  ·  one tool</div>
         <h2 className="scrolly__intro-h">
-          One tool, <em>five modes</em>.<br/>
-          Built for the material you actually have.
+          What pptgpt <em>actually does</em>.
         </h2>
-        <div className="scrolly__intro-sub">
-          scroll to walk through  ↓
+        <p className="scrolly__intro-blurb">
+          Each mode matches a different kind of raw material. You don't pick — pptgpt reads
+          what you dropped in and reaches for the right one.
+        </p>
+        <div className="scrolly__intro-chips">
+          {MODES.map((m, i) => (
+            <span key={m.key} className="scrolly__intro-chip">
+              <span className="scrolly__intro-chip-num">{m.num}</span>{m.titleEm}
+            </span>
+          ))}
         </div>
+        <div className="scrolly__intro-sub">scroll to walk through  ↓</div>
       </div>
       <div className="scrolly__container">
         <div className="scrolly__stage">
@@ -1356,7 +1365,9 @@ function App() {
     <>
       <Nav />
       <Hero />
-      <ModesGlance />
+      {/* ModesGlance retired — its header + 5-mode summary are now
+         folded into the ScrollyDemo intro as a chip row so the
+         scroll animation carries both the catalog and the walkthrough. */}
       <ScrollyDemo />
       <AudienceSwitcher />
       {/* Playground removed — was a separate in-page draft demo that

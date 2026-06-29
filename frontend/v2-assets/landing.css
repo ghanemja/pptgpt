@@ -379,9 +379,16 @@ img, svg { display: block; max-width: 100%; }
   margin: 0 auto 40px;
   padding: 0 40px;
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 40px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+.scrolly__intro-eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 .scrolly__intro-h {
   font-family: var(--sans);
@@ -390,19 +397,45 @@ img, svg { display: block; max-width: 100%; }
   line-height: 1.05;
   letter-spacing: -0.025em;
   margin: 0;
-  max-width: 700px;
+  max-width: 900px;
 }
 .scrolly__intro-h em { font-style: normal; color: var(--accent); }
+.scrolly__intro-blurb {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 720px;
+  margin: 0;
+}
+.scrolly__intro-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.scrolly__intro-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  font: 500 13px/1 var(--sans);
+  color: var(--ink);
+}
+.scrolly__intro-chip-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+}
 .scrolly__intro-sub {
   font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--mute);
-  max-width: 240px;
-  text-align: right;
-  flex-shrink: 0;
-  align-self: flex-end;
+  margin-top: 4px;
 }
 
 .scrolly__container {
