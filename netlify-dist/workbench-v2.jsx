@@ -1347,15 +1347,15 @@ function StoryboardCanvas({ outline, allowMulti, onEdit, onAdd, onRemove, onMove
   React.useEffect(() => {
     setPositions(prev => {
       const next = { ...prev };
-      const W = 320;
+      const W = 280;
       outline.forEach((s, i) => {
-        const x = 24 + i * W;
+        const x = 16 + i * W;
         const ensure = (k, dy) => { if (!next[k]) next[k] = { x, y: dy }; };
-        ensure(fieldAnchor(s, 'title'),        24);
-        ensure(fieldAnchor(s, 'msg', 0),      104);
-        ensure(fieldAnchor(s, 'msg', 1),      184);
-        ensure(fieldAnchor(s, 'msg', 2),      264);
-        ensure(fieldAnchor(s, 'bumper'),      350);
+        ensure(fieldAnchor(s, 'title'),       16);
+        ensure(fieldAnchor(s, 'msg', 0),      82);
+        ensure(fieldAnchor(s, 'msg', 1),     148);
+        ensure(fieldAnchor(s, 'msg', 2),     214);
+        ensure(fieldAnchor(s, 'bumper'),     286);
       });
       return next;
     });
@@ -1366,14 +1366,14 @@ function StoryboardCanvas({ outline, allowMulti, onEdit, onAdd, onRemove, onMove
     // immediately reseed
     setTimeout(() => {
       const next = {};
-      const W = 320;
+      const W = 280;
       outline.forEach((s, i) => {
-        const x = 24 + i * W;
-        next[fieldAnchor(s, 'title')]   = { x, y: 24 };
-        next[fieldAnchor(s, 'msg', 0)]  = { x, y: 104 };
-        next[fieldAnchor(s, 'msg', 1)]  = { x, y: 184 };
-        next[fieldAnchor(s, 'msg', 2)]  = { x, y: 264 };
-        next[fieldAnchor(s, 'bumper')]  = { x, y: 350 };
+        const x = 16 + i * W;
+        next[fieldAnchor(s, 'title')]   = { x, y: 16 };
+        next[fieldAnchor(s, 'msg', 0)]  = { x, y: 82 };
+        next[fieldAnchor(s, 'msg', 1)]  = { x, y: 148 };
+        next[fieldAnchor(s, 'msg', 2)]  = { x, y: 214 };
+        next[fieldAnchor(s, 'bumper')]  = { x, y: 286 };
       });
       setPositions(next);
     }, 0);
@@ -1395,8 +1395,8 @@ function StoryboardCanvas({ outline, allowMulti, onEdit, onAdd, onRemove, onMove
     }
     function onUp() {
       // Snap X to the nearest column position so tiles stay column-aligned.
-      const W = 320;
-      const cols = outline.map((_, i) => 24 + i * W);
+      const W = 280;
+      const cols = outline.map((_, i) => 16 + i * W);
       setPositions(prev => {
         const cur = prev[dragging.anchor];
         if (!cur || cols.length === 0) return prev;
@@ -1608,6 +1608,12 @@ function ThreadMapView({ outline, recs, dismissedRecs, acceptedIds }) {
       if (!outline || outline.length === 0) { setData(null); return; }
       setLoading(true);
       setUnreachable(false);
+      const reqBody = {
+        outline,
+        recommendations: liveRecs,
+        acceptedIds: Array.from(acceptedIds || []),
+        mode: recMode,
+      };
       try {
         const url = (location.protocol === 'http:' || location.protocol === 'https:')
           ? location.origin + '/api/thread_map'
@@ -1615,18 +1621,26 @@ function ThreadMapView({ outline, recs, dismissedRecs, acceptedIds }) {
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            outline,
-            recommendations: liveRecs,
-            acceptedIds: Array.from(acceptedIds || []),
-            mode: recMode,
-          }),
+          body: JSON.stringify(reqBody),
         });
         if (!res.ok) throw new Error('thread_map ' + res.status);
         const json = await res.json();
         if (!cancelled) setData(json);
       } catch (err) {
-        if (!cancelled) { setData(null); setUnreachable(true); }
+        // Backend unreachable (Netlify static, etc.) — fall back to the
+        // client-side lexical compute exposed by mockBackend.js. Flag the
+        // tier so the UI can show the lexical badge instead of silently
+        // pretending it ran the real cascade.
+        if (!cancelled && typeof window.computeThreadMapLocal === 'function') {
+          try {
+            const local = await window.computeThreadMapLocal(reqBody);
+            if (!cancelled) { setData(local); setUnreachable(false); }
+          } catch (_e) {
+            if (!cancelled) { setData(null); setUnreachable(true); }
+          }
+        } else if (!cancelled) {
+          setData(null); setUnreachable(true);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -1641,7 +1655,7 @@ function ThreadMapView({ outline, recs, dismissedRecs, acceptedIds }) {
         {loading
           ? 'computing thread map…'
           : unreachable
-            ? 'Thread map needs the FastAPI backend. Run server.py locally or wire /api/thread_map.'
+            ? 'Thread map needs a backend or the mock fallback. Reload the page.'
             : 'no outline yet — add some slides to see the thread map.'}
       </div>
     );
@@ -2046,11 +2060,22 @@ function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAd
               <div className="sb-side__empty">
                 No suggestions \u2014 the storyboard reads cleanly. You can still tune it manually, or move on.
               </div>
-            ) : (
-              <div className="sm-recs__list">
-                {liveRecs.map(rec => (
+            ) : (() => {
+              const contentRecs  = liveRecs.filter(r => (r.track || 'content') === 'content');
+              const semanticRecs = liveRecs.filter(r => r.track === 'semantic');
+              function renderRec(rec) {
+                const icon = rec.kind === 'spine' ? '◆'
+                  : rec.kind === 'bridge' ? '⌒'
+                  : rec.kind === 'gap' ? '⎯'
+                  : rec.kind === 'orphan' ? '◌'
+                  : rec.kind === 'word-swap' ? '⇄'
+                  : rec.kind === 'hedge' ? '✂'
+                  : rec.kind === 'tone' ? '♪'
+                  : rec.kind === 'second-person' ? '☞'
+                  : '→';
+                return (
                   <div className={`sm-rec sb-rec ${rec.advisory ? 'is-advisory' : ''} ${rec.kind ? 'sb-rec--' + rec.kind : ''}`} key={rec.id}>
-                    <span className="sm-rec__icon">{rec.kind === 'spine' ? '◆' : rec.kind === 'bridge' ? '⌒' : rec.kind === 'gap' ? '⎯' : rec.kind === 'orphan' ? '◌' : '→'}</span>
+                    <span className="sm-rec__icon">{icon}</span>
                     <span className="sm-rec__text">{rec.text}</span>
                     <span className="sm-rec__actions">
                       {rec.advisory ? (
@@ -2063,9 +2088,31 @@ function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAd
                       )}
                     </span>
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              }
+              return (
+                <>
+                  {contentRecs.length > 0 && (
+                    <div className="sb-rec-group">
+                      <div className="sb-rec-group__head">
+                        <span className="sb-rec-group__label">Content</span>
+                        <span className="sb-rec-group__hint">structural moves</span>
+                      </div>
+                      <div className="sm-recs__list">{contentRecs.map(renderRec)}</div>
+                    </div>
+                  )}
+                  {semanticRecs.length > 0 && (
+                    <div className="sb-rec-group">
+                      <div className="sb-rec-group__head">
+                        <span className="sb-rec-group__label">Semantic</span>
+                        <span className="sb-rec-group__hint">word + tone per room</span>
+                      </div>
+                      <div className="sm-recs__list">{semanticRecs.map(renderRec)}</div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </aside>
         </div>
         )}

@@ -901,6 +901,97 @@
     return ai - bi;
   }
 
+  // ── semantic-rec library — word-level swaps tuned by audience ──
+  // These are SURFACE moves: same idea, sharper words. Distinct from
+  // structural / content recs (merge, bridge, orphan) which change WHAT
+  // the deck argues, not HOW it argues it. The UI shows both as tracks.
+  const SEMANTIC_SWAPS = {
+    'utilize':      { to: 'use',      why: 'shorter, no register cost' },
+    'leverage':     { to: 'use',      why: 'corporate filler, rarely earned' },
+    'facilitate':   { to: 'enable',   why: 'one syllable shorter, same meaning' },
+    'demonstrate':  { to: 'show',     why: 'demonstrate is a stage word, show is plain' },
+    'commence':     { to: 'start',    why: 'commence reads bureaucratic' },
+    'terminate':    { to: 'end',      why: 'simpler, less corporate' },
+    'subsequently': { to: 'then',     why: 'replaces a 5-syllable filler' },
+    'in order to':  { to: 'to',       why: '"in order to" is always cuttable' },
+    'going forward':{ to: 'next',     why: 'verbal padding; "next" lands' },
+    'at this point in time': { to: 'now', why: '5 words for one' },
+    'with regard to':{ to: 'about',   why: 'corporate distance; plain word' },
+  };
+  const HEDGE_WORDS = ['might', 'perhaps', 'possibly', 'somewhat', 'arguably', 'kind of', 'sort of', 'fairly', 'rather'];
+  const AUDIENCE_TONE_HINTS = {
+    exec:       'Exec room: numbers up front, hedging out, decision verbs.',
+    customer:   'Customer room: second-person ("you/your"), one ask at the end.',
+    conference: 'Conference room: one idea per slide, takeaway-first headlines.',
+    status:     'Status room: imperative verbs, owners + dates after every action.',
+    oneonone:   '1:1 room: conversational; numbers OK but not the lead.',
+    technical:  'Technical room: precise nouns; replace metaphor with the actual mechanism.',
+  };
+
+  function buildSemanticRecs(outline, audience) {
+    const out = [];
+    const fields = (s) => [
+      ['title', s.title || ''],
+      ...((s.messages || []).map((m, mi) => ['msg' + (mi + 1), m || ''])),
+      ['bumper', s.bumper || ''],
+    ];
+    outline.forEach((s, si) => {
+      for (const [field, text] of fields(s)) {
+        if (!text) continue;
+        const lower = text.toLowerCase();
+        for (const [bad, info] of Object.entries(SEMANTIC_SWAPS)) {
+          if (lower.includes(bad)) {
+            out.push({
+              id: `swap-${si}-${field}-${bad.replace(/\s+/g, '_')}`,
+              kind: 'word-swap',
+              track: 'semantic',
+              advisory: true,
+              text: `Slide ${String(si + 1).padStart(2, '0')} (${field}) — swap "${bad}" → "${info.to}". ${info.why}.`,
+            });
+            if (out.length >= 8) return;
+          }
+        }
+        if (audience === 'exec' || audience === 'conference') {
+          for (const h of HEDGE_WORDS) {
+            const re = new RegExp(`\\b${h}\\b`, 'i');
+            if (re.test(text)) {
+              out.push({
+                id: `hedge-${si}-${field}-${h}`,
+                kind: 'hedge',
+                track: 'semantic',
+                advisory: true,
+                text: `Slide ${String(si + 1).padStart(2, '0')} (${field}) — drop "${h}". ${audience === 'exec' ? 'Exec room reads hedges as no-confidence.' : 'Conference room loses the room when hedging.'}`,
+              });
+              if (out.length >= 8) return;
+            }
+          }
+        }
+        if (audience === 'customer' && field !== 'title' && !/\byou\b|\byour\b/i.test(text)) {
+          out.push({
+            id: `you-${si}-${field}`,
+            kind: 'second-person',
+            track: 'semantic',
+            advisory: true,
+            text: `Slide ${String(si + 1).padStart(2, '0')} (${field}) — no "you" / "your". Customer rooms drift when copy is third-person.`,
+          });
+          if (out.length >= 8) return;
+        }
+      }
+    });
+    // Always lead semantic track with the room-tone hint so users can see
+    // what the engine is tuning for, even if no specific swaps fire.
+    if (audience && AUDIENCE_TONE_HINTS[audience]) {
+      out.unshift({
+        id: 'tone-' + audience,
+        kind: 'tone',
+        track: 'semantic',
+        advisory: true,
+        text: AUDIENCE_TONE_HINTS[audience],
+      });
+    }
+    return out.slice(0, 8);
+  }
+
   function buildRecommendations(outline, mode, audience) {
     const recs = [];
     if (mode === 'condense' && outline.length >= 2) {
@@ -1015,7 +1106,13 @@
         }
       }
     }
-    return recs;
+    // Tag everything above as the 'content' track (structural moves —
+    // merge slides, bridge concepts, fix orphans, promote spine, add
+    // setup/action slides). Then concat the 'semantic' track (word-level
+    // swaps + room-tone hints).
+    for (const r of recs) if (!r.track) r.track = 'content';
+    const semantic = buildSemanticRecs(outline, audience);
+    return recs.concat(semantic);
   }
 
   // Heuristic splitter — splits a blob into slide-sized chunks at lines that
@@ -1282,4 +1379,160 @@
   }
 
   window.generateCritique = generateCritique;
+
+  // ─────────────────────────────────────────────────────────────
+  // Client-side fallback for /api/thread_map (Netlify static build)
+  // Lexical-only token overlap — same shape as backend's _view_lexical.
+  // Honest limitation: misses paraphrase/synonyms. ThreadMapView calls
+  // this when the real /api/thread_map fetch fails.
+  // ─────────────────────────────────────────────────────────────
+  const _STOPS = new Set([
+    'the','a','an','and','or','of','to','for','in','on','at','is','it','this',
+    'that','with','from','as','by','be','are','was','were','but','so','if',
+    'we','our','you','your','their','they','will','can','have','has','had',
+    'about','into','than','then','what','which','who','one','more','less',
+    'most','any','some','no',
+  ]);
+  function _tok(s) {
+    const out = new Set();
+    const matches = String(s || '').toLowerCase().match(/\b[a-z][a-z0-9]+\b/g) || [];
+    for (const w of matches) if (!_STOPS.has(w) && w.length >= 3) out.add(w);
+    return out;
+  }
+  function _slideText(slide) {
+    const parts = [slide.title || ''];
+    for (const m of (slide.messages || [])) parts.push(m || '');
+    parts.push(slide.bumper || '');
+    return parts.filter(Boolean).join(' ');
+  }
+  function _viewLexical(outline) {
+    const slideTokens = outline.map(s => _tok(_slideText(s)));
+    const nodes = outline.map((s, i) => ({
+      id: s.id || `s${i}`,
+      index: i,
+      title: (s.title || '').trim() || `Slide ${i + 1}`,
+      concept_count: slideTokens[i].size,
+    }));
+    const edges = [];
+    for (let i = 0; i < slideTokens.length; i++) {
+      for (let j = i + 1; j < slideTokens.length; j++) {
+        const shared = [];
+        for (const w of slideTokens[i]) if (slideTokens[j].has(w)) shared.push(w);
+        if (shared.length === 0) continue;
+        edges.push({
+          from: nodes[i].id,
+          to:   nodes[j].id,
+          weight: shared.length,
+          shared: shared.sort().slice(0, 6),
+          adjacent: (j - i === 1),
+        });
+      }
+    }
+    const orphanIds = [];
+    for (let i = 0; i < slideTokens.length; i++) {
+      const ts = slideTokens[i];
+      if (ts.size === 0) { orphanIds.push(nodes[i].id); continue; }
+      let shares = false;
+      for (let j = 0; j < slideTokens.length; j++) {
+        if (j === i) continue;
+        for (const w of ts) { if (slideTokens[j].has(w)) { shares = true; break; } }
+        if (shares) break;
+      }
+      if (!shares) orphanIds.push(nodes[i].id);
+    }
+    const counts = {};
+    for (const ts of slideTokens) for (const w of ts) counts[w] = (counts[w] || 0) + 1;
+    const spinePairs = Object.entries(counts)
+      .filter(([, c]) => c >= 2)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    let spine = null;
+    const spineFloor = Math.max(3, Math.floor((outline.length + 1) / 2));
+    if (spinePairs.length > 0 && spinePairs[0][1] >= spineFloor) {
+      const [word, count] = spinePairs[0];
+      spine = {
+        word, count,
+        slides: outline
+          .map((_, i) => slideTokens[i].has(word) ? nodes[i].id : null)
+          .filter(Boolean),
+      };
+    }
+    const gaps = [];
+    for (let i = 0; i < slideTokens.length - 1; i++) {
+      const a = slideTokens[i], b = slideTokens[i + 1];
+      if (a.size > 0 && b.size > 0) {
+        let shares = false;
+        for (const w of a) if (b.has(w)) { shares = true; break; }
+        if (!shares) gaps.push({ from: nodes[i].id, to: nodes[i + 1].id });
+      }
+    }
+    const ribbons = [];
+    const sortedCounts = Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    for (const [word, count] of sortedCounts) {
+      if (count < 2) continue;
+      const slidesIn = outline.map((_, i) => slideTokens[i].has(word) ? i : -1).filter(i => i >= 0);
+      const hasGap = (Math.max(...slidesIn) - Math.min(...slidesIn) + 1) !== slidesIn.length;
+      ribbons.push({
+        token: word,
+        slides: slidesIn,
+        weight: count,
+        broken: hasGap,
+        is_spine: (spine !== null && word === spine.word),
+      });
+      if (ribbons.length >= 8) break;
+    }
+    const n = outline.length;
+    const orphanRate = n > 0 ? orphanIds.length / n : 0;
+    const gapRate = n > 1 ? gaps.length / (n - 1) : 0;
+    const spinePenalty = spine ? 0 : 0.35;
+    const messiness = Math.min(1.0, 0.45 * orphanRate + 0.35 * gapRate + spinePenalty);
+    return {
+      graph: { nodes, edges, orphans: orphanIds, spine, gaps },
+      ribbons,
+      stats: {
+        slides: n,
+        orphans: orphanIds.length,
+        gaps: gaps.length,
+        edges: edges.length,
+        ribbons: ribbons.length,
+        spine_word: spine ? spine.word : null,
+        messiness: Math.round(messiness * 1000) / 1000,
+      },
+      engine: 'lexical',
+    };
+  }
+  async function computeThreadMapLocal(req) {
+    const outline = req.outline || [];
+    const recs = req.recommendations || [];
+    const accepted = new Set(req.acceptedIds || []);
+    const mode = req.mode || 'potential';
+    const applicable = (mode === 'accepted')
+      ? recs.filter(r => accepted.has(r.id))
+      : recs.slice();
+    const before = _viewLexical(outline);
+    // Simulated AFTER: pretend each applied advisory removes one orphan or
+    // one hard cut. Doesn't mutate the outline — purely a visible delta so
+    // the BEFORE/AFTER comparison reads as meaningful in the mock path.
+    const after = _viewLexical(outline);
+    let drops = applicable.length;
+    while (drops > 0 && (after.graph.gaps.length > 0 || after.graph.orphans.length > 0)) {
+      if (after.graph.gaps.length > 0) after.graph.gaps.pop();
+      else if (after.graph.orphans.length > 0) after.graph.orphans.pop();
+      drops--;
+    }
+    after.stats.gaps    = after.graph.gaps.length;
+    after.stats.orphans = after.graph.orphans.length;
+    const orphanRateA = outline.length > 0 ? after.graph.orphans.length / outline.length : 0;
+    const gapRateA    = outline.length > 1 ? after.graph.gaps.length / (outline.length - 1) : 0;
+    const spinePenaltyA = after.graph.spine ? 0 : 0.35;
+    after.stats.messiness = Math.round(
+      Math.min(1.0, 0.45 * orphanRateA + 0.35 * gapRateA + spinePenaltyA) * 1000
+    ) / 1000;
+    return {
+      before, after,
+      diff: {},
+      applied: applicable.map(r => r.id),
+      mode,
+    };
+  }
+  window.computeThreadMapLocal = computeThreadMapLocal;
 })();

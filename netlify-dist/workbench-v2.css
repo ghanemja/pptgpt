@@ -1553,11 +1553,11 @@ button { font: inherit; color: inherit; }
 .sb-tile {
   position: absolute;
   top: 0; left: 0;
-  width: 270px;
+  width: 252px;
   background: var(--paper);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--border);
-  border-radius: 6px;
+  border-left: 3px solid var(--border);
+  border-radius: 5px;
   box-shadow: var(--shadow-card);
   z-index: 2;
   transition: box-shadow 160ms, transform 0ms, border-color 160ms;
@@ -1591,13 +1591,13 @@ button { font: inherit; color: inherit; }
 .sb-tile__head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: 6px;
+  padding: 4px 7px;
   border-bottom: 1px solid var(--border);
   cursor: grab;
   font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.16em;
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--gray);
   user-select: none;
@@ -1628,7 +1628,7 @@ button { font: inherit; color: inherit; }
 .sb-tile__actions button:hover:not(:disabled) { background: var(--bg-tint); color: var(--ink); }
 .sb-tile__actions button:disabled { opacity: 0.3; cursor: default; }
 
-.sb-tile__body { padding: 8px 12px 10px; }
+.sb-tile__body { padding: 6px 10px 8px; }
 
 .sb-tile--title { border-color: var(--ink); }
 .sb-tile--title .sb-tile__head { border-bottom-color: var(--ink); background: var(--ink); color: rgba(255,255,255,0.7); }
@@ -1647,7 +1647,7 @@ button { font: inherit; color: inherit; }
   font-family: var(--font-serif);
   font-style: italic;
   font-weight: 500;
-  font-size: 17px;
+  font-size: 14.5px;
   line-height: 1.25;
   color: var(--ink);
 }
@@ -2294,3 +2294,27 @@ button { font: inherit; color: inherit; }
   text-underline-offset: 3px;
 }
 .sm-upload__sample-link:hover { color: var(--ink); }
+
+/* Recommendation tracks — sidebar groups recs by intent so the user can
+   triage by "what kind of fix" (structural vs surface). */
+.sb-rec-group { margin-bottom: 14px; }
+.sb-rec-group:last-child { margin-bottom: 0; }
+.sb-rec-group__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0 8px;
+  border-bottom: 1px dashed var(--border-2);
+  margin-bottom: 8px;
+}
+.sb-rec-group__label {
+  font: 600 11px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.sb-rec-group__hint {
+  font: 400 11px/1 var(--font-sans);
+  font-style: italic;
+  color: var(--ink-2);
+}
