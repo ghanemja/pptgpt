@@ -98,6 +98,15 @@ _MODEL_NAME  = os.environ.get("DECKENGINE_NARRATIVE_MODEL", "claude-sonnet-4-6")
 _API_KEY     = os.environ.get("ANTHROPIC_API_KEY", "")
 _OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
 _OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
+# Gemma via an OpenAI-compatible /v1 endpoint (the shared HF Inference
+# Endpoint). Reuses the same LOCAL_LLM_* env as Brain University, so one
+# config wires both apps to the same hosted Gemma.
+#   DECKENGINE_NARRATIVE_BACKEND=gemma
+#   LOCAL_LLM_BASE=https://<endpoint>.endpoints.huggingface.cloud/v1
+#   LOCAL_LLM_KEY=<hf token>   LOCAL_LLM_MODEL=gemma
+_GEMMA_BASE  = os.environ.get("LOCAL_LLM_BASE", "").rstrip("/")
+_GEMMA_KEY   = os.environ.get("LOCAL_LLM_KEY", "")
+_GEMMA_MODEL = os.environ.get("LOCAL_LLM_MODEL", "gemma")
 
 # A pluggable callable so tests (and ad-hoc swaps) can inject a custom LLM.
 _llm_override: Optional[Callable[[str], str]] = None
@@ -113,6 +122,8 @@ def available() -> bool:
     """Is *some* narrative model usable, right now?"""
     if _llm_override is not None:
         return True
+    if _BACKEND == "gemma":
+        return bool(_GEMMA_BASE)
     if _BACKEND == "ollama":
         # cheap reachability check, swallow any error
         try:
@@ -189,12 +200,62 @@ def _llm_call_ollama(prompt: str) -> str:
     return str(msg.get("content") or "")
 
 
+def _llm_call_gemma(prompt: str) -> str:
+    """Gemma via an OpenAI-compatible /v1/chat/completions endpoint (the shared
+    HF Inference Endpoint). Bearer auth, reasoning-model token headroom, and
+    cold-start retry for a scale-to-zero endpoint."""
+    import json as _json
+    import time as _time
+    import urllib.request, urllib.error
+    if not _GEMMA_BASE:
+        raise RuntimeError("LOCAL_LLM_BASE not set")
+    url = f"{_GEMMA_BASE}/chat/completions"
+    payload = {
+        "model": _GEMMA_MODEL,
+        "messages": [
+            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "user",   "content": prompt},
+        ],
+        "max_tokens": 4000,   # reasoning model spends budget thinking first
+        "temperature": 0.2,
+    }
+    headers = {"Content-Type": "application/json"}
+    if _GEMMA_KEY:
+        headers["Authorization"] = f"Bearer {_GEMMA_KEY}"
+    data = _json.dumps(payload).encode("utf-8")
+    last: Exception | None = None
+    for attempt in range(6):
+        try:
+            req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=300) as r:
+                body = r.read().decode("utf-8", errors="replace")
+            obj = _json.loads(body)
+            msg = (obj.get("choices") or [{}])[0].get("message") or {}
+            content = (msg.get("content") or "").strip()
+            if not content:  # reasoning model may put it here if truncated
+                content = (msg.get("reasoning_content") or "").strip()
+            if content:
+                return content
+            last = RuntimeError("empty content from gemma")
+        except urllib.error.HTTPError as e:
+            if e.code in (502, 503, 504):   # endpoint cold-starting
+                last = e; _time.sleep(min(30, 10 * (attempt + 1))); continue
+            raise
+        except Exception as e:
+            last = e; _time.sleep(5 * (attempt + 1))
+    raise last or RuntimeError("gemma call failed")
+
+
 def _backend_chain() -> list[str]:
     """Pick the order to try backends. Primary first, then any other backend
     that *looks* configured. This means a configured fallback never silently
     activates — but if you set both, we'll try the other one before giving up."""
     chain = [_BACKEND]
-    other = "anthropic" if _BACKEND == "ollama" else "ollama"
+    if _BACKEND == "gemma":
+        # gemma is self-contained; only fall back to anthropic if a key exists.
+        other = "anthropic" if _API_KEY else None
+    else:
+        other = "anthropic" if _BACKEND == "ollama" else "ollama"
     # only add 'other' if its prerequisites look set
     if other == "anthropic" and _API_KEY:
         chain.append("anthropic")
@@ -234,6 +295,8 @@ def _llm_call_default(prompt: str) -> str:
         try:
             if b == "ollama":
                 text = _llm_call_ollama(prompt)
+            elif b == "gemma":
+                text = _llm_call_gemma(prompt)
             else:
                 text = _llm_call_anthropic(prompt)
             if text and text.strip():
@@ -263,6 +326,8 @@ def backend_info() -> dict:
     """For the /api/narrative health response and the engine badge tooltip."""
     if _llm_override is not None:
         return {"backend": "override", "model": "custom"}
+    if _BACKEND == "gemma":
+        return {"backend": "gemma", "model": _GEMMA_MODEL, "base": _GEMMA_BASE}
     if _BACKEND == "ollama":
         return {"backend": "ollama", "model": _OLLAMA_MODEL, "host": _OLLAMA_HOST}
     return {"backend": "anthropic", "model": _MODEL_NAME}
