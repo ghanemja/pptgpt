@@ -2033,19 +2033,6 @@ function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAd
             />
           </div>
 
-          <div className="sb-right">
-            <section className="sb-thread-panel">
-              <div className="sb-thread-panel__head">
-                <span className="sb-thread-panel__title">Thread map</span>
-                <span className="sb-thread-panel__hint">see the messiness</span>
-              </div>
-              <ThreadMapView
-                outline={outline}
-                recs={recs}
-                dismissedRecs={dismissedRecs}
-                acceptedIds={acceptedIds || new Set()}
-              />
-            </section>
           <aside className="sb-side">
             <div className="sb-side__head">
               <span className="sb-side__title">Recommendations</span>
@@ -2112,7 +2099,19 @@ function StoryboardPage({ outline, recs, dismissedRecs, allowMulti, onEdit, onAd
               );
             })()}
           </aside>
-          </div>
+
+          <section className="sb-thread-panel">
+            <div className="sb-thread-panel__head">
+              <span className="sb-thread-panel__title">Thread map</span>
+              <span className="sb-thread-panel__hint">see the messiness</span>
+            </div>
+            <ThreadMapView
+              outline={outline}
+              recs={recs}
+              dismissedRecs={dismissedRecs}
+              acceptedIds={acceptedIds || new Set()}
+            />
+          </section>
         </div>
 
         <div className="sm-foot">
