@@ -902,6 +902,21 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
     setError('');
   }
 
+  async function loadSample() {
+    setError('');
+    try {
+      const res = await fetch('/samples/cadme_claude_usecases.pptx');
+      if (!res.ok) throw new Error('sample fetch failed: ' + res.status);
+      const blob = await res.blob();
+      const f = new File([blob], 'cadme_claude_usecases.pptx', {
+        type: blob.type || 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      });
+      onFile(f);
+    } catch (e) {
+      setError('Could not load the sample deck. ' + (e.message || ''));
+    }
+  }
+
   function onDrop(e) {
     e.preventDefault();
     setDragOver(false);
@@ -1057,6 +1072,16 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
               <div className="sm-upload__file">
                 <span>📄 {file.name}  ·  {Math.round(file.size / 1024)} KB</span>
                 <button className="sm-upload__clear" onClick={() => setFile(null)}>×</button>
+              </div>
+            )}
+            {!file && (
+              <div className="sm-upload__sample">
+                <span>No deck handy?</span>
+                <button
+                  type="button"
+                  className="sm-upload__sample-link"
+                  onClick={loadSample}
+                >try a sample .pptx →</button>
               </div>
             )}
           </div>

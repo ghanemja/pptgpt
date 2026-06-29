@@ -123,8 +123,9 @@ PUBLIC_PATHS = {
     "/canvas", "/canvas/",
     "/workbench-v1", "/workbench-v1/",
 }
-PUBLIC_PREFIXES = ("/frontend/", "/assets/", "/v2-assets/")
-PUBLIC_SUFFIXES = (".html", ".css", ".js", ".jsx", ".png", ".jpg", ".svg", ".ico", ".woff", ".woff2")
+PUBLIC_PREFIXES = ("/frontend/", "/assets/", "/v2-assets/", "/samples/")
+PUBLIC_SUFFIXES = (".html", ".css", ".js", ".jsx", ".png", ".jpg", ".svg", ".ico", ".woff", ".woff2",
+                   ".pptx", ".pdf", ".docx", ".txt", ".md")
 
 
 def is_public(path: str, method: str) -> bool:
