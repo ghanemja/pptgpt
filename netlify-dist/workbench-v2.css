@@ -7,17 +7,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root {
-  /* Landing palette — keep semantic names workbench already uses */
-  --ink:      #11120E;   /* near-black, warm */
+  /* White-background variant: same emerald accent as landing, but page
+     bg is true white so the workbench reads cleaner / less wedding-
+     invitation-y at small text sizes. Cream was muddying the panels. */
+  --ink:      #11120E;
   --ink-2:    #3D3F38;
-  --gray:     #807C6E;   /* landing's --mute */
-  --gray-2:   #9A9787;
-  --gray-3:   #C4BFB0;
-  --bg:       #FAF7EF;   /* warm cream */
-  --bg-tint:  #F1ECDC;   /* recessed */
+  --gray:     #6F7166;
+  --gray-2:   #8E9087;
+  --gray-3:   #C7CAC2;
+  --bg:       #FFFFFF;        /* white page */
+  --bg-tint:  #F4F7F2;        /* faint sage hint for recessed surfaces */
   --paper:    #FFFFFF;
-  --border:   #E1DBC7;
-  --border-2: #EFEADB;
+  --border:   #E3E8E0;        /* cool light sage */
+  --border-2: #D2D9CE;
   --accent:        #0E5B36;   /* forest emerald — primary */
   --accent-2:      #E26A2C;   /* tangerine spark — alerts / structural */
   --accent-soft:   #DDEADE;
@@ -77,7 +79,7 @@ button { font: inherit; color: inherit; }
   padding: 16px 24px;
   gap: 24px;
   border-bottom: 1px solid var(--border);
-  background: rgba(244, 241, 234, 0.85);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(6px);
   z-index: 10;
 }
@@ -660,15 +662,18 @@ button { font: inherit; color: inherit; }
 .sm {
   flex: 1 1 auto;
   overflow: auto;
-  padding: 32px 48px 56px;
+  padding: 28px 24px 56px;
   background: var(--bg);
 }
 .sm-inner {
-  max-width: 1180px;
+  /* Wider working area on step 03 so the 3-panel split (storyboard +
+     recs + thread map) has real room. Keep a max so 4K monitors don't
+     get a horizontally-stretched layout. */
+  max-width: 1720px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 28px;
 }
 
 /* ── Step wrappers ─────────────────────────────────────────── */
