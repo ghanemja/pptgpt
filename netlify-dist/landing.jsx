@@ -1220,18 +1220,14 @@ function Nav() {
         <span className="brand__mark" />
         pptgpt
       </div>
-      <div className="nav__links">
-        <button className="nav__link">Modes</button>
-        <button className="nav__link">Audiences</button>
-        <button className="nav__link" onClick={() => { window.location.href = '/storyboard'; }}>Storyboard</button>
-        <button className="nav__link">Pricing</button>
-      </div>
+      {/* Nav stripped of the commerce shell (Pricing / Log in / Try it
+         free / Storyboard). pptgpt is not a SaaS product; the landing
+         is a tech demo. One CTA → the canonical app. */}
       <div className="nav__right">
-        <button className="btn btn--ghost">Log in</button>
         <button
           className="btn btn--primary"
           onClick={() => { window.location.href = '/workbench'; }}
-        >Try it free</button>
+        >Open the workbench →</button>
       </div>
     </nav>
   );
@@ -1259,13 +1255,10 @@ function Hero() {
           className="btn btn--accent btn--lg"
           onClick={() => { window.location.href = '/workbench'; }}
         >
-          Try it free
+          Open the workbench
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M3 8 L13 8 M9 4 L13 8 L9 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-        </button>
-        <button className="btn btn--ghost btn--lg">
-          See examples
         </button>
       </div>
       <div className="peek">

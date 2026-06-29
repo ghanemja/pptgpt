@@ -45,7 +45,7 @@ from typing import Any
 
 from fastapi import FastAPI, Response, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response as FResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response as FResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -492,11 +492,13 @@ def setup():
     return _serve_html("v2-assets/setup.html")
 
 
-@app.get("/storyboard", response_class=HTMLResponse)
-@app.get("/storyboard/", response_class=HTMLResponse)
-def storyboard():
-    """The new storyboard page — thread tracks + AI-noticed cards."""
-    return _serve_html("v2-assets/storyboard-v2.html")
+@app.get("/storyboard")
+@app.get("/storyboard/")
+def storyboard_redirect():
+    """Legacy /storyboard kept duplicating the workbench's step 03 with
+    different demo data, which confused users about which one was real.
+    There is now ONE storyboard — phase 3 of /workbench."""
+    return RedirectResponse(url="/workbench", status_code=308)
 
 
 @app.get("/workbench", response_class=HTMLResponse)

@@ -18,6 +18,16 @@
   from = "/setup.html"
   to = "/workbench"
   status = 301
+# /storyboard was a different demo with different data; redirect to the
+# canonical step 03 inside /workbench so there's only one storyboard.
+[[redirects]]
+  from = "/storyboard"
+  to = "/workbench"
+  status = 301
+[[redirects]]
+  from = "/storyboard.html"
+  to = "/workbench"
+  status = 301
 
 [[headers]]
   for = "/*"
