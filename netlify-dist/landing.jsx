@@ -367,8 +367,8 @@ function ScrollyDemo() {
           What pptgpt <em>actually does</em>.
         </h2>
         <p className="scrolly__intro-blurb">
-          Each mode matches a different kind of raw material. You don't pick — pptgpt reads
-          what you dropped in and reaches for the right one.
+          Five modes. Each one matches a different kind of raw material. Look at what
+          you're holding, then pick the mode that fits — pptgpt does the rest.
         </p>
         <div className="scrolly__intro-chips">
           {MODES.map((m, i) => (
@@ -1254,10 +1254,10 @@ function Hero() {
         Five modes  ·  six rooms  ·  one tool
       </div>
       <h1 className="hero__title">
-        Slides that <span className="hero__title-em">argue.</span>
+        Build the deck. <span className="hero__title-em">Skip the layout fight.</span>
       </h1>
       <p className="hero__sub">
-        Drop in a thought, a slide, a deck, or your data, plots, and results — one file or many. pptgpt drafts, refines, condenses, visualizes, or synthesizes — whichever your material needs.
+        Drop in a thought, a slide, a deck, or your data — one file or many. Pick the mode that fits the job: draft, refine, condense, visualize, or synthesize. The engine handles the geometry.
       </p>
       <div className="hero__cta">
         <button
