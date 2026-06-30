@@ -488,7 +488,7 @@ function WBHeader({ mode, onModeChange, loading, onReset, phase, onBackToStoryMa
     phase === 'critique'   ? 5 : 1;
   return (
     <header className="wb-header">
-      <div className="wb-wordmark">
+      <a className="wb-wordmark wb-wordmark--link" href="/" title="Back to landing">
         <span className="dot" />
         pptgpt
         <span className="meta">
@@ -497,7 +497,7 @@ function WBHeader({ mode, onModeChange, loading, onReset, phase, onBackToStoryMa
            phase === 'critique'   ? 'workbench  ·  critique' :
                                     'workbench  ·  outline · stage · result'}
         </span>
-      </div>
+      </a>
       {phase === 'workbench' ? (
         <div className="wb-modes" role="tablist">
           {Object.entries(MODE_LABELS).map(([k, label]) => (

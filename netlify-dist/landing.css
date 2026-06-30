@@ -1617,14 +1617,18 @@ img, svg { display: block; max-width: 100%; }
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity 500ms var(--ease), transform 600ms var(--ease);
+  visibility: hidden;     /* hard-hide so inactive variants can't bleed at the right edge */
+  transition: opacity 500ms var(--ease), transform 600ms var(--ease), visibility 0s linear 500ms;
   transform: translateY(8px) scale(0.995);
   pointer-events: none;
+  overflow: hidden;       /* clip oversized hero typography (conference) instead of poking past the frame */
 }
 .aud-slide.is-active {
   opacity: 1;
+  visibility: visible;
   transform: translateY(0) scale(1);
   pointer-events: auto;
+  transition: opacity 500ms var(--ease), transform 600ms var(--ease), visibility 0s;
 }
 /* Each per-audience variant (.as-exec / .as-customer / .as-standup /
    .as-oneonone / .as-technical etc.) needs to fill the absolutely-
@@ -1823,9 +1827,12 @@ img, svg { display: block; max-width: 100%; }
 .as-conf__big {
   font-family: var(--sans);
   font-weight: 800;
-  font-size: clamp(80px, 14vw, 180px);
-  line-height: 0.9;
-  letter-spacing: -0.05em;
+  /* Was clamp(80px, 14vw, 180px) — overflowed the frame at common
+     viewport widths because the text wraps to 3+ lines. Tighter
+     ceiling so "We beat plan by 14%." fits the card without clipping. */
+  font-size: clamp(56px, 9vw, 110px);
+  line-height: 0.92;
+  letter-spacing: -0.045em;
   margin: auto 0;
   color: var(--bg);
 }

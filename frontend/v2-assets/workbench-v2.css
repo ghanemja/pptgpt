@@ -2573,3 +2573,15 @@ button { font: inherit; color: inherit; }
 .sm-step.is-open > .sm-tpl__uploader {
   margin-top: 12px;
 }
+
+/* Brand wordmark as a back-to-landing link */
+.wb-wordmark--link {
+  text-decoration: none;
+  color: inherit;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  cursor: pointer;
+  transition: opacity 120ms var(--ease-soft);
+}
+.wb-wordmark--link:hover { opacity: 0.7; }
