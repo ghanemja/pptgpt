@@ -2510,3 +2510,66 @@ button { font: inherit; color: inherit; }
   color: var(--ink);
   line-height: 1.4;
 }
+
+/* ────────────────────────────────────────────────────────────────
+   Step 01 accordion: each .sm-step has a clickable head and the
+   body is only rendered when openStep matches. CSS just handles
+   visual feedback for open / locked / done states. The JSX already
+   gates which body renders.
+   ──────────────────────────────────────────────────────────────── */
+
+.sm-step__head--btn {
+  appearance: none;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms var(--ease-soft), background 120ms var(--ease-soft);
+}
+.sm-step__head--btn:hover:not(:disabled) {
+  border-color: var(--border-2);
+  background: var(--bg-tint);
+}
+.sm-step__head--btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.sm-step.is-open .sm-step__head--btn {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.sm-step__status {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.sm-step.is-done:not(.is-open) .sm-step__status { color: var(--accent); }
+.sm-step.is-locked .sm-step__status { color: var(--gray); font-style: italic; }
+.sm-step__chev {
+  font-size: 13px;
+  color: var(--ink-2);
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.sm-step.is-open .sm-step__chev { color: var(--accent); }
+
+/* Body content under the open head — give it a card-like wrap so the
+   accordion has a clear boundary. */
+.sm-step.is-open > .sm-inputs,
+.sm-step.is-open > .sm-goals,
+.sm-step.is-open > .sm-audience,
+.sm-step.is-open > .sm-templates,
+.sm-step.is-open > .sm-substep,
+.sm-step.is-open > .sm-tpl__uploader {
+  margin-top: 12px;
+}

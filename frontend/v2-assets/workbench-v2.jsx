@@ -863,6 +863,33 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
   const [error, setError] = useState('');
   const [extracting, setExtracting] = useState(false);
   const [targetCount, setTargetCount] = useState(5);
+  // Accordion: one step open at a time. Next step unlocks only when
+  // the previous one is filled in; user can click any unlocked step
+  // header to jump back. 'input' is always unlocked; mode/audience/
+  // template unlock once source has content.
+  const [openStep, setOpenStep] = useState('input');
+  const hasSource = !!(pasteText.trim() || file);
+  const stepUnlocked = {
+    input:    true,
+    mode:     hasSource,
+    audience: hasSource,
+    template: hasSource,
+  };
+  // Auto-advance once user provides source — opens 'mode' the first
+  // time hasSource flips true. Does NOT keep nudging the user forward
+  // (they can scroll back anytime).
+  const lastHadSource = useRef(false);
+  useEffect(() => {
+    if (hasSource && !lastHadSource.current && openStep === 'input') {
+      setOpenStep('mode');
+    }
+    lastHadSource.current = hasSource;
+  }, [hasSource, openStep]);
+
+  function toggleStep(key) {
+    if (!stepUnlocked[key]) return;
+    setOpenStep(prev => prev === key ? null : key);
+  }
 
   async function extract() {
     setError('');
@@ -1084,11 +1111,21 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
         </div>
 
         {/* Step 1 — input */}
-        <div className="sm-step">
-          <div className="sm-step__head">
+        <div className={`sm-step ${openStep === 'input' ? 'is-open' : ''} ${hasSource ? 'is-done' : ''}`}>
+          <button
+            type="button"
+            className="sm-step__head sm-step__head--btn"
+            onClick={() => toggleStep('input')}
+          >
             <span className="sm-step__num">01</span>
             <span className="sm-step__title">Drop a file, paste some text, or both.</span>
-          </div>
+            <span className="sm-step__status">
+              {hasSource ? (file ? `✓ ${file.name}` : '✓ pasted') : 'start here'}
+            </span>
+            <span className="sm-step__chev" aria-hidden>{openStep === 'input' ? '▾' : '▸'}</span>
+          </button>
+          {openStep === 'input' && (
+          <>
           <div className="sm-inputs">
           <div className="sm-card sm-paste">
             <div className="sm-card__head">
@@ -1176,16 +1213,29 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
             )}
           </div>
         )}
+          </>
+          )}
         </div>{/* /sm-step 01 */}
 
         {error && <div className="sm-error">{error}</div>}
 
         {/* Step 2 — pick the goal */}
-        <div className="sm-step">
-          <div className="sm-step__head">
+        <div className={`sm-step ${openStep === 'mode' ? 'is-open' : ''} ${!stepUnlocked.mode ? 'is-locked' : ''}`}>
+          <button
+            type="button"
+            className="sm-step__head sm-step__head--btn"
+            onClick={() => toggleStep('mode')}
+            disabled={!stepUnlocked.mode}
+          >
             <span className="sm-step__num">02</span>
             <span className="sm-step__title">What do you want to do with this?</span>
-          </div>
+            <span className="sm-step__status">
+              {stepUnlocked.mode ? `✓ ${MODE_DESCRIPTIONS[mode]?.verb || mode}` : 'add source first'}
+            </span>
+            <span className="sm-step__chev" aria-hidden>{openStep === 'mode' ? '▾' : '▸'}</span>
+          </button>
+          {openStep === 'mode' && (
+          <>
           <div className="sm-goals">
             {Object.entries(MODE_DESCRIPTIONS).map(([k, m]) => (
               <button
@@ -1210,14 +1260,26 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
               <span className="sm-substep__hint">{mode === 'draft' ? '1 — 6' : '2 — 10'}</span>
             </div>
           )}
+          </>
+          )}
         </div>
 
         {/* Step 2b — pick the audience */}
-        <div className="sm-step">
-          <div className="sm-step__head">
+        <div className={`sm-step ${openStep === 'audience' ? 'is-open' : ''} ${!stepUnlocked.audience ? 'is-locked' : ''}`}>
+          <button
+            type="button"
+            className="sm-step__head sm-step__head--btn"
+            onClick={() => toggleStep('audience')}
+            disabled={!stepUnlocked.audience}
+          >
             <span className="sm-step__num">02b</span>
             <span className="sm-step__title">Who is in the room?</span>
-          </div>
+            <span className="sm-step__status">
+              {stepUnlocked.audience ? `✓ ${AUDIENCES.find(a => a.key === audience)?.label || audience}` : 'add source first'}
+            </span>
+            <span className="sm-step__chev" aria-hidden>{openStep === 'audience' ? '▾' : '▸'}</span>
+          </button>
+          {openStep === 'audience' && (
           <div className="sm-audience">
             {AUDIENCES.map(a => (
               <button
@@ -1233,14 +1295,26 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
               </button>
             ))}
           </div>
+          )}
         </div>
 
         {/* Step 2c — template */}
-        <div className="sm-step">
-          <div className="sm-step__head">
+        <div className={`sm-step ${openStep === 'template' ? 'is-open' : ''} ${!stepUnlocked.template ? 'is-locked' : ''}`}>
+          <button
+            type="button"
+            className="sm-step__head sm-step__head--btn"
+            onClick={() => toggleStep('template')}
+            disabled={!stepUnlocked.template}
+          >
             <span className="sm-step__num">02c</span>
             <span className="sm-step__title">Visual template</span>
-          </div>
+            <span className="sm-step__status">
+              {stepUnlocked.template ? `✓ ${TEMPLATES.find(t => t.key === template)?.label || template}` : 'add source first'}
+            </span>
+            <span className="sm-step__chev" aria-hidden>{openStep === 'template' ? '▾' : '▸'}</span>
+          </button>
+          {openStep === 'template' && (
+          <>
           <div className="sm-templates">
             {TEMPLATES.map(t => {
               const isInherit = t.key === 'inherit';
@@ -1274,6 +1348,8 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
                 onChange={(e) => setTemplateFile(e.target.files[0])}
               />
             </label>
+          )}
+          </>
           )}
         </div>
 
