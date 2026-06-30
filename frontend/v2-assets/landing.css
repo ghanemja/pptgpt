@@ -1626,6 +1626,17 @@ img, svg { display: block; max-width: 100%; }
   transform: translateY(0) scale(1);
   pointer-events: auto;
 }
+/* Each per-audience variant (.as-exec / .as-customer / .as-standup /
+   .as-oneonone / .as-technical etc.) needs to fill the absolutely-
+   positioned .aud-slide frame top-to-bottom. Without this they
+   shrink to content height and leave an empty stripe inside the
+   card. The conference slide (.as-conf) happened to have
+   justify-content: space-between so it looked right; the others
+   didn't. Force the fill on all variants in one rule. */
+.aud-slide > * {
+  height: 100%;
+  box-sizing: border-box;
+}
 
 /* SHARED slide chrome */
 .as-eyebrow {
