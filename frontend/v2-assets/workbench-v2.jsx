@@ -1278,9 +1278,6 @@ function StoryMap({ mode, onModeChange, audience, onAudienceChange, template, on
         </div>
 
         <div className="sm-cta-row">
-          <span className="sm-cta-meta">
-            ready when you are
-          </span>
           <button
             className="sm-extract"
             onClick={extract}

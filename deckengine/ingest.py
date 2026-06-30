@@ -32,6 +32,93 @@ from .ir import Slide, ContentBlock, BlockKind, LayoutIntent, Deck, Theme, Image
 from .parse import _STAT_TOKEN, _extract_stat
 
 
+def ingest_bytes(data: bytes, filename: str, *, uploads_dir: Optional[str] = None,
+                 url_prefix: str = "/uploads") -> Deck:
+    """Format-dispatching ingest: routes to ingest_pptx_bytes for .pptx
+    and ingest_pdf_bytes for .pdf. Anything else falls through to the
+    pptx path (which will raise a useful error). Callers that already
+    know the format can call the specific function directly."""
+    name = (filename or "").lower()
+    if name.endswith(".pdf"):
+        return ingest_pdf_bytes(data, filename=filename,
+                                uploads_dir=uploads_dir, url_prefix=url_prefix)
+    return ingest_pptx_bytes(data, uploads_dir=uploads_dir, url_prefix=url_prefix)
+
+
+def ingest_pdf_bytes(data: bytes, *, filename: str = "uploaded.pdf",
+                     uploads_dir: Optional[str] = None,
+                     url_prefix: str = "/uploads") -> Deck:
+    """Read a .pdf (in-memory bytes) and emit a content-only Deck.
+
+    Each page becomes one Slide. The first non-empty line of a page is
+    promoted to the title; remaining lines become paragraphs/bullets
+    under the same heuristic as the .pptx path. Image extraction is
+    not yet wired (pypdf can pull images but most decks lose meaning
+    without their original positioning); flagged as a follow-up.
+    """
+    from pypdf import PdfReader
+    reader = PdfReader(io.BytesIO(data))
+    slides: list[Slide] = []
+    deck_title = ""
+
+    for idx, page in enumerate(reader.pages):
+        try:
+            raw = page.extract_text() or ""
+        except Exception:
+            raw = ""
+        lines = [l.strip() for l in raw.splitlines() if l.strip()]
+        if not lines:
+            slides.append(Slide(
+                blocks=[ContentBlock(BlockKind.TITLE, text=f"Page {idx+1}"),
+                        ContentBlock(BlockKind.PARAGRAPH, text="(no extractable text on this page)")],
+                intent=LayoutIntent.AUTO,
+            ))
+            continue
+
+        title_text = lines[0]
+        body_lines = lines[1:]
+        if idx == 0 and not deck_title:
+            deck_title = title_text
+
+        blocks: list[ContentBlock] = [ContentBlock(BlockKind.TITLE, text=title_text)]
+
+        # split body into stats / bullets / paragraphs using parse helpers
+        stats: list[ContentBlock] = []
+        bullet_items: list[str] = []
+        paragraphs: list[str] = []
+        for line in body_lines:
+            extracted = _extract_stat(line)
+            if extracted and len(line.split()) <= 8:
+                v, lbl = extracted
+                stats.append(ContentBlock(BlockKind.STAT, value=v, label=lbl, emphasis=0))
+            elif len(line) <= 120:
+                bullet_items.append(re.sub(r"^[#*\-•]+\s*", "", line))
+            else:
+                paragraphs.append(line)
+
+        blocks.extend(stats)
+        if bullet_items:
+            blocks.append(ContentBlock(BlockKind.BULLETS, items=bullet_items))
+        for p in paragraphs:
+            blocks.append(ContentBlock(BlockKind.PARAGRAPH, text=p))
+
+        if stats:
+            from .parse import _stat_weight
+            hero = max(stats, key=_stat_weight)
+            hero.emphasis = 2
+
+        slides.append(Slide(blocks=blocks, intent=LayoutIntent.AUTO))
+
+    if not slides:
+        slides = [Slide(
+            blocks=[ContentBlock(BlockKind.TITLE, text="Empty PDF")],
+            intent=LayoutIntent.AUTO,
+        )]
+
+    return Deck(slides=slides, theme=Theme(),
+                title=deck_title or "Imported PDF")
+
+
 def ingest_pptx_bytes(data: bytes, *, uploads_dir: Optional[str] = None,
                       url_prefix: str = "/uploads") -> Deck:
     """Read a .pptx (in-memory bytes) and emit a content+visuals Deck.

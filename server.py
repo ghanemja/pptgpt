@@ -252,12 +252,14 @@ def api_ir(req: DesignReq):
 
 @app.post("/api/ingest")
 async def api_ingest(file: UploadFile = File(...)):
-    """Upload a .pptx, get IR back. Content-only — geometry is discarded by
-    design (R7.2.2). The engine re-resolves layout downstream."""
-    from deckengine.ingest import ingest_pptx_bytes
+    """Upload a .pptx OR .pdf, get IR back. Content-only — geometry is
+    discarded by design (R7.2.2). The engine re-resolves layout
+    downstream. Format dispatched by filename extension."""
+    from deckengine.ingest import ingest_bytes
     raw = await file.read()
     try:
-        deck = ingest_pptx_bytes(raw, uploads_dir=UPLOADS, url_prefix="/uploads")
+        deck = ingest_bytes(raw, filename=file.filename or "",
+                            uploads_dir=UPLOADS, url_prefix="/uploads")
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": f"failed to ingest: {e}"})
     return deck_to_dict(deck)
@@ -265,12 +267,38 @@ async def api_ingest(file: UploadFile = File(...)):
 
 @app.post("/api/peek")
 async def api_peek(file: UploadFile = File(...)):
-    """Lightweight pre-extraction metadata. Returns slide count, slide
+    """Lightweight pre-extraction metadata. Returns slide/page count,
     titles, image / chart counts, and file size — enough for the UI to
     show "what's in this deck" before the user commits to a mode +
-    extract. Does NOT persist any image blobs (unlike /api/ingest)."""
+    extract. Handles .pptx and .pdf. Does NOT persist any image blobs."""
     raw = await file.read()
     size = len(raw)
+    name = (file.filename or "").lower()
+
+    if name.endswith(".pdf"):
+        try:
+            from pypdf import PdfReader
+            import io as _io
+            reader = PdfReader(_io.BytesIO(raw))
+        except Exception as e:
+            return JSONResponse(status_code=400, content={"error": f"failed to read pdf: {e}"})
+        slides = []
+        for i, page in enumerate(reader.pages):
+            try:
+                txt = (page.extract_text() or "").strip()
+                first_line = next((l.strip() for l in txt.splitlines() if l.strip()), "")
+            except Exception:
+                first_line = ""
+            slides.append({"index": i, "title": first_line or f"Page {i + 1}"})
+        return {
+            "filename": file.filename,
+            "size_bytes": size,
+            "slide_count": len(slides),
+            "image_count": 0,   # pypdf can pull these but skipped for peek
+            "chart_count": 0,
+            "slides": slides,
+        }
+
     try:
         from pptx import Presentation
         import io as _io
