@@ -154,6 +154,15 @@ class StoryboardViewReq(BaseModel):
     mode: str | None = None
 
 
+class WorkspaceGenReq(BaseModel):
+    feature: str = "create"
+    prompt: str = ""
+    audience: str | None = None
+    current: dict | None = None
+    palette: str | None = None
+    fileNames: list[str] = []
+
+
 # ---- API routes ----------------------------------------------------------
 
 @app.post("/api/backend")
@@ -369,6 +378,31 @@ def api_narrative(req: NarrativeReq):
     return {"available": True, **info, **result}
 
 
+@app.post("/api/workspace_generate")
+def api_workspace_generate(req: WorkspaceGenReq):
+    """Real backend for the pptgpt workspace UI's Create/Data/Refine/Condense
+    composer (ws-app.jsx's `aiGenerate`). Same availability/error shape as
+    /api/narrative so the frontend adapter can treat them the same way —
+    the client falls back to its own canned generator when unavailable."""
+    from deckengine import narrative as narr_mod, workspace_gen
+    info = narr_mod.backend_info()
+    if not narr_mod.available():
+        if info.get("backend") == "ollama":
+            reason = (f"Ollama at {info.get('host')} unreachable. "
+                      "Run `ollama serve` and `ollama pull {model}`.".format(model=info.get("model")))
+        else:
+            reason = ("No generation model configured. Set ANTHROPIC_API_KEY, "
+                      "or set DECKENGINE_NARRATIVE_BACKEND=ollama and run a local model.")
+        return {"available": False, "reason": reason, **info}
+    result = workspace_gen.generate_slide(
+        feature=req.feature, prompt=req.prompt, audience=req.audience,
+        current=req.current, palette=req.palette, file_names=req.fileNames,
+    )
+    if result is None:
+        return {"available": False, "reason": "Model call failed; check server logs.", **info}
+    return {"available": True, **info, "slide": result}
+
+
 @app.post("/api/storyboard_view")
 def api_storyboard_view(req: StoryboardViewReq):
     """Unified payload for the new storyboard page.
@@ -548,6 +582,14 @@ def canvas():
 def workbench_v1():
     """Back-compat: the workbench we built earlier today, kept for diff."""
     return _serve_html("workbench.html")
+
+
+@app.get("/workspace", response_class=HTMLResponse)
+@app.get("/workspace/", response_class=HTMLResponse)
+def workspace():
+    """The unified Create/Data/Refine/Condense workspace, wired to a real
+    generation backend via workspace-backend.js."""
+    return _serve_html("workspace.html")
 
 
 # Asset mounts + catch-all

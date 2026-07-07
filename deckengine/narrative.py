@@ -143,7 +143,7 @@ def available() -> bool:
     return False
 
 
-def _llm_call_anthropic(prompt: str) -> str:
+def _llm_call_anthropic(prompt: str, system: str = "") -> str:
     """Anthropic API. Requires anthropic SDK + ANTHROPIC_API_KEY."""
     import anthropic
     client = anthropic.Anthropic(api_key=_API_KEY)
@@ -151,7 +151,7 @@ def _llm_call_anthropic(prompt: str) -> str:
         model=_MODEL_NAME,
         max_tokens=2048,
         temperature=0.2,
-        system=_SYSTEM_PROMPT,
+        system=system or _SYSTEM_PROMPT,
         messages=[{"role": "user", "content": prompt}],
     )
     parts = []
@@ -164,7 +164,7 @@ def _llm_call_anthropic(prompt: str) -> str:
     return "\n".join(parts)
 
 
-def _llm_call_ollama(prompt: str) -> str:
+def _llm_call_ollama(prompt: str, system: str = "") -> str:
     """Local Ollama. Hits the /api/chat HTTP endpoint — no SDK dependency.
 
     The prompt is wrapped with the same system message used for Anthropic so
@@ -180,7 +180,7 @@ def _llm_call_ollama(prompt: str) -> str:
             "num_predict": 2048,
         },
         "messages": [
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": system or _SYSTEM_PROMPT},
             {"role": "user",   "content": prompt},
         ],
         # Ollama supports JSON-mode for compliant models; nudges Gemma to emit
@@ -200,7 +200,7 @@ def _llm_call_ollama(prompt: str) -> str:
     return str(msg.get("content") or "")
 
 
-def _llm_call_gemma(prompt: str) -> str:
+def _llm_call_gemma(prompt: str, system: str = "") -> str:
     """Gemma via an OpenAI-compatible /v1/chat/completions endpoint (the shared
     HF Inference Endpoint). Bearer auth, reasoning-model token headroom, and
     cold-start retry for a scale-to-zero endpoint."""
@@ -213,7 +213,7 @@ def _llm_call_gemma(prompt: str) -> str:
     payload = {
         "model": _GEMMA_MODEL,
         "messages": [
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": system or _SYSTEM_PROMPT},
             {"role": "user",   "content": prompt},
         ],
         "max_tokens": 4000,   # reasoning model spends budget thinking first
@@ -286,7 +286,7 @@ def last_used_backend() -> str:
     return _last_used
 
 
-def _llm_call_default(prompt: str) -> str:
+def _llm_call_default(prompt: str, system: str = "") -> str:
     """Try each backend in the chain. First one that returns text wins. The
     last exception is re-raised only if every backend fails."""
     global _last_used
@@ -294,11 +294,11 @@ def _llm_call_default(prompt: str) -> str:
     for b in _backend_chain():
         try:
             if b == "ollama":
-                text = _llm_call_ollama(prompt)
+                text = _llm_call_ollama(prompt, system)
             elif b == "gemma":
-                text = _llm_call_gemma(prompt)
+                text = _llm_call_gemma(prompt, system)
             else:
-                text = _llm_call_anthropic(prompt)
+                text = _llm_call_anthropic(prompt, system)
             if text and text.strip():
                 _last_used = b
                 return text
@@ -314,12 +314,20 @@ def _llm_call_default(prompt: str) -> str:
     raise RuntimeError("no narrative backend produced output")
 
 
-def _llm_call(prompt: str) -> str:
+def _llm_call(prompt: str, system: str = "") -> str:
     if _llm_override is not None:
         global _last_used
         _last_used = "override"
         return _llm_override(prompt)
-    return _llm_call_default(prompt)
+    return _llm_call_default(prompt, system)
+
+
+def call(prompt: str, system: str) -> str:
+    """Public swap point for callers outside narrative analysis (e.g. the
+    workspace slide generator). Same backend chain, override, and
+    caching-free semantics as `_llm_call` — just with an explicit system
+    prompt instead of the narrative-analysis one."""
+    return _llm_call(prompt, system)
 
 
 def backend_info() -> dict:

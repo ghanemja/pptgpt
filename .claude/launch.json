@@ -6,7 +6,7 @@
       "runtimeExecutable": ".venv/bin/python",
       "runtimeArgs": ["-m", "uvicorn", "server:app", "--port", "8002", "--host", "127.0.0.1", "--reload"],
       "port": 8002,
-      "env": { "BU_AUTH_DISABLED": "1" }
+      "env": { "BU_AUTH_DISABLED": "1", "DECKENGINE_NARRATIVE_BACKEND": "ollama", "OLLAMA_MODEL": "gemma3:4b" }
     },
     {
       "name": "netlify-dist",
