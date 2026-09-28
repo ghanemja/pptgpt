@@ -1,8 +1,10 @@
 [build]
   publish = "netlify-dist"
-  # Inject BU_API_BASE (this project's HF Space URL) into netlify-dist/config.js
-  # at build time. See PORTFOLIO_ENV.md in brain-university for env-var setup.
-  command = "node scripts/gen-config.mjs"
+  # netlify-dist/ is generated, not committed. build-netlify.mjs assembles it
+  # from frontend/; gen-config.mjs then injects BU_API_BASE (this project's HF
+  # Space URL) into netlify-dist/config.js. Order matters — the build wipes the
+  # directory first. See PORTFOLIO_ENV.md in brain-university for env-var setup.
+  command = "node scripts/build-netlify.mjs && node scripts/gen-config.mjs"
 
 # Pretty URLs are on by default — Netlify will serve /workbench as
 # /workbench.html, /storyboard as /storyboard.html, etc.

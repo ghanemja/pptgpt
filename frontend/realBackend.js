@@ -12,11 +12,15 @@
 (function () {
   'use strict';
 
-  // Resolve base. When opened via file://, location.origin is "file://".
-  // Force null in that case so we never even try a relative fetch.
-  const ORIGIN = (location.protocol === 'http:' || location.protocol === 'https:')
-    ? location.origin
-    : null;
+  // Resolve base. BU_API_BASE (set at deploy time by scripts/gen-config.mjs)
+  // points the static Netlify frontend at the HF Space backend; locally it is
+  // unset and the server is same-origin.
+  // When opened via file://, location.origin is "file://" — force null in that
+  // case so we never even try a relative fetch.
+  const ORIGIN = (window.BU_API_BASE || '').replace(/\/$/, '')
+    || ((location.protocol === 'http:' || location.protocol === 'https:')
+      ? location.origin
+      : null);
 
   if (!ORIGIN) return;  // file:// — keep the local mock
 

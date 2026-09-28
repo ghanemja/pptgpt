@@ -15,9 +15,13 @@
 (function () {
   'use strict';
 
-  const ORIGIN = (location.protocol === 'http:' || location.protocol === 'https:')
-    ? location.origin
-    : null;
+  // BU_API_BASE (set at deploy time by scripts/gen-config.mjs) points the
+  // static Netlify frontend at the HF Space backend; locally it is unset and
+  // the server is same-origin.
+  const ORIGIN = (window.BU_API_BASE || '').replace(/\/$/, '')
+    || ((location.protocol === 'http:' || location.protocol === 'https:')
+      ? location.origin
+      : null);
 
   if (!ORIGIN) return;  // file:// — keep the client-only canned generator
 

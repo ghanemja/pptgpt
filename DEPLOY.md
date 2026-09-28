@@ -14,7 +14,13 @@ on each side.
        │ → injected into config.js             │ LLM creds (see below)
        │                                       │
        └── netlify-dist/  (static)             └── Dockerfile + server.py
+            ▲ generated from frontend/
 ```
+
+`netlify-dist/` is **build output, not source** — it is gitignored and
+rebuilt from `frontend/` on every deploy by `scripts/build-netlify.mjs`.
+Edit `frontend/`. A page that references a file the build does not copy
+fails the build rather than publishing a blank page.
 
 ## 1. Push to GitHub (first time)
 
@@ -46,7 +52,7 @@ gh repo create ghanemja/pptgpt --private --source=. --push
 
 1. Import the repo at <https://app.netlify.com/start>.
 2. Build settings are auto-detected from `netlify.toml` (publish: `netlify-dist`,
-   command: `node scripts/gen-config.mjs`).
+   command: `node scripts/build-netlify.mjs && node scripts/gen-config.mjs`).
 3. Set ONE env var:
 
    | Key           | Value                                |
@@ -59,9 +65,14 @@ gh repo create ghanemja/pptgpt --private --source=. --push
 ## 4. Verify
 
 - `curl https://jang0294-pptgpt.hf.space/health` → `{"ok": true}`
-- Open `https://pptgpt.netlify.app/workbench` → log in with the
-  `BU_AUTH_USER` / `BU_AUTH_PASSWORD` from your password manager.
+- Open `https://pptgpt.netlify.app/workbench` (three-panel workbench) or
+  `https://pptgpt.netlify.app/workspace` (unified composer) → log in with
+  the `BU_AUTH_USER` / `BU_AUTH_PASSWORD` from your password manager.
 - Paste rough text → `Generate` → a slide renders.
+- In the browser console, `/workspace` should log
+  `[workspace-backend] connected to /api`. If it logs `/health unreachable`
+  instead, the deck still generates from canned content — check `BU_API_BASE`
+  on Netlify and `CORS_ORIGINS` on the Space.
 
 ## Local dev
 
@@ -69,4 +80,12 @@ gh repo create ghanemja/pptgpt --private --source=. --push
 pip install -r requirements.txt
 BU_AUTH_DISABLED=1 python -m uvicorn server:app --reload --port 7860
 # open http://localhost:7860/workbench
+```
+
+To preview exactly what Netlify will publish (flat paths, login gate):
+
+```bash
+node scripts/build-netlify.mjs && node scripts/gen-config.mjs
+python3 -m http.server 8005 --directory netlify-dist
+# open http://localhost:8005/workspace.html
 ```
