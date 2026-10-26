@@ -95,6 +95,20 @@ function Sidebar({ collapsed, onCollapse, feature, onFeature, decks, deckId, onP
         })}
       </nav>
 
+      {/* The 5-phase pipeline (upload → pick → storyboard → workbench →
+         critique) still lives on /workbench while its panels are being
+         absorbed into this workspace. Linked, not duplicated, so nothing
+         is stranded in the meantime. */}
+      <div className="rail__label"><span>Pipeline</span></div>
+      <nav className="rail__nav">
+        <a className="feat feat--link" href="/workbench" title="Upload → pick → storyboard → workbench → critique">
+          <span className="feat__ico"><Ico name="layout" size={17} /></span>
+          <span className="feat__txt">
+            <span className="feat__title">Full pipeline</span>
+          </span>
+        </a>
+      </nav>
+
       <div className="rail__tray">
         <div className="tray__head">
           <span className="tray__title">Decks</span>

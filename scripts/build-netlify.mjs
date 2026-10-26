@@ -10,9 +10,8 @@
 // The transform from source to deployed page is small and mechanical:
 //   1. relative asset refs become root-absolute, since the dist is flat while
 //      the sources sit in nested directories;
-//   2. every page gets /config.js (the BU_API_BASE injection) and /gate.js
-//      (the demo login redirect), in that order — config must land before any
-//      backend shim reads it.
+//   2. every page gets /config.js (the BU_API_BASE injection), which must
+//      land before any backend shim reads window.BU_API_BASE.
 
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -45,24 +44,19 @@ const ASSETS = [
   ["ws-story.jsx", "ws-story.jsx"],
   ["ws-export.js", "ws-export.js"],
   ["workspace-backend.js", "workspace-backend.js"],
-
-  // deploy-only
-  ["deploy/gate.js", "gate.js"],
 ];
 
 // Pages, as `source -> dist name`. Each is rewritten by transformHtml().
-// login.html is excluded from the gate — gating the login page is a redirect loop.
 const PAGES = [
   ["v2-assets/landing.html", "index.html"],
   ["v2-assets/setup.html", "setup.html"],
   ["v2-assets/storyboard-v2.html", "storyboard.html"],
   ["v2-assets/workbench-v2.html", "workbench.html"],
   ["workspace.html", "workspace.html"],
-  ["deploy/login.html", "login.html", { gate: false }],
 ];
 
-/** Rewrite a source page for the flat, gated dist. */
-function transformHtml(html, { gate = true } = {}) {
+/** Rewrite a source page for the flat dist. */
+function transformHtml(html) {
   // Root-absolute asset refs. Anything already absolute, protocol-relative or
   // a full URL is left alone, as are in-page anchors and data: URIs.
   html = html.replace(
@@ -70,12 +64,10 @@ function transformHtml(html, { gate = true } = {}) {
     (_m, attr, path) => `${attr}="/${path}"`,
   );
 
-  const injected = gate
-    ? '  <script src="/config.js"></script>\n  <script src="/gate.js"></script>\n'
-    : '  <script src="/config.js"></script>\n';
+  const injected = '  <script src="/config.js"></script>\n';
 
   // Inject right after </title> so the config is in place before any other
-  // script runs, and the gate redirects before the page paints.
+  // script runs.
   if (!/<\/title>/.test(html)) throw new Error("page has no <title> to anchor the injection");
   return html.replace(/<\/title>\s*\n/, (m) => m + injected);
 }
@@ -89,10 +81,10 @@ for (const [from, to] of ASSETS) {
   cpSync(abs, join(out, to), { recursive: true });
 }
 
-for (const [from, to, opts] of PAGES) {
+for (const [from, to] of PAGES) {
   const abs = join(src, from);
   if (!existsSync(abs)) throw new Error(`missing page: frontend/${from}`);
-  writeFileSync(join(out, to), transformHtml(readFileSync(abs, "utf8"), opts));
+  writeFileSync(join(out, to), transformHtml(readFileSync(abs, "utf8")));
 }
 
 // Fail the build rather than publish a broken site — Netlify keeps the last

@@ -1231,12 +1231,13 @@ function Nav() {
       </div>
       {/* Nav stripped of the commerce shell (Pricing / Log in / Try it
          free / Storyboard). pptgpt is not a SaaS product; the landing
-         is a tech demo. One CTA → the canonical app. */}
+         is a tech demo. One CTA → the canonical app, which is
+         /workspace; the 5-phase pipeline is reached from inside it. */}
       <div className="nav__right">
         <button
           className="btn btn--primary"
-          onClick={() => { window.location.href = '/workbench'; }}
-        >Open the workbench →</button>
+          onClick={() => { window.location.href = '/workspace'; }}
+        >Open pptgpt →</button>
       </div>
     </nav>
   );
@@ -1262,9 +1263,9 @@ function Hero() {
       <div className="hero__cta">
         <button
           className="btn btn--accent btn--lg"
-          onClick={() => { window.location.href = '/workbench'; }}
+          onClick={() => { window.location.href = '/workspace'; }}
         >
-          Open the workbench
+          Open pptgpt
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M3 8 L13 8 M9 4 L13 8 L9 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -1372,7 +1373,7 @@ function App() {
       <AudienceSwitcher />
       {/* Playground removed — was a separate in-page draft demo that
          duplicated the workbench. One canonical entry now: the nav
-         CTA goes straight to /workbench. */}
+         CTA goes straight to /workspace. */}
       <Footer />
     </>
   );
