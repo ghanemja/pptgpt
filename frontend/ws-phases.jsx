@@ -20,11 +20,30 @@
 const { Ico } = window;
 const { useState, useEffect } = React;
 
+/* The four phases, each owning the tools that belong to it. Create / Data /
+   Refine / Condense used to sit in a parallel "Features" nav, which asked the
+   user to hold two mental models at once — a workflow and a toolbox. A tool
+   now lives inside the step of the workflow where you would reach for it. */
 const PHASES = [
-  { key: 'scope',   name: 'Scope',     icon: 'refine',   sub: 'what are we arguing' },
-  { key: 'story',   name: 'Story',     icon: 'layout',   sub: 'title · 3 messages · bumper' },
-  { key: 'visuals', name: 'Visuals',   icon: 'palette',  sub: 'house style · direction' },
-  { key: 'deck',    name: 'Deck',      icon: 'createx',  sub: 'fuse it · export' },
+  { key: 'scope',   name: 'Scope',   icon: 'refine',  sub: 'what are we arguing', tools: [] },
+  { key: 'story',   name: 'Story',   icon: 'layout',  sub: 'title · 3 messages · bumper', tools: ['condense'] },
+  { key: 'visuals', name: 'Visuals', icon: 'palette', sub: 'house style · graphics', tools: ['data'] },
+  { key: 'deck',    name: 'Deck',    icon: 'createx', sub: 'fuse it · export', tools: ['create', 'refine'] },
+];
+
+/* Which phase a tool belongs to — the inverse of PHASES[].tools. */
+const TOOL_PHASE = {};
+PHASES.forEach(p => (p.tools || []).forEach(t => { TOOL_PHASE[t] = p.key; }));
+
+/* How you arrive at a deck. The scope interview is the same either way; what
+   changes is what the engine is given to work from. */
+const ENTRY_MODES = [
+  { key: 'prompt',    name: 'From a prompt',     sub: 'describe it and answer the questions',
+    blurb: 'Start from an idea. The brief you build here is what the engine writes to.' },
+  { key: 'brief',     name: 'I have a brief',    sub: 'paste what you already wrote',
+    blurb: 'Paste an existing brief, abstract or outline. The questions stay available to fill gaps.' },
+  { key: 'materials', name: 'From material',     sub: 'point at decks, docs or a folder',
+    blurb: 'Build from what already exists — past decks, a report, a folder. Needs the local engine; the hosted demo cannot read files.' },
 ];
 
 /* The API origin, resolved the same way workspace-backend.js does it, so a
@@ -126,21 +145,37 @@ function scopeProgress(org, answers) {
 }
 
 /* ── phase rail (sidebar) ─────────────────────────────────── */
-function PhaseRail({ phase, onPhase, status }) {
+/* One nav, not two. The active phase unfolds to show its tools; picking a
+   tool selects both the tool and its phase, so the two can never disagree. */
+function PhaseRail({ phase, onPhase, status, feature, onTool, features, featureIcon }) {
   return (
     <nav className="rail__nav phaserail">
       {PHASES.map((p, i) => {
         const st = status[p.key] || {};
+        const open = phase === p.key;
         return (
-          <button key={p.key} className={`feat phase ${phase === p.key ? 'is-active' : ''} ${st.done ? 'is-done' : ''}`}
-            onClick={() => onPhase(p.key)} title={p.sub}>
-            <span className="phase__num tnum">{String(i + 1).padStart(2, '0')}</span>
-            <span className="feat__txt">
-              <span className="feat__title">{p.name}</span>
-              <span className="phase__sub">{st.note || p.sub}</span>
-            </span>
-            {st.done ? <span className="phase__tick"><Ico name="check" size={13} /></span> : null}
-          </button>
+          <div key={p.key} className={`phasegroup ${open ? 'is-open' : ''}`}>
+            <button className={`feat phase ${open ? 'is-active' : ''} ${st.done ? 'is-done' : ''}`}
+              onClick={() => onPhase(p.key)} title={p.sub}>
+              <span className="phase__num tnum">{String(i + 1).padStart(2, '0')}</span>
+              <span className="feat__txt">
+                <span className="feat__title">{p.name}</span>
+                <span className="phase__sub">{st.note || p.sub}</span>
+              </span>
+              {st.done ? <span className="phase__tick"><Ico name="check" size={13} /></span> : null}
+            </button>
+            {open && p.tools.length ? (
+              <div className="phasetools">
+                {p.tools.map(t => (
+                  <button key={t} className={`ptool ${feature === t ? 'is-on' : ''}`}
+                    onClick={() => onTool(t)} title={features[t].sub}>
+                    <span className="ptool__ico"><Ico name={featureIcon[t]} size={14} /></span>
+                    <span className="ptool__txt">{features[t].name}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         );
       })}
     </nav>
@@ -148,8 +183,10 @@ function PhaseRail({ phase, onPhase, status }) {
 }
 
 /* ── phase 1 · scope ──────────────────────────────────────── */
-function ScopePhase({ org, orgs, orgSlug, onOrg, answers, onAnswer, onStart, offline }) {
+function ScopePhase({ org, orgs, orgSlug, onOrg, answers, onAnswer, onStart, offline,
+                      mode, onMode, carry, onCarry }) {
   const p = scopeProgress(org, answers);
+  const m = mode || 'prompt';
   return (
     <div className="stage__scroll stage__scroll--phase">
       <div className="phasewrap">
@@ -169,6 +206,50 @@ function ScopePhase({ org, orgs, orgSlug, onOrg, answers, onAnswer, onStart, off
             {offline ? <span className="orgpick__off" title="No backend reachable — showing the default profile">default profile</span> : null}
           </div>
         </header>
+
+        <div className="modepick">
+          {ENTRY_MODES.map(em => (
+            <button key={em.key} className={`modecard ${m === em.key ? 'on' : ''}`} onClick={() => onMode(em.key)}>
+              <span className="modecard__name">{em.name}</span>
+              <span className="modecard__sub">{em.sub}</span>
+            </button>
+          ))}
+        </div>
+        <p className="modeblurb">{(ENTRY_MODES.find(e => e.key === m) || ENTRY_MODES[0]).blurb}</p>
+
+        {m === 'prompt' ? (
+          <div className="carry">
+            <label className="carry__lab">What is this deck about?</label>
+            <textarea className="qrow__ta" rows={3} value={carry || ''}
+              placeholder="We beat Q3 plan by 14% and I want two enterprise AEs for Q1…"
+              onChange={e => onCarry(e.target.value)} />
+          </div>
+        ) : m === 'brief' ? (
+          <div className="carry">
+            <label className="carry__lab">Paste the brief you already have</label>
+            <textarea className="qrow__ta" rows={7} value={carry || ''}
+              placeholder={'Audience: the board\nAsk: approve two enterprise AEs\nEvidence: 118% NRR, 71% of new ARR from 9% of accounts…'}
+              onChange={e => onCarry(e.target.value)} />
+            <div className="carry__why">Answer the questions below for anything the brief leaves implicit — they are appended, not replaced.</div>
+          </div>
+        ) : (
+          <div className="carry">
+            <label className="carry__lab">Where is the material?</label>
+            <input className="qrow__in" value={carry || ''}
+              placeholder="~/decks/q3-board/   or   /path/to/report.pptx"
+              onChange={e => onCarry(e.target.value)} />
+            <div className="carry__why">
+              A folder or a file. The engine reads it for CONTENT — the facts and the story.
+              Which decks it copies the FORMAT from is a house rule, set in {org.name}{'’'}s profile
+              under <code>examples</code>.
+            </div>
+            {offline ? (
+              <div className="carry__warn">
+                This build has no engine behind it, so it cannot read files. Run the local server to use this mode.
+              </div>
+            ) : null}
+          </div>
+        )}
 
         <div className="qlist">
           {(org.scope_questions || []).map(q => {
@@ -295,6 +376,6 @@ function PhaseEmpty({ title, body, cta, onCta }) {
 }
 
 Object.assign(window, {
-  PHASES, PhaseRail, ScopePhase, VisualsPhase, PhaseEmpty,
+  PHASES, TOOL_PHASE, ENTRY_MODES, PhaseRail, ScopePhase, VisualsPhase, PhaseEmpty,
   useOrg, briefFrom, scopeProgress, FALLBACK_ORG,
 });

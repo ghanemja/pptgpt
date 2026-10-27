@@ -8,7 +8,7 @@
 
 const { useState, useEffect, useRef, useCallback, useLayoutEffect } = React;
 const { SLIDE_W, SLIDE_H, PALETTES, AUDIENCES, FEATURES, FEATURE_ICON, Ico, SlideCard, aiGenerate, uid, Storyboard } = window;
-const { PhaseRail, ScopePhase, VisualsPhase, PhaseEmpty, useOrg, briefFrom, scopeProgress } = window;
+const { PhaseRail, ScopePhase, VisualsPhase, PhaseEmpty, useOrg, briefFrom, scopeProgress, TOOL_PHASE } = window;
 
 const LS_KEY = (typeof window !== 'undefined' && window.WS_LS_KEY) || 'pptgpt-ws-v2';
 const FEATURE_ORDER = ['create', 'data', 'refine', 'condense'];
@@ -81,25 +81,15 @@ function Sidebar({ collapsed, onCollapse, feature, onFeature, decks, deckId, onP
         <Ico name="new" size={16} /><span>New deck</span>
       </button>
 
-      <div className="rail__label"><span>Features</span></div>
-      <nav className="rail__nav">
-        {FEATURE_ORDER.map(key => {
-          const f = FEATURES[key];
-          return (
-            <button key={key} className={`feat ${feature === key ? 'is-active' : ''}`} onClick={() => onFeature(key)} title={f.name}>
-              <span className="feat__ico"><Ico name={FEATURE_ICON[key]} size={17} /></span>
-              <span className="feat__txt">
-                <span className="feat__title">{f.name}</span>
-              </span>
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* The pipeline is no longer a separate app. Scope → storyboard →
-         visuals → deck are four views of the same live deck object. */}
+      {/* One nav. The pipeline is the app, and each phase carries the tools
+         you would reach for inside it — Condense in Story, Data in Visuals,
+         Create and Refine in Deck. */}
       <div className="rail__label"><span>Pipeline</span></div>
-      <PhaseRail phase={phase} onPhase={onPhase} status={phaseStatus} />
+      <PhaseRail
+        phase={phase} onPhase={onPhase} status={phaseStatus}
+        feature={feature} onTool={onFeature}
+        features={FEATURES} featureIcon={FEATURE_ICON}
+      />
 
       <div className="rail__tray">
         <div className="tray__head">
@@ -718,12 +708,15 @@ function App() {
     setDashNotify(true);
 
     setLoading(false); setCoachStage('next');
+    // A tool run from Visuals produces a slide, and a slide is shown in Deck.
+    // Condense stays put: its output IS the board you are already looking at.
+    if (phase === 'visuals') setPhase('deck');
     pushChat('assistant', feature === 'condense' ? 'Condensed to the spine — review the adjustments below.'
       : feature === 'data' ? 'Charted it. Tune the chart or styles below.'
       : feature === 'refine' ? 'Reworked it — your changes are itemized below.'
       : 'Drafted a slide. Adjust anything below.');
     pulse(newActiveId);
-  }, [draft, files, loading, feature, audience, active, deck]);
+  }, [draft, files, loading, feature, audience, active, deck, phase]);
 
   function applyControl(catId, ctrlId, value) {
     if (ctrlId === 'palette') {
@@ -787,9 +780,11 @@ function App() {
     setCoachStage('next');
   }
 
-  function gotoFeature(next, fromChip) {
+  function gotoFeature(next, fromChip, keepPhase) {
     setFeature(next);
     setHistoryOpen(false);
+    // A tool belongs to a phase; selecting one moves you there.
+    if (!keepPhase && TOOL_PHASE[next]) setPhase(TOOL_PHASE[next]);
     if (deck.slides.length === 0) { setCoachStage(null); return; }
     if (next === 'refine') { setCoachStage('refine'); if (fromChip) pushChat('assistant', 'Moved the deck into Refine. Tell me what feels off.'); }
     else if (next === 'condense') { setCoachStage(deck.slides.length > 1 ? 'count' : null); if (fromChip) pushChat('assistant', 'Moved into Condense — paste more, or tune the spine.'); }
@@ -820,6 +815,14 @@ function App() {
 
   // ── scope answers live on the deck: a brief belongs to its deck ──
   const scopeAnswers = scope[deckId] || {};
+  // `__mode` and `__carry` are scope state, not answers: how the user arrived
+  // (prompt / existing brief / existing material) and what they brought with
+  // them. Underscored so they never collide with an org's question ids.
+  const scopeMode = scopeAnswers.__mode || 'prompt';
+  const scopeCarry = scopeAnswers.__carry || '';
+  function setScopeMeta(key, value) {
+    setScope(prev => ({ ...prev, [deckId]: { ...(prev[deckId] || {}), [key]: value } }));
+  }
   function setScopeAnswer(qid, value) {
     setScope(prev => ({ ...prev, [deckId]: { ...(prev[deckId] || {}), [qid]: value } }));
     // the audience question drives the engine's tone, so keep them in sync
@@ -829,16 +832,24 @@ function App() {
     }
   }
   function startFromBrief() {
-    const brief = briefFrom(org, scopeAnswers);
-    setPhase('deck');
+    const answered = briefFrom(org, scopeAnswers);
+    const carried = (scopeCarry || '').trim();
+    const lead = !carried ? ''
+      : scopeMode === 'materials' ? `Build from the material at: ${carried}\n`
+      : scopeMode === 'brief' ? `${carried}\n`
+      : `${carried}\n`;
     gotoFeature('create', false);
+    setPhase('deck');
     setCoachStage(null);
-    setDraft(brief);
+    setDraft(lead + answered);
+    if (scopeMode === 'materials' && !window.exportPptx) {
+      toast('Reading files needs the local engine — this build will draft from the brief instead.');
+    }
   }
 
   const deckPalette = deck.slides.length ? deck.slides[0].palette : (org.style && org.style.palette) || 'warm';
 
-  const sp = scopeProgress(org, scopeAnswers);
+  const sp = scopeProgress(org, scopeAnswers);  // meta keys are ignored: it walks org.scope_questions
   const phaseStatus = {
     scope:   { done: sp.ready, note: sp.done ? `${sp.done}/${sp.total} answered` : null },
     story:   { done: deck.slides.length > 1, note: hasSlides ? `${deck.slides.length} beat${deck.slides.length === 1 ? '' : 's'}` : null },
@@ -879,6 +890,8 @@ function App() {
             <ScopePhase
               org={org} orgs={orgs} orgSlug={orgSlug} onOrg={setOrgSlug} offline={orgOffline}
               answers={scopeAnswers} onAnswer={setScopeAnswer} onStart={startFromBrief}
+              mode={scopeMode} onMode={v => setScopeMeta('__mode', v)}
+              carry={scopeCarry} onCarry={v => setScopeMeta('__carry', v)}
             />
           ) : phase === 'visuals' ? (
             <VisualsPhase
@@ -921,9 +934,9 @@ function App() {
           )}
         </div>
 
-        {/* Scope and Visuals are forms, not conversations — the composer
-            would only invite typing into the wrong surface. */}
-        {phase === 'scope' || phase === 'visuals' ? null : <Composer
+        {/* Scope is a form, not a conversation. Every other phase owns at
+            least one tool that takes text, so the composer stays. */}
+        {phase === 'scope' ? null : <Composer
           feature={feature} draft={draft} setDraft={setDraft} files={files} setFiles={setFiles}
           audience={audience} setAudience={setAudience} onSend={() => doSend()} loading={loading}
           showPresets={false} onPreset={s => setDraft(s)}
