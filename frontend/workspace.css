@@ -222,6 +222,11 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 .phase__sub { display: block; font-size: 11px; color: var(--mute); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; }
 .phase__tick { margin-left: auto; color: var(--accent); display: grid; place-items: center; }
 
+/* A locked step is dimmed but still clickable — clicking it explains, or
+   runs the step that unlocks it. */
+.phase.is-locked { opacity: .5; }
+.phase.is-locked .phase__num { background: transparent; border: 1px dashed var(--border); }
+
 /* Tools belonging to the open phase, indented under it. */
 .phasetools { display: flex; flex-direction: column; gap: 2px; padding: 4px 0 6px 22px; position: relative; }
 .phasetools::before { content: ""; position: absolute; left: 11px; top: 2px; bottom: 8px; width: 1px; background: var(--border); }

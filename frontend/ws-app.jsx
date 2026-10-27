@@ -8,7 +8,7 @@
 
 const { useState, useEffect, useRef, useCallback, useLayoutEffect } = React;
 const { SLIDE_W, SLIDE_H, PALETTES, AUDIENCES, FEATURES, FEATURE_ICON, Ico, SlideCard, aiGenerate, uid, Storyboard } = window;
-const { PhaseRail, ScopePhase, VisualsPhase, PhaseEmpty, useOrg, briefFrom, scopeProgress, TOOL_PHASE } = window;
+const { PHASES, PhaseRail, ScopePhase, VisualsPhase, PhaseEmpty, useOrg, briefFrom, scopeProgress, TOOL_PHASE } = window;
 
 const LS_KEY = (typeof window !== 'undefined' && window.WS_LS_KEY) || 'pptgpt-ws-v2';
 const FEATURE_ORDER = ['create', 'data', 'refine', 'condense'];
@@ -642,7 +642,11 @@ function App() {
     });
   }
 
-  const doSend = useCallback(async (override) => {
+  const doSend = useCallback(async (override, toolOverride) => {
+    // `feature` here is the closure's value. A caller that calls setFeature
+    // and sends in the same tick would read the stale one, so it passes the
+    // tool explicitly instead.
+    const tool = toolOverride || feature;
     const text = (override != null ? override : draft).trim();
     if ((!text && files.length === 0) || loading) return;
     const label = text || `Draft from ${files.map(f => f.name).join(', ')}`;
@@ -677,14 +681,14 @@ function App() {
     }
 
     const deckPalette = deck.slides.length ? deck.slides[0].palette : 'warm';
-    const result = await aiGenerate({ feature, prompt: text, audience, files: usedFiles, current: active, palette: deckPalette });
+    const result = await aiGenerate({ feature: tool, prompt: text, audience, files: usedFiles, current: active, palette: deckPalette });
 
     let newActiveId;
     setDeck(prev => {
       let slides, activeId;
-      if (feature === 'condense') {
+      if (tool === 'condense') {
         slides = Array.isArray(result) ? result : [result]; activeId = slides[0].id;
-      } else if (feature === 'refine' && active) {
+      } else if (tool === 'refine' && active) {
         slides = prev.slides.map(s => s.id === result.id ? result : s); activeId = result.id;
       } else {
         slides = [...prev.slides, result]; activeId = result.id;
@@ -703,7 +707,7 @@ function App() {
     const dc = window.dynamicCats(text, { ...nslide, ...patch });
     if (dc.length) setDynCats(prev => { const byId = {}; [...prev, ...dc].forEach(c => { byId[c.id] = c; }); return Object.values(byId); });
     const flashIds = [...touched, ...dc.map(c => c.id)];
-    if (feature === 'refine') flashIds.push('content');
+    if (tool === 'refine') flashIds.push('content');
     if (flashIds.length) { setFlash(flashIds); setTimeout(() => setFlash([]), 1800); }
     setDashNotify(true);
 
@@ -711,9 +715,9 @@ function App() {
     // A tool run from Visuals produces a slide, and a slide is shown in Deck.
     // Condense stays put: its output IS the board you are already looking at.
     if (phase === 'visuals') setPhase('deck');
-    pushChat('assistant', feature === 'condense' ? 'Condensed to the spine — review the adjustments below.'
-      : feature === 'data' ? 'Charted it. Tune the chart or styles below.'
-      : feature === 'refine' ? 'Reworked it — your changes are itemized below.'
+    pushChat('assistant', tool === 'condense' ? 'Condensed to the spine — review the adjustments below.'
+      : tool === 'data' ? 'Charted it. Tune the chart or styles below.'
+      : tool === 'refine' ? 'Reworked it — your changes are itemized below.'
       : 'Drafted a slide. Adjust anything below.');
     pulse(newActiveId);
   }, [draft, files, loading, feature, audience, active, deck, phase]);
@@ -831,31 +835,72 @@ function App() {
       if (hit) setAudience(hit.key);
     }
   }
+  // Scope hands off to Story, not to Deck. The brief becomes a SPINE — a few
+  // beats with titles, messages and bumpers — which is what phase 02 is for.
+  // Condense is the tool that turns prose into a spine, so that is what runs.
   function startFromBrief() {
     const answered = briefFrom(org, scopeAnswers);
     const carried = (scopeCarry || '').trim();
     const lead = !carried ? ''
       : scopeMode === 'materials' ? `Build from the material at: ${carried}\n`
-      : scopeMode === 'brief' ? `${carried}\n`
       : `${carried}\n`;
-    gotoFeature('create', false);
-    setPhase('deck');
-    setCoachStage(null);
-    setDraft(lead + answered);
+    const brief = lead + answered;
     if (scopeMode === 'materials' && !window.exportPptx) {
-      toast('Reading files needs the local engine — this build will draft from the brief instead.');
+      toast('Reading files needs the local engine — drafting from the brief instead.');
     }
+    setFeature('condense');
+    setPhase('story');
+    setCoachStage(null);
+    setDraft('');
+    doSend(brief, 'condense');
   }
 
   const deckPalette = deck.slides.length ? deck.slides[0].palette : (org.style && org.style.palette) || 'warm';
 
   const sp = scopeProgress(org, scopeAnswers);  // meta keys are ignored: it walks org.scope_questions
+  // The pipeline runs in order. A phase is locked until the thing it works on
+  // exists — there is no storyboard to arrange before a spine is written, and
+  // nothing to dress or export before that. `why` is what the lock says when
+  // you click it, so a locked step teaches instead of just refusing.
   const phaseStatus = {
-    scope:   { done: sp.ready, note: sp.done ? `${sp.done}/${sp.total} answered` : null },
-    story:   { done: deck.slides.length > 1, note: hasSlides ? `${deck.slides.length} beat${deck.slides.length === 1 ? '' : 's'}` : null },
-    visuals: { done: hasSlides && deck.slides.every(sl => sl.palette === deckPalette), note: null },
-    deck:    { done: hasSlides, note: hasSlides ? `${deck.slides.length} slide${deck.slides.length === 1 ? '' : 's'}` : null },
+    scope: {
+      done: sp.ready,
+      note: sp.done ? `${sp.done}/${sp.total} answered` : null,
+    },
+    story: {
+      done: deck.slides.length > 1,
+      note: hasSlides ? `${deck.slides.length} beat${deck.slides.length === 1 ? '' : 's'}` : null,
+      locked: !hasSlides && !sp.ready,
+      why: 'Answer the required questions first — the storyboard is written from that brief.',
+    },
+    visuals: {
+      done: hasSlides && deck.slides.every(sl => sl.palette === deckPalette),
+      note: null,
+      locked: !hasSlides,
+      why: 'Nothing to dress yet. Build the storyboard first.',
+    },
+    deck: {
+      done: hasSlides,
+      note: hasSlides ? `${deck.slides.length} slide${deck.slides.length === 1 ? '' : 's'}` : null,
+      locked: !hasSlides,
+      why: 'No slides yet. Build the storyboard first, then fuse it here.',
+    },
   };
+
+  // Clicking a locked step does not silently refuse: if its input can be
+  // produced, produce it. From Scope with a ready brief, "go to Deck" means
+  // "run the chain" — write the spine, then land where you asked.
+  function goPhase(next) {
+    const st = phaseStatus[next] || {};
+    if (!st.locked) { setPhase(next); return; }
+    if (sp.ready && !hasSlides) {
+      toast(`Building the storyboard first — ${PHASES.find(p => p.key === next).name} needs it.`);
+      startFromBrief();
+      return;
+    }
+    setPhase('scope');
+    toast(st.why || 'Earlier steps first.');
+  }
 
   const advisories = (deck.slides.length > 1 && window.buildAdvisories ? window.buildAdvisories(deck) : [])
     .filter(a => !advDismissed.includes(a.id));
@@ -866,9 +911,10 @@ function App() {
       <Sidebar
         collapsed={collapsed} onCollapse={() => setCollapsed(c => !c)}
         feature={feature} onFeature={f => gotoFeature(f, false)}
+        onPhase={goPhase}
         decks={decks} deckId={deckId} onPickSlide={id => setDeck(p => ({ ...p, activeId: id }))}
         onSwitch={switchDeck} onNew={newDeck} audience={audience}
-        phase={phase} onPhase={setPhase} phaseStatus={phaseStatus}
+        phase={phase} phaseStatus={phaseStatus}
       />
       <div className="main">
         <div className="topbar">
@@ -902,13 +948,13 @@ function App() {
                 if (deck.slides.length) toast(`Applied the ${PALETTES[v].label} direction.`);
               }}
             />
-          ) : phase === 'story' && !hasDeck ? (
+          ) : phase === 'story' && !hasDeck && !loading ? (
             <PhaseEmpty
               title={<>No beats to <em>board</em> yet</>}
               body="The storyboard opens up a deck you already have — titles, three messages each, and the bumper that hands off to the next slide."
               cta="Start from the brief" onCta={() => setPhase('scope')}
             />
-          ) : hasDeck && phase === 'story' ? (
+          ) : hasDeck && phase === 'story' && !loading ? (
             <Storyboard
               deck={deck} feature={feature}
               onPick={id => setDeck(p => ({ ...p, activeId: id }))}

@@ -155,8 +155,8 @@ function PhaseRail({ phase, onPhase, status, feature, onTool, features, featureI
         const open = phase === p.key;
         return (
           <div key={p.key} className={`phasegroup ${open ? 'is-open' : ''}`}>
-            <button className={`feat phase ${open ? 'is-active' : ''} ${st.done ? 'is-done' : ''}`}
-              onClick={() => onPhase(p.key)} title={p.sub}>
+            <button className={`feat phase ${open ? 'is-active' : ''} ${st.done ? 'is-done' : ''} ${st.locked ? 'is-locked' : ''}`}
+              onClick={() => onPhase(p.key)} title={st.locked ? st.why : p.sub}>
               <span className="phase__num tnum">{String(i + 1).padStart(2, '0')}</span>
               <span className="feat__txt">
                 <span className="feat__title">{p.name}</span>
@@ -283,7 +283,7 @@ function ScopePhase({ org, orgs, orgSlug, onOrg, answers, onAnswer, onStart, off
         <footer className="phasefoot">
           <span className="phasefoot__count tnum">{p.done}/{p.total} answered</span>
           <button className="phasefoot__go" disabled={!p.ready} onClick={onStart}>
-            {p.ready ? 'Draft from this brief' : `Answer the ${p.reqTotal - p.reqDone} required`}
+            {p.ready ? 'Build the storyboard' : `Answer the ${p.reqTotal - p.reqDone} required`}
             <Ico name="expand" size={15} />
           </button>
         </footer>
