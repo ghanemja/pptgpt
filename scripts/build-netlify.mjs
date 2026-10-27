@@ -43,6 +43,7 @@ const ASSETS = [
   ["ws-dash.jsx", "ws-dash.jsx"],
   ["ws-story.jsx", "ws-story.jsx"],
   ["ws-phases.jsx", "ws-phases.jsx"],
+  ["ws-demo-seed.js", "ws-demo-seed.js"],
   ["ws-export.js", "ws-export.js"],
   ["workspace-backend.js", "workspace-backend.js"],
 ];
@@ -61,7 +62,7 @@ const PAGES = [
 ];
 
 /** Rewrite a source page for the flat dist. */
-function transformHtml(html) {
+function transformHtml(html, { isWorkspace = false } = {}) {
   // Root-absolute asset refs. Anything already absolute, protocol-relative or
   // a full URL is left alone, as are in-page anchors and data: URIs.
   html = html.replace(
@@ -69,7 +70,11 @@ function transformHtml(html) {
     (_m, attr, path) => `${attr}="/${path}"`,
   );
 
-  const injected = '  <script src="/config.js"></script>\n';
+  // The static deploy has no backend, so the workspace opens on a canned
+  // deck instead of an empty shell. Seeded before the app script runs, and
+  // only here — local dev has a real engine and should open empty.
+  const seed = isWorkspace ? '  <script src="/ws-demo-seed.js"></script>\n' : '';
+  const injected = '  <script src="/config.js"></script>\n' + seed;
 
   // Inject right after </title> so the config is in place before any other
   // script runs.
@@ -89,7 +94,8 @@ for (const [from, to] of ASSETS) {
 for (const [from, to] of PAGES) {
   const abs = join(src, from);
   if (!existsSync(abs)) throw new Error(`missing page: frontend/${from}`);
-  writeFileSync(join(out, to), transformHtml(readFileSync(abs, "utf8")));
+  const isWorkspace = from === "workspace.html";
+  writeFileSync(join(out, to), transformHtml(readFileSync(abs, "utf8"), { isWorkspace }));
 }
 
 // Fail the build rather than publish a broken site — Netlify keeps the last
