@@ -1,0 +1,69 @@
+{
+  "name": "Northwind Health",
+  "tagline": "Clinical-committee decks: evidence first, no claim without a source.",
+  "scope_questions": [
+    {
+      "id": "audience",
+      "prompt": "Which committee is this for?",
+      "kind": "choice",
+      "options": ["Clinical governance", "Exec", "Payer", "Frontline staff"],
+      "why": "Governance wants methods; payers want cost per outcome.",
+      "required": true
+    },
+    {
+      "id": "decision",
+      "prompt": "What are you asking the committee to approve?",
+      "kind": "text",
+      "placeholder": "Adopt the revised sepsis pathway across all three sites",
+      "required": true
+    },
+    {
+      "id": "population",
+      "prompt": "Which patient population, over what period?",
+      "kind": "text",
+      "placeholder": "Adults admitted via ED, Jan–Jun 2026, n=4,812",
+      "why": "Northwind decks state the denominator before the headline.",
+      "required": true
+    },
+    {
+      "id": "source",
+      "prompt": "Where does each number come from?",
+      "kind": "longtext",
+      "placeholder": "EHR extract (Epic, 2026-06-30 cut) · finance ledger FY26Q2",
+      "why": "House rule: no claim on a slide without a source on the slide.",
+      "required": true
+    },
+    {
+      "id": "risk",
+      "prompt": "What is the safety or compliance risk if this is wrong?",
+      "kind": "text",
+      "placeholder": "Delayed escalation for atypical presentations"
+    },
+    {
+      "id": "cost",
+      "prompt": "What does it cost, and what does it save?",
+      "kind": "text",
+      "placeholder": "£180k year one · projected £1.2M avoided readmission"
+    }
+  ],
+  "narrative": {
+    "guide": "Population → Finding → Mechanism → Risk → Ask",
+    "beats": ["Population", "Finding", "Mechanism", "Risk", "Ask"],
+    "bumper_rule": "Each slide ends with the inference the committee is allowed to draw.",
+    "messages_per_slide": 3
+  },
+  "style": {
+    "theme": "signal",
+    "palette": "cool",
+    "rules": [
+      "Every number carries its denominator and its data cut date.",
+      "Confidence intervals shown wherever a difference is claimed.",
+      "No percentage without the absolute count beside it.",
+      "Source line on every evidence slide."
+    ],
+    "banned": ["stock photography", "3-D charts", "truncated y-axes"]
+  },
+  "examples": [
+    { "label": "Sepsis pathway review, FY25", "note": "The arc the committee is used to." }
+  ]
+}

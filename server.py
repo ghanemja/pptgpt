@@ -63,6 +63,7 @@ from deckengine.boundary import (
     deck_to_dict, ir_slide_to_dict, resolved_to_spec,
 )
 from deckengine.ambiguity import detect as detect_questions, to_dict as q_to_dict
+from deckengine.org import list_orgs, load_org, to_dict as org_to_dict, OrgError
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 FRONTEND = os.path.join(ROOT, "frontend")
@@ -164,6 +165,21 @@ class WorkspaceGenReq(BaseModel):
 
 
 # ---- API routes ----------------------------------------------------------
+
+@app.get("/api/orgs")
+def api_orgs():
+    """Every org profile this install knows about (slug + name only)."""
+    return {"orgs": list_orgs()}
+
+
+@app.get("/api/orgs/{slug}")
+def api_org(slug: str):
+    """One org profile: its scoping questions, narrative arc and style rules."""
+    try:
+        return org_to_dict(load_org(slug))
+    except OrgError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
+
 
 @app.post("/api/backend")
 def api_backend(req: BackendReq):

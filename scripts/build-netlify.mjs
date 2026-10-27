@@ -42,6 +42,7 @@ const ASSETS = [
   ["ws-slide.jsx", "ws-slide.jsx"],
   ["ws-dash.jsx", "ws-dash.jsx"],
   ["ws-story.jsx", "ws-story.jsx"],
+  ["ws-phases.jsx", "ws-phases.jsx"],
   ["ws-export.js", "ws-export.js"],
   ["workspace-backend.js", "workspace-backend.js"],
 ];

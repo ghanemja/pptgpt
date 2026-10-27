@@ -8,6 +8,7 @@
 
 const { useState, useEffect, useRef, useCallback, useLayoutEffect } = React;
 const { SLIDE_W, SLIDE_H, PALETTES, AUDIENCES, FEATURES, FEATURE_ICON, Ico, SlideCard, aiGenerate, uid, Storyboard } = window;
+const { PhaseRail, ScopePhase, VisualsPhase, PhaseEmpty, useOrg, briefFrom, scopeProgress } = window;
 
 const LS_KEY = (typeof window !== 'undefined' && window.WS_LS_KEY) || 'pptgpt-ws-v2';
 const FEATURE_ORDER = ['create', 'data', 'refine', 'condense'];
@@ -64,7 +65,7 @@ function Thumb({ slide, w }) {
 }
 
 /* ── sidebar ──────────────────────────────────────────────── */
-function Sidebar({ collapsed, onCollapse, feature, onFeature, decks, deckId, onPickSlide, onSwitch, onNew, audience }) {
+function Sidebar({ collapsed, onCollapse, feature, onFeature, decks, deckId, onPickSlide, onSwitch, onNew, audience, phase, onPhase, phaseStatus }) {
   return (
     <aside className="rail">
       <div className="rail__top">
@@ -95,19 +96,10 @@ function Sidebar({ collapsed, onCollapse, feature, onFeature, decks, deckId, onP
         })}
       </nav>
 
-      {/* The 5-phase pipeline (upload → pick → storyboard → workbench →
-         critique) still lives on /workbench while its panels are being
-         absorbed into this workspace. Linked, not duplicated, so nothing
-         is stranded in the meantime. */}
+      {/* The pipeline is no longer a separate app. Scope → storyboard →
+         visuals → deck are four views of the same live deck object. */}
       <div className="rail__label"><span>Pipeline</span></div>
-      <nav className="rail__nav">
-        <a className="feat feat--link" href="/workbench" title="Upload → pick → storyboard → workbench → critique">
-          <span className="feat__ico"><Ico name="layout" size={17} /></span>
-          <span className="feat__txt">
-            <span className="feat__title">Full pipeline</span>
-          </span>
-        </a>
-      </nav>
+      <PhaseRail phase={phase} onPhase={onPhase} status={phaseStatus} />
 
       <div className="rail__tray">
         <div className="tray__head">
@@ -565,7 +557,11 @@ function App() {
   const [flash, setFlash] = useState([]);
   const [dashOpen, setDashOpen] = useState(false);
   const [dashNotify, setDashNotify] = useState(false);
-  const [stageView, setStageView] = useState('slide');   // 'slide' | 'storyboard'
+  // One pipeline, four views of the same deck: scope -> story -> visuals -> deck.
+  const [phase, setPhase] = useState(saved && saved.phase ? saved.phase : 'scope');
+  const [orgSlug, setOrgSlug] = useState(saved && saved.orgSlug ? saved.orgSlug : 'default');
+  const [scope, setScope] = useState(saved && saved.scope ? saved.scope : {});
+  const { org, orgs, offline: orgOffline } = useOrg(orgSlug);
   const [advDismissed, setAdvDismissed] = useState([]);
 
   const deck = decks.find(d => d.id === deckId) || decks[0];
@@ -576,8 +572,8 @@ function App() {
 
   // persist
   useEffect(() => {
-    try { localStorage.setItem(LS_KEY, JSON.stringify({ feature, audience, theme, decks, deckId, chat })); } catch (e) {}
-  }, [feature, audience, theme, decks, deckId, chat]);
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ feature, audience, theme, decks, deckId, chat, phase, orgSlug, scope })); } catch (e) {}
+  }, [feature, audience, theme, decks, deckId, chat, phase, orgSlug, scope]);
 
   // apply theme to the document so fixed elements (toasts) inherit it too
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
@@ -804,7 +800,7 @@ function App() {
     const d = { id: uid(), title: 'Untitled deck', slides: [], activeId: null };
     setDecks(prev => [...prev, d]); setDeckId(d.id);
     setChat([]); setCoachStage(null); setFeature('create'); setDraft(''); setFiles([]);
-    setDynCats([]); setFlash([]); setStageView('slide'); setAdvDismissed([]);
+    setDynCats([]); setFlash([]); setPhase('scope'); setAdvDismissed([]);
   }
 
   function switchDeck(id) {
@@ -820,9 +816,39 @@ function App() {
     ...dynCats,
   ] : [];
 
+  const hasSlides = deck.slides.length > 0;
+
+  // ── scope answers live on the deck: a brief belongs to its deck ──
+  const scopeAnswers = scope[deckId] || {};
+  function setScopeAnswer(qid, value) {
+    setScope(prev => ({ ...prev, [deckId]: { ...(prev[deckId] || {}), [qid]: value } }));
+    // the audience question drives the engine's tone, so keep them in sync
+    if (qid === 'audience' && value) {
+      const hit = AUDIENCES.find(a => a.label.toLowerCase() === String(value).toLowerCase());
+      if (hit) setAudience(hit.key);
+    }
+  }
+  function startFromBrief() {
+    const brief = briefFrom(org, scopeAnswers);
+    setPhase('deck');
+    gotoFeature('create', false);
+    setCoachStage(null);
+    setDraft(brief);
+  }
+
+  const deckPalette = deck.slides.length ? deck.slides[0].palette : (org.style && org.style.palette) || 'warm';
+
+  const sp = scopeProgress(org, scopeAnswers);
+  const phaseStatus = {
+    scope:   { done: sp.ready, note: sp.done ? `${sp.done}/${sp.total} answered` : null },
+    story:   { done: deck.slides.length > 1, note: hasSlides ? `${deck.slides.length} beat${deck.slides.length === 1 ? '' : 's'}` : null },
+    visuals: { done: hasSlides && deck.slides.every(sl => sl.palette === deckPalette), note: null },
+    deck:    { done: hasSlides, note: hasSlides ? `${deck.slides.length} slide${deck.slides.length === 1 ? '' : 's'}` : null },
+  };
+
   const advisories = (deck.slides.length > 1 && window.buildAdvisories ? window.buildAdvisories(deck) : [])
     .filter(a => !advDismissed.includes(a.id));
-  const hasDeck = deck.slides.length > 0;
+  const hasDeck = hasSlides;
 
   return (
     <div className={`ws ${collapsed ? 'is-collapsed' : ''}`}>
@@ -831,6 +857,7 @@ function App() {
         feature={feature} onFeature={f => gotoFeature(f, false)}
         decks={decks} deckId={deckId} onPickSlide={id => setDeck(p => ({ ...p, activeId: id }))}
         onSwitch={switchDeck} onNew={newDeck} audience={audience}
+        phase={phase} onPhase={setPhase} phaseStatus={phaseStatus}
       />
       <div className="main">
         <div className="topbar">
@@ -848,16 +875,36 @@ function App() {
         </div>
 
         <div className="stage">
-          {hasDeck && stageView === 'storyboard' ? (
+          {phase === 'scope' ? (
+            <ScopePhase
+              org={org} orgs={orgs} orgSlug={orgSlug} onOrg={setOrgSlug} offline={orgOffline}
+              answers={scopeAnswers} onAnswer={setScopeAnswer} onStart={startFromBrief}
+            />
+          ) : phase === 'visuals' ? (
+            <VisualsPhase
+              org={org} themes={THEMES} theme={theme} onTheme={setTheme}
+              palettes={PALETTES} palette={deckPalette} deck={deck}
+              onPalette={v => {
+                setDeck(prev => ({ ...prev, slides: prev.slides.map(sl => ({ ...sl, palette: v })) }));
+                if (deck.slides.length) toast(`Applied the ${PALETTES[v].label} direction.`);
+              }}
+            />
+          ) : phase === 'story' && !hasDeck ? (
+            <PhaseEmpty
+              title={<>No beats to <em>board</em> yet</>}
+              body="The storyboard opens up a deck you already have — titles, three messages each, and the bumper that hands off to the next slide."
+              cta="Start from the brief" onCta={() => setPhase('scope')}
+            />
+          ) : hasDeck && phase === 'story' ? (
             <Storyboard
               deck={deck} feature={feature}
               onPick={id => setDeck(p => ({ ...p, activeId: id }))}
-              onOpen={id => { setDeck(p => ({ ...p, activeId: id })); setStageView('slide'); }}
+              onOpen={id => { setDeck(p => ({ ...p, activeId: id })); setPhase('deck'); }}
               onMoveMessage={moveMessage}
               onReorderByTitle={reorderByTitle}
               onSwapBumper={swapBumper}
               onTrim={trimSlide}
-              onAdd={() => { setStageView('slide'); gotoFeature('create', false); setCoachStage(null); }}
+              onAdd={() => { setPhase('deck'); gotoFeature('create', false); setCoachStage(null); }}
               advisories={advisories}
               onAccept={acceptAdvisory} onDismiss={dismissAdvisory}
             />
@@ -874,19 +921,22 @@ function App() {
           )}
         </div>
 
-        <Composer
+        {/* Scope and Visuals are forms, not conversations — the composer
+            would only invite typing into the wrong surface. */}
+        {phase === 'scope' || phase === 'visuals' ? null : <Composer
           feature={feature} draft={draft} setDraft={setDraft} files={files} setFiles={setFiles}
           audience={audience} setAudience={setAudience} onSend={() => doSend()} loading={loading}
           showPresets={false} onPreset={s => setDraft(s)}
-          compact={hasDeck && stageView === 'storyboard'}
+          compact={hasDeck && phase === 'story'}
           coach={active ? <Dashboard
             cats={dashCats} flash={flash} onControl={applyControl} onAction={applyChip}
             feature={feature} samples={FEATURES[feature].samples} onPreset={s => setDraft(s)}
             open={dashOpen} notify={dashNotify}
             onToggle={() => setDashOpen(o => { if (!o) setDashNotify(false); return !o; })}
-            stageView={hasDeck ? stageView : null} onStageView={setStageView} advCount={advisories.length}
+            stageView={hasDeck ? (phase === 'story' ? 'storyboard' : 'slide') : null}
+            onStageView={v => setPhase(v === 'storyboard' ? 'story' : 'deck')} advCount={advisories.length}
           /> : null}
-        />
+        />}
       </div>
       <Toasts items={toasts} />
     </div>
