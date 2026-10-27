@@ -30,8 +30,9 @@ const PHASES = [
 /* The API origin, resolved the same way workspace-backend.js does it, so a
    static deploy with no backend still works (we fall back to the profile
    baked in below). */
-const API_ORIGIN = (window.BU_API_BASE || '').replace(/\/$/, '')
-  || ((location.protocol === 'http:' || location.protocol === 'https:') ? location.origin : '');
+const API_ORIGIN = window.WS_NO_BACKEND ? ''
+  : ((window.BU_API_BASE || '').replace(/\/$/, '')
+    || ((location.protocol === 'http:' || location.protocol === 'https:') ? location.origin : ''));
 
 /* Offline fallback — mirrors orgs/default.json. The server copy is the
    source of truth; this only keeps the UI honest when there is no server. */

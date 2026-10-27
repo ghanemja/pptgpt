@@ -17,6 +17,11 @@
    The deck mirrors frontend/v2-assets/samples/sample.pptx, which is
    generated from the same story by scripts/make_sample_deck.py.
    ============================================================ */
+// This build ships without a backend. The probes in workspace-backend.js and
+// ws-phases.jsx would otherwise fire at location.origin and 404 four times on
+// every load; a static deploy should know it is static.
+window.WS_NO_BACKEND = true;
+
 window.WS_SEED = {
   feature: 'create',
   audience: 'exec',

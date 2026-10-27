@@ -23,7 +23,9 @@
       ? location.origin
       : null);
 
-  if (!ORIGIN) return;  // file:// — keep the client-only canned generator
+  // file://, or a static deploy that declares it has no engine behind it —
+  // either way, keep the client-only canned generator and probe nothing.
+  if (!ORIGIN || window.WS_NO_BACKEND) return;
 
   async function probe() {
     try {
