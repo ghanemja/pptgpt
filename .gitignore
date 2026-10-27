@@ -34,3 +34,6 @@ netlify-dist/
 frontend/uploads/
 frontend/.cache/
 uploads/
+
+# Local Netlify folder
+.netlify
