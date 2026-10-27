@@ -5,7 +5,7 @@
    storyboard → workbench → critique) becomes four phases of the
    same deck object:
 
-     scope    — the org's questions. What are we even arguing?
+     scope    — the org’s questions. What are we even sharing?
      story    — title / three messages / bumper   (ws-story.jsx)
      visuals  — house style, direction, charts
      deck     — the fused slides + export          (ws-app.jsx)
@@ -25,7 +25,7 @@ const { useState, useEffect } = React;
    user to hold two mental models at once — a workflow and a toolbox. A tool
    now lives inside the step of the workflow where you would reach for it. */
 const PHASES = [
-  { key: 'scope',   name: 'Scope',   icon: 'refine',  sub: 'what are we arguing', tools: [] },
+  { key: 'scope',   name: 'Scope',   icon: 'refine',  sub: 'what are we sharing', tools: [] },
   { key: 'story',   name: 'Story',   icon: 'layout',  sub: 'title · 3 messages · bumper', tools: ['condense'] },
   { key: 'visuals', name: 'Visuals', icon: 'palette', sub: 'house style · graphics', tools: ['data'] },
   { key: 'deck',    name: 'Deck',    icon: 'createx', sub: 'fuse it · export', tools: ['create', 'refine'] },
@@ -192,7 +192,7 @@ function ScopePhase({ org, orgs, orgSlug, onOrg, answers, onAnswer, onStart, off
       <div className="phasewrap">
         <header className="phasehead">
           <div className="phasehead__eyebrow">Phase 01 · Scope</div>
-          <h1 className="phasehead__h">What are we <em>arguing</em>?</h1>
+          <h1 className="phasehead__h">What are we <em>sharing</em>?</h1>
           <p className="phasehead__p">
             These questions come from your organization{'’'}s profile, not from pptgpt.
             Answer what you can — the engine writes to this brief.
