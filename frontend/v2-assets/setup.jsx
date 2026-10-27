@@ -166,7 +166,7 @@ function Setup() {
         </div>
 
         <footer className="setup-footer">
-          <a className="setup-footer__back" href="/">← landing</a>
+          <a className="setup-footer__back" href="/landing">← landing</a>
           <button
             type="button"
             className="setup-cta"

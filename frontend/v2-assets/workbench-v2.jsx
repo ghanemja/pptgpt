@@ -488,7 +488,7 @@ function WBHeader({ mode, onModeChange, loading, onReset, phase, onBackToStoryMa
     phase === 'critique'   ? 5 : 1;
   return (
     <header className="wb-header">
-      <a className="wb-wordmark wb-wordmark--link" href="/" title="Back to landing">
+      <a className="wb-wordmark wb-wordmark--link" href="/landing" title="Back to landing">
         <span className="dot" />
         pptgpt
         <span className="meta">

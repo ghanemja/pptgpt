@@ -48,11 +48,15 @@ const ASSETS = [
 
 // Pages, as `source -> dist name`. Each is rewritten by transformHtml().
 const PAGES = [
-  ["v2-assets/landing.html", "index.html"],
+  // The workspace IS the product, so it owns "/". The marketing landing page
+  // keeps its own URL at /landing for linking, but no longer gates the app
+  // behind a splash screen.
+  ["workspace.html", "index.html"],
+  ["workspace.html", "workspace.html"],
+  ["v2-assets/landing.html", "landing.html"],
   ["v2-assets/setup.html", "setup.html"],
   ["v2-assets/storyboard-v2.html", "storyboard.html"],
   ["v2-assets/workbench-v2.html", "workbench.html"],
-  ["workspace.html", "workspace.html"],
 ];
 
 /** Rewrite a source page for the flat dist. */
