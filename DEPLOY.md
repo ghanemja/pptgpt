@@ -32,11 +32,29 @@ gh repo create ghanemja/pptgpt --private --source=. --push
 
 1. Go to <https://huggingface.co/new-space>.
 2. Owner: `jang0294`. Space name: `pptgpt`. SDK: **Docker**. Hardware: CPU basic (free).
-3. Push this repo to the Space:
+3. Push this repo to the Space.
+
+   `git push hf main` does **not** work: Hugging Face's pre-receive hook
+   rejects binary blobs over ~100KB anywhere in the pushed history, and main
+   carries development screenshots plus a 2.4MB sample deck. The Space does
+   not need either — the Dockerfile copies `server.py`, `deckengine/` and
+   `frontend/` only. So the Space ref is built as its own commit on top of
+   whatever the Space already has, with those files left out:
+
    ```bash
-   git remote add hf https://huggingface.co/spaces/jang0294/pptgpt
-   git push hf main
+   git remote add hf https://huggingface.co/spaces/jang0294/pptgpt   # once
+   git fetch hf
+   git worktree add -b hf-live /tmp/hfdeploy hf/main
+   cd /tmp/hfdeploy
+   find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+   git --git-dir=/path/to/pptgpt/.git archive main | tar -x -C .
+   rm -rf frontend-version2 frontend/v2-assets/samples/*.pptx
+   git add -A && git commit -m "Deploy <main sha> to the Space"
+   git push hf hf-live:main
    ```
+
+   Keeping the Space's own ref as the parent means the push is a
+   fast-forward — no force, and the Space's history is preserved.
 4. Set the Space's secrets in Settings → Variables and secrets.
    See [PORTFOLIO_ENV.md in brain-university](https://github.com/ghanemja/brain-university/blob/main/PORTFOLIO_ENV.md)
    for the shared 9 env vars to set on this Space. After creating the Space,
