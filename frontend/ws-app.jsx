@@ -605,22 +605,60 @@ function Composer({ feature, draft, setDraft, files, setFiles, audience, setAudi
 }
 
 /* ── history sheet ────────────────────────────────────────── */
-function History({ chat, onClose }) {
+/* The conversation, kept so a prompt can be found again and reused.
+
+   Everything typed here is already recorded — it was just never shown. A
+   past prompt is worth more than a record of it: "Reuse" puts it back in
+   the composer to edit, "Again" sends it as-is. Only your own messages get
+   those, since replaying the engine's reply would mean nothing. */
+function History({ chat, onClose, onReuse, onReplay, filter, onFilter }) {
   const scRef = useRef(null);
   useEffect(() => { if (scRef.current) scRef.current.scrollTop = scRef.current.scrollHeight; }, []);
+  const [copied, setCopied] = useState(-1);
+
+  const shown = filter === 'mine' ? chat.filter(m => m.role === 'user') : chat;
+  const mine = chat.filter(m => m.role === 'user').length;
+
+  function copy(text, i) {
+    try {
+      navigator.clipboard.writeText(text);
+      setCopied(i);
+      setTimeout(() => setCopied(-1), 1200);
+    } catch (e) { /* clipboard blocked — Reuse still works */ }
+  }
+
   return (
     <div className="history">
       <div className="history__head">
         <span className="history__title">Conversation</span>
+        <div className="history__tabs">
+          <button className={`storytab ${filter === 'all' ? 'on' : ''}`} onClick={() => onFilter('all')}>
+            All <span className="tnum">{chat.length}</span>
+          </button>
+          <button className={`storytab ${filter === 'mine' ? 'on' : ''}`} onClick={() => onFilter('mine')}>
+            My prompts <span className="tnum">{mine}</span>
+          </button>
+        </div>
         <button className="rail__collapse" onClick={onClose}><Ico name="close" size={16} /></button>
       </div>
       <div className="history__scroll" ref={scRef}>
         <div className="history__inner">
-          {chat.length === 0 && <div className="tray__empty">No messages yet.</div>}
-          {chat.map((m, i) => (
+          {shown.length === 0 && <div className="tray__empty">Nothing here yet.</div>}
+          {shown.map((m, i) => (
             <div key={i} className={`msg msg--${m.role}`}>
               <span className="msg__ava">{m.role === 'user' ? 'JG' : 'p'}</span>
-              <div className="msg__text">{m.text}</div>
+              <div className="msg__body">
+                <div className="msg__text">{m.text}</div>
+                {m.role === 'user' ? (
+                  <div className="msg__acts">
+                    <button className="msg__act" onClick={() => onReuse(m.text)}>Reuse</button>
+                    <button className="msg__act" onClick={() => onReplay(m.text)}>Again</button>
+                    <button className="msg__act" onClick={() => copy(m.text, i)}>
+                      {copied === i ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
           ))}
         </div>
@@ -668,6 +706,7 @@ function App() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState('all');
   const [toasts, setToasts] = useState([]);
   const [pulseId, setPulseId] = useState(null);
   const [dynCats, setDynCats] = useState([]);
@@ -1258,6 +1297,15 @@ function App() {
               onChange={e => setDeck(p => ({ ...p, title: e.target.value }))} spellCheck={false} />
           </div>
           <span className="topbar__spacer" />
+          <button className={`topbar__hist ${historyOpen ? 'on' : ''}`}
+            onClick={() => setHistoryOpen(o => !o)}
+            title="Everything you have typed in this deck">
+            <Ico name="up" size={15} />
+            <span>History</span>
+            {chat.filter(m => m.role === 'user').length
+              ? <span className="topbar__hist-n tnum">{chat.filter(m => m.role === 'user').length}</span>
+              : null}
+          </button>
           <ThemeSwitcher theme={theme} onPick={setTheme} />
           <ExportMenu deck={deck} feature={feature} onExport={doExport} onGoto={o => gotoFeature(o, true)} />
         </div>
@@ -1330,6 +1378,24 @@ function App() {
             onStageView={v => setPhase(v === 'storyboard' ? 'story' : 'deck')} advCount={advisories.length}
           /> : null}
         />}
+
+        {/* The conversation sits over the working area, not beside it:
+            it is something you consult and dismiss. */}
+        {historyOpen ? (
+          <History
+            chat={chat} filter={historyFilter} onFilter={setHistoryFilter}
+            onClose={() => setHistoryOpen(false)}
+            onReuse={text => {
+              setDraft(text);
+              setHistoryOpen(false);
+              setTimeout(() => {
+                const ta = document.querySelector('.composer textarea');
+                if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+              }, 60);
+            }}
+            onReplay={text => { setHistoryOpen(false); doSend(text); }}
+          />
+        ) : null}
       </div>
       <Toasts items={toasts} />
     </div>
