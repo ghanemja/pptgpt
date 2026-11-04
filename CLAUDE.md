@@ -62,6 +62,11 @@ font, size or colour onto a run.
   sampled off that render rather than guessed from the theme. Optional
   dependency: without `soffice` the backdrop endpoint 503s and the UI falls
   back to the template's palette.
+- `deckengine/coach.py` — the critic. Named LENSES (ask, evidence, source,
+  comparison, density, title, hedge, jargon, ownership, handoff) find what
+  is wrong with a slide by rule; a PERSONA in `coaches/*.json` decides which
+  lenses matter, how hard to push and in whose voice. Deterministic, so a
+  note is a property of the slide. Notes never carry geometry.
 - `deckengine/org.py` — per-organization profiles loaded from `orgs/*.json`:
   the scoping interview, narrative arc and house style rules. Convention,
   never geometry — the loader rejects a profile carrying coordinates.
@@ -74,7 +79,8 @@ font, size or colour onto a run.
 - `server.py` — FastAPI, speaks the canvas contract. Offline.
 - `tests/test_layout.py`, `tests/test_ingest.py`, `tests/test_condense.py`,
   `tests/test_ambiguity.py`, `tests/test_org.py`, `tests/test_template.py`,
-  `tests/test_native.py`, `tests/smoke_e2e.py` — invariant + endpoint tests.
+  `tests/test_native.py`, `tests/test_coach.py`, `tests/test_charts.py`,
+  `tests/smoke_e2e.py` — invariant + endpoint tests.
 
 ## Conventions
 - Python 3.11+, dataclasses over dicts for internal types, type hints required.

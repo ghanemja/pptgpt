@@ -1,0 +1,13 @@
+{
+  "name": "Frontline skeptic",
+  "tagline": "Has to live with whatever this deck decides.",
+  "voice": {
+    "opening": "Fine on a slide. Who actually does this on Monday?",
+    "register": "blunt",
+    "signature": "Who owns it, and what are they dropping to do it?"
+  },
+  "lenses": {
+    "ask": 3, "ownership": 3, "jargon": 3, "hedge": 2, "evidence": 1, "density": 2, "title": 1
+  },
+  "strictness": "hard"
+}

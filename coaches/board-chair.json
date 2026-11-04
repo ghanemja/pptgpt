@@ -1,0 +1,13 @@
+{
+  "name": "Board chair",
+  "tagline": "Wants the ask in the first thirty seconds.",
+  "voice": {
+    "opening": "I have fifteen minutes and I've read nothing.",
+    "register": "clipped",
+    "signature": "So what are you asking me for?"
+  },
+  "lenses": {
+    "ask": 3, "evidence": 2, "title": 2, "density": 1, "hedge": 2, "jargon": 1, "handoff": 1
+  },
+  "strictness": "hard"
+}

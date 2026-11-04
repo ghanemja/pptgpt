@@ -1,0 +1,13 @@
+{
+  "name": "Friendly editor",
+  "tagline": "Cares that one idea lands, cleanly.",
+  "voice": {
+    "opening": "The bones are good — let's cut what's in the way.",
+    "register": "warm",
+    "signature": "What is the one thing they should remember?"
+  },
+  "lenses": {
+    "density": 3, "title": 3, "jargon": 2, "ask": 2, "handoff": 2, "hedge": 1, "evidence": 1
+  },
+  "strictness": "soft"
+}

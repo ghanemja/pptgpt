@@ -707,6 +707,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyFilter, setHistoryFilter] = useState('all');
+  const [coachOpen, setCoachOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [pulseId, setPulseId] = useState(null);
   const [dynCats, setDynCats] = useState([]);
@@ -1297,8 +1298,15 @@ function App() {
               onChange={e => setDeck(p => ({ ...p, title: e.target.value }))} spellCheck={false} />
           </div>
           <span className="topbar__spacer" />
+          <button className={`topbar__hist ${coachOpen ? 'on' : ''}`}
+            onClick={() => { setCoachOpen(o => !o); setHistoryOpen(false); }}
+            disabled={!active}
+            title={active ? 'Hear this slide read by a critic you choose' : 'Add a slide first'}>
+            <Ico name="spark" size={15} />
+            <span>Coach</span>
+          </button>
           <button className={`topbar__hist ${historyOpen ? 'on' : ''}`}
-            onClick={() => setHistoryOpen(o => !o)}
+            onClick={() => { setHistoryOpen(o => !o); setCoachOpen(false); }}
             title="Everything you have typed in this deck">
             <Ico name="up" size={15} />
             <span>History</span>
@@ -1378,6 +1386,29 @@ function App() {
             onStageView={v => setPhase(v === 'storyboard' ? 'story' : 'deck')} advCount={advisories.length}
           /> : null}
         />}
+
+        {/* The critic reads the slide you are on. Like the conversation, it
+            sits over the working area and is dismissed. */}
+        {coachOpen && active && window.CoachPanel ? (
+          <window.CoachPanel
+            slide={active}
+            nextSlide={deck.slides[deck.slides.findIndex(sl => sl.id === active.id) + 1] || null}
+            onClose={() => setCoachOpen(false)}
+            onFocusField={field => {
+              setCoachOpen(false);
+              setDashOpen(true);
+              setTimeout(() => {
+                const row = [...document.querySelectorAll('.tl-ctrl')].find(r => {
+                  const l = r.querySelector('.tl-ctrl__l');
+                  return l && l.textContent.toLowerCase().includes(
+                    field === 'takeaway' ? 'takeaway' : 'headline');
+                });
+                const input = row && row.querySelector('input, textarea');
+                if (input) { input.focus(); input.select(); }
+              }, 120);
+            }}
+          />
+        ) : null}
 
         {/* The conversation sits over the working area, not beside it:
             it is something you consult and dismiss. */}

@@ -66,6 +66,9 @@ from deckengine.boundary import (
 from deckengine.ambiguity import detect as detect_questions, to_dict as q_to_dict
 from deckengine.org import list_orgs, load_org, to_dict as org_to_dict, OrgError
 from deckengine.preview import slide_png, native_png, available as preview_available
+from deckengine.coach import (
+    list_personas, load_persona, critique_slide, critique_deck, CoachError,
+)
 from deckengine.template import (
     save_template, load_template, list_templates, delete_template,
     template_path, to_dict as tpl_to_dict, TemplateError,
@@ -113,6 +116,17 @@ class CritiqueReq(BaseModel):
     audience: str = "exec"
     mode: str = "draft"
     outline: list[dict] = []
+
+
+class CritiqueSlideReq(BaseModel):
+    slide: dict
+    coach: str = "board-chair"
+    next: dict | None = None        # the following slide, for the handoff lens
+
+
+class CritiqueDeckReq(BaseModel):
+    slides: list[dict] = []
+    coach: str = "board-chair"
 
 
 class PreviewReq(BaseModel):
@@ -206,6 +220,35 @@ def api_preview_png(req: PreviewReq):
         return JSONResponse({"error": reason}, status_code=503)
     return FileResponse(path, media_type="image/png",
                         headers={"Cache-Control": "public, max-age=600"})
+
+
+@app.get("/api/coaches")
+def api_coaches():
+    """The critic personas this install ships."""
+    return {"coaches": list_personas()}
+
+
+@app.post("/api/critique_slide")
+def api_critique_slide(req: CritiqueSlideReq):
+    """One slide, read by one persona.
+
+    Deterministic: the same slide and persona always produce the same notes,
+    so a note is a property of the slide rather than of a sampling seed.
+    """
+    try:
+        persona = load_persona(req.coach)
+    except CoachError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
+    return critique_slide(req.slide, persona, context={"next": req.next})
+
+
+@app.post("/api/critique_deck")
+def api_critique_deck(req: CritiqueDeckReq):
+    try:
+        persona = load_persona(req.coach)
+    except CoachError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
+    return {"results": critique_deck(req.slides, persona)}
 
 
 @app.get("/api/templates")

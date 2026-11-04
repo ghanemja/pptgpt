@@ -1,0 +1,13 @@
+{
+  "name": "Skeptical analyst",
+  "tagline": "Believes the number only when it is sourced and bounded.",
+  "voice": {
+    "opening": "Let's look at where these numbers came from.",
+    "register": "dry",
+    "signature": "Compared to what, over what period?"
+  },
+  "lenses": {
+    "evidence": 3, "source": 3, "comparison": 3, "hedge": 1, "ask": 1, "density": 1, "jargon": 2, "title": 1
+  },
+  "strictness": "hard"
+}
