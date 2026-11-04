@@ -277,6 +277,84 @@ def _mpl_color(c: str | None):
     return s
 
 
+def _render_diagram_png(block: dict) -> bytes | None:
+    """A process or a funnel, drawn as an image.
+
+    "Flow chart" used to fall through to bar chart, which answered a
+    question about sequence with a question about magnitude. A flow is
+    steps in order; a funnel is steps that narrow. Both are drawn here so
+    the same picture reaches the preview, the export and a template cast.
+    """
+    if not _have_mpl():
+        return None
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import FancyArrow, FancyBboxPatch, Polygon
+
+    steps = [str(x) for x in (block.get("steps") or []) if str(x).strip()]
+    if not steps:
+        return None
+
+    bg = _mpl_color(block.get("bg") or "#FFFFFF")
+    fill = _mpl_color(block.get("primaryColor") or "#1E2761")
+    accent = _mpl_color(block.get("highlightColor") or block.get("primaryColor") or "#1E2761")
+    ink = _mpl_color(block.get("labelColor") or "#11120E")
+
+    fig = plt.figure(figsize=(block.get("w", 900) / 100.0, block.get("h", 520) / 100.0), dpi=200)
+    ax = fig.add_subplot(111)
+    fig.patch.set_facecolor(bg)
+    ax.set_facecolor(bg)
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 100)
+    ax.axis("off")
+
+    n = len(steps)
+    kind = (block.get("kind") or "flow").lower()
+
+    if kind == "funnel":
+        # Each stage narrower than the last: the shape IS the argument.
+        top, bottom, pad = 94.0, 6.0, 1.6
+        band = (top - bottom) / n
+        for i, label in enumerate(steps):
+            y1 = top - i * band
+            y0 = y1 - band + pad
+            w1 = 80.0 * (1 - i / max(n, 2) * 0.62)
+            w0 = 80.0 * (1 - (i + 1) / max(n, 2) * 0.62)
+            poly = Polygon([(50 - w1 / 2, y1), (50 + w1 / 2, y1),
+                            (50 + w0 / 2, y0), (50 - w0 / 2, y0)],
+                           closed=True, facecolor=accent if i == 0 else fill,
+                           edgecolor=bg, linewidth=1.5, alpha=1 - i * 0.12)
+            ax.add_patch(poly)
+            ax.text(50, (y0 + y1) / 2, label, ha="center", va="center",
+                    fontsize=11, fontweight="bold", color=bg)
+    else:
+        # Steps left to right, with the arrow between them carrying the "then".
+        gap = 4.0
+        box_w = (100.0 - 8.0 - gap * (n - 1)) / n
+        y, h = 38.0, 24.0
+        for i, label in enumerate(steps):
+            x = 4.0 + i * (box_w + gap)
+            ax.add_patch(FancyBboxPatch(
+                (x, y), box_w, h,
+                boxstyle="round,pad=0.4,rounding_size=1.6",
+                facecolor=accent if i == 0 else fill, edgecolor="none"))
+            ax.text(x + box_w / 2, y + h / 2, label, ha="center", va="center",
+                    fontsize=10, fontweight="bold", color=bg, wrap=True,
+                    linespacing=1.2)
+            if i < n - 1:
+                ax.add_patch(FancyArrow(
+                    x + box_w + 0.6, y + h / 2, gap - 2.0, 0,
+                    width=0.6, head_width=2.6, head_length=1.6,
+                    length_includes_head=True, color=ink, alpha=0.75))
+
+    buf = io.BytesIO()
+    save_bg = bg if not isinstance(bg, tuple) else bg[:3]
+    fig.savefig(buf, format="png", facecolor=save_bg, bbox_inches="tight", pad_inches=0.04)
+    plt.close(fig)
+    return buf.getvalue()
+
+
 def chart_rows(block: dict) -> list[dict]:
     """Order and emphasis, resolved the same way the preview resolves them.
 
@@ -483,6 +561,12 @@ def render_specs(specs: list[dict], path: str, template_path: str | None = None)
                               font="mono", size_pt=12, weight=400, italic=False,
                               color="#FFFFFF", align="center", valign="middle",
                               line_height=1.2, letter_spacing=0, transform=None)
+            elif t == "diagram":
+                png = _render_diagram_png(b)
+                if png:
+                    slide.shapes.add_picture(io.BytesIO(png),
+                                             Inches(x_in), Inches(y_in),
+                                             width=Inches(w_in), height=Inches(h_in))
             elif t == "chart":
                 png = _render_chart_png(b)
                 if png:

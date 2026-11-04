@@ -404,6 +404,14 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 .blankslide__chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 6px; }
 .blankslide__chips .chip { font-size: 12px; padding: 7px 12px; }
 
+/* Picking the shape of a visual the engine is not certain about. */
+.pickgrid { display: flex; flex-wrap: wrap; gap: 9px; justify-content: center; margin-top: 10px; }
+.pickcard { min-width: 118px; padding: 11px 14px; border-radius: var(--r);
+  border: var(--bw) solid var(--border); background: var(--card); text-align: center; }
+.pickcard:hover { border-color: var(--accent); box-shadow: var(--shadow-card); }
+.pickcard__name { display: block; font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.pickcard__why { display: block; font-size: 11.5px; color: var(--mute); margin-top: 3px; }
+
 /* Thumbnails of the real slide: a quiet panel until the render lands. */
 .exthumb { display: block; position: relative; overflow: hidden; background: var(--bg-2); }
 .exthumb img { display: block; width: 100%; height: 100%; object-fit: fill; }

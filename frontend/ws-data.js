@@ -28,6 +28,47 @@
     [/\b(column|vertical bar|bar)\b/i, 'column'],
   ];
 
+  /* ── what KIND of visual, and how sure are we ──────────────────
+     "Flow chart" contains the word chart and is not one: it asks for a
+     process, and answering it with bars was both wrong and confident about
+     it. Asks are resolved into a family first (a data chart, or a diagram
+     of steps), then a specific kind, with a confidence. Named exactly, the
+     engine builds it. Named vaguely — "add a chart" — it offers the kinds
+     that fit the data rather than guessing silently. */
+
+  const FLOW_WORDS = /\b(flow ?chart|flow|process|workflow|pipeline|journey|sequence|steps|stages|funnel|lifecycle)\b/i;
+  const STEP_SPLIT = /\s*(?:→|->|=>|➔|then|next|followed by|;)\s*|\s*\n\s*/i;
+
+  /* Steps read out of an ask: "A → B → C", "1. A 2. B", or bullet lines. */
+  function extractSteps(text) {
+    const t = String(text || '');
+    const after = t.replace(/^[^:]*:\s*/, '');            // drop "flow chart of:"
+    let parts = after.split(STEP_SPLIT).map(x => x.trim()).filter(Boolean);
+    // "1. plan 2. build 3. ship" is one chunk to the splitter above, so the
+    // numbering itself has to be the separator.
+    if (parts.length < 2 && /\d+[.)]\s/.test(after)) {
+      parts = after.split(/\s*\d+[.)]\s*/).map(x => x.trim()).filter(Boolean);
+    }
+    if (parts.length < 2) {
+      parts = after.split(/\s*,\s*/).map(x => x.trim()).filter(Boolean);
+    }
+    parts = parts
+      .map(x => x.replace(/^\d+[.)]\s*/, '').replace(/^[-•]\s*/, '').trim())
+      .filter(x => x && x.length <= 48);
+    return parts.length >= 2 ? parts.slice(0, 7) : [];
+  }
+
+  /* Candidate chart kinds for a given series, best first. Data shape is the
+     evidence: four quarters is a trend, three segments summing to a whole is
+     a split, ten rows is a ranking. */
+  function chartOptionsFor(rows) {
+    const n = rows.length;
+    const looksTemporal = rows.every(r => /^(q[1-4]|fy\d|\d{4}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|mon|tue|wed|thu|fri|sat|sun|week|wk ?\d|m\d)/i.test(String(r.label).trim()));
+    if (looksTemporal) return ['line', 'column', 'area'];
+    if (n <= 5) return ['column', 'pie', 'bar'];
+    return ['bar', 'column', 'line'];
+  }
+
   /* Does this prompt ask for a visual? */
   function wantsChart(text) {
     const t = String(text || '');
@@ -195,7 +236,79 @@
     };
   }
 
+  /* The whole decision, in one place.
+
+     Returns { family, kind, confidence, options }. `confidence` is 'high'
+     when the ask named the kind, or when the data shape leaves one sensible
+     answer; 'low' when it did not, which is what makes the UI offer a choice
+     instead of picking for you. */
+  function visualIntent(text, rows) {
+    const t = String(text || '');
+    const asked = wantsChart(t);
+    const flow = FLOW_WORDS.test(t);
+
+    if (flow) {
+      const funnel = /\bfunnel\b/i.test(t);
+      const steps = extractSteps(t);
+      return {
+        family: 'diagram',
+        kind: funnel ? 'funnel' : 'flow',
+        // Naming "funnel" or "flow chart" is explicit; "steps" alone is not.
+        confidence: (funnel || /\bflow ?chart|process|workflow|pipeline\b/i.test(t)) ? 'high' : 'low',
+        options: ['flow', 'funnel'],
+        steps,
+      };
+    }
+
+    const named = KIND_WORDS.some(([re]) => re.test(t));
+    const hasRows = !!(rows && rows.length);
+
+    // "pie of segment share: SMB 12, Mid 28" names a kind and carries a
+    // series; it is an ask even without a verb in front of it.
+    if (!asked && !(named && hasRows)) {
+      return { family: 'none', kind: null, confidence: 'high', options: [] };
+    }
+
+    const opts = hasRows ? chartOptionsFor(rows) : ['column', 'bar', 'line'];
+
+    // Named outright, there is nothing to ask about. Otherwise the DATA may
+    // still settle it: a run of quarters is a trend and a long list is a
+    // ranking — only a short unordered set is a real fork (column or pie),
+    // and that is the one worth asking about.
+    let confidence = 'low';
+    if (named) confidence = 'high';
+    else if (hasRows && opts[0] === 'line') confidence = 'high';
+    else if (hasRows && rows.length > 5) confidence = 'high';
+
+    return {
+      family: 'chart',
+      kind: named ? chartKind(t) : opts[0],
+      confidence,
+      options: confidence === 'high' ? [] : opts,
+    };
+  }
+
+  function buildFlowSlide({ prompt, steps, kind, palette, audience, id, title }) {
+    const asked = String(prompt || '').split('\n')[0]
+      .replace(/^(show|make|add|draw|give|include|build|create|put)\b\s*/i, '')
+      .replace(/^\s*(me|a|an|the)\b\s*/i, '')
+      .split(/\s*[:—–]\s*/)[0]
+      .replace(/[.?!,]+$/, '').trim();
+    const headline = (title || '').trim() || asked || 'How it works';
+    return {
+      id: id || (window.uid ? window.uid() : String(Date.now())),
+      kind: 'diagram',
+      palette: palette || 'warm',
+      emphasis: audience === 'conf' ? 'story' : 'number',
+      eyebrow: 'Process',
+      title: headline.charAt(0).toUpperCase() + headline.slice(1),
+      diagram: { kind: kind || 'flow', steps: steps.slice(0, 7) },
+      takeaway: '',
+    };
+  }
+
   Object.assign(window, {
     wantsChart, chartKind, extractSeries, findSeries, contextSources, buildChartSlide, unitOf,
+    visualIntent, extractSteps, chartOptionsFor, buildFlowSlide,
   });
 })();

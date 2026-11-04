@@ -107,7 +107,7 @@ def classify(slide: dict[str, Any]) -> str:
 
     if kind == "cover":
         return ROLE_COVER
-    if kind in ("chart", "plot") or slide.get("image") or slide.get("images"):
+    if kind in ("chart", "plot", "diagram") or slide.get("image") or slide.get("images"):
         return ROLE_PICTURE
     if not points and not slide.get("metric"):
         # A title alone is a section break; a title plus one line is a
@@ -293,6 +293,15 @@ def _visual_png(slide: dict[str, Any], profile=None) -> Optional[bytes]:
             if profile is not None:
                 block.update(_chart_palette(profile))
             return _render_chart_png(block)
+    diagram = slide.get("diagram")
+    if diagram and diagram.get("steps"):
+        from .spec_render import _render_diagram_png
+        block = {"w": 900, "h": 420, "kind": diagram.get("kind") or "flow",
+                 "steps": diagram.get("steps") or []}
+        if profile is not None:
+            block.update(_chart_palette(profile))
+        return _render_diagram_png(block)
+
     plot = slide.get("plot")
     if plot:
         from .spec_render import _render_plot_png

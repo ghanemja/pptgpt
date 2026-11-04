@@ -147,6 +147,19 @@
 
     blocks.push(eyebrowBlock(slide, p, 44));
 
+    if (slide.kind === 'diagram' && slide.diagram) {
+      const dh = fitHeading(slide.title, 624, 30, 1.1, 96, 20);
+      blocks.push({ type: 'text', x: X(48), y: X(70), w: X(624), h: X(dh.height),
+        text: slide.title || '', font: 'sans', size: PT(dh.size), weight: 900, color: p.ink, lineHeight: 1.1 });
+      const dy = 70 + dh.height + 10;
+      blocks.push({ type: 'diagram', x: X(48), y: X(dy), w: X(624), h: X(Math.max(110, 320 - dy)),
+        kind: slide.diagram.kind || 'flow', steps: slide.diagram.steps || [],
+        bg: p.bg, primaryColor: p.accent, highlightColor: p.spark, labelColor: p.mute });
+      const dtk = takeawayBlock(slide, p, 335, 40); if (dtk) blocks.push(dtk);
+      const dft = footerBlock(slide, p); if (dft) blocks.push(dft);
+      return fitToMargins({ canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks }, p.pad);
+    }
+
     if (slide.kind === 'chart' && slide.chart) {
       const ch = fitHeading(slide.title, 624, 30, 1.1, 96, 20);
       blocks.push({ type: 'text', x: X(48), y: X(70), w: X(624), h: X(ch.height),

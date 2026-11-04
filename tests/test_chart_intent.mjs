@@ -90,5 +90,64 @@ check('the biggest point is highlighted', (() => {
   return slide.chart.options.highlight === 'Ent';
 })());
 
+// ── visual intent: build when sure, offer when not ──────────────────
+const { visualIntent, extractSteps, buildFlowSlide } = window;
+
+check('a flow chart is a diagram, not bars', (() => {
+  const t = 'make a flow chart of onboarding: sign up -> verify -> invite';
+  const i = visualIntent(t, extractSeries(t));
+  return i.family === 'diagram' && i.kind === 'flow' && i.confidence === 'high';
+})());
+
+check('a funnel is recognised as its own shape', (() => {
+  const i = visualIntent('show the funnel: visits, signups, paid', []);
+  return i.family === 'diagram' && i.kind === 'funnel' && i.confidence === 'high';
+})());
+
+check('steps are read from arrows, commas and numbering', (() => {
+  const a = extractSteps('flow: sign up -> verify email -> first deck');
+  const b = extractSteps('process: 1. plan 2. build 3. ship');
+  const c = extractSteps('steps: plan, build, ship');
+  return a.length === 3 && a[0] === 'sign up' && b.length === 3 && c.length === 3;
+})());
+
+check('a named chart kind is built without asking', (() => {
+  const t = 'pie of segment share: SMB 12, Mid 28, Ent 60';
+  const i = visualIntent(t, extractSeries(t));
+  return i.kind === 'pie' && i.confidence === 'high' && i.options.length === 0;
+})());
+
+check('temporal data settles it — no question asked', (() => {
+  const t = 'chart revenue: Q1 32, Q2 38, Q3 42, Q4 45';
+  const i = visualIntent(t, extractSeries(t));
+  return i.kind === 'line' && i.confidence === 'high';
+})());
+
+check('a long list settles it as a ranking', (() => {
+  const t = 'chart spend: Sales 12, Marketing 9, Product 14, Support 5, Ops 7, Legal 3, Finance 4';
+  const i = visualIntent(t, extractSeries(t));
+  return i.kind === 'bar' && i.confidence === 'high';
+})());
+
+check('a short unordered set is a real fork — so it offers', (() => {
+  const t = 'chart ARR: SMB 1.2, Mid 2.1, Ent 8.4';
+  const i = visualIntent(t, extractSeries(t));
+  return i.confidence === 'low' && i.options.includes('pie') && i.options.includes('column');
+})());
+
+check('a vague diagram ask offers flow or funnel', (() => {
+  const i = visualIntent('draw the steps: plan, build, ship', []);
+  return i.family === 'diagram' && i.confidence === 'low'
+    && i.options.join() === 'flow,funnel';
+})());
+
+check('a flow slide carries steps and no geometry', (() => {
+  const t = 'flow chart of onboarding: sign up -> verify -> invite';
+  const slide = buildFlowSlide({ prompt: t, steps: extractSteps(t), kind: 'flow' });
+  return slide.kind === 'diagram' && slide.diagram.steps.length === 3
+    && slide.title === 'Flow chart of onboarding'
+    && !('x' in slide) && !('w' in slide);
+})());
+
 console.log(`\n${pass}/${pass + fail} passed`);
 process.exit(fail ? 1 : 0);

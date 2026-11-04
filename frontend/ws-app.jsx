@@ -294,7 +294,17 @@ function ThinkingSlide() {
 }
 
 /* ── working area ─────────────────────────────────────────── */
-function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, onAdd, pulseId, template, pendingChart, onCancelChart }) {
+const VISUAL_LABEL = {
+  column: 'Column', bar: 'Bar', line: 'Line', area: 'Area', pie: 'Pie',
+  flow: 'Flow', funnel: 'Funnel',
+};
+const VISUAL_WHY = {
+  column: 'compare a few things', bar: 'rank a longer list', line: 'show a trend',
+  area: 'show a cumulative trend', pie: 'show parts of a whole',
+  flow: 'steps in order', funnel: 'stages that narrow',
+};
+
+function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, onAdd, pulseId, template, pendingChart, onCancelChart, pendingVisual, onChooseVisual }) {
   const [boxRef, box] = useBox();
   const active = deck.slides.find(s => s.id === deck.activeId);
   const idx = deck.slides.findIndex(s => s.id === deck.activeId);
@@ -327,20 +337,50 @@ function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, o
               {/* A blank slide renders as the template's empty master, which
                   reads as finished rather than as waiting for you. Say what
                   it wants instead. */}
-              {/* A chart was asked for and the numbers are nowhere in
-                  context. Ask for them — the alternative is a model
-                  inventing data, which must never reach a slide. */}
-              {!loading && pendingChart ? (
+              {/* Three things the stage can be waiting on, in order:
+                  a shape to be picked (the data is here, the form is a real
+                  choice); numbers or steps to be supplied (nothing to draw,
+                  and inventing them is not an option); or a blank slide to
+                  be described. Named outright, none of these appear. */}
+              {!loading && pendingVisual ? (
                 <div className="blankslide" style={{ width: SLIDE_W * scale, height: SLIDE_H * scale }}>
-                  <div className="blankslide__num tnum">NEEDS NUMBERS</div>
-                  <div className="blankslide__h">Which numbers?</div>
+                  <div className="blankslide__num tnum">
+                    {pendingVisual.family === 'diagram'
+                      ? `${pendingVisual.steps.length} STEPS`
+                      : `${pendingVisual.rows.length} POINTS FROM ${String(pendingVisual.where || '').toUpperCase()}`}
+                  </div>
+                  <div className="blankslide__h">Which shape?</div>
+                  <div className="pickgrid">
+                    {pendingVisual.options.map(opt => (
+                      <button key={opt} className="pickcard" onClick={() => onChooseVisual(opt)}>
+                        <span className="pickcard__name">{VISUAL_LABEL[opt] || opt}</span>
+                        <span className="pickcard__why">{VISUAL_WHY[opt] || ''}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : !loading && pendingChart ? (
+                <div className="blankslide" style={{ width: SLIDE_W * scale, height: SLIDE_H * scale }}>
+                  <div className="blankslide__num tnum">
+                    {pendingChart.family === 'diagram' ? 'NEEDS STEPS' : 'NEEDS NUMBERS'}
+                  </div>
+                  <div className="blankslide__h">
+                    {pendingChart.family === 'diagram' ? 'Which steps?' : 'Which numbers?'}
+                  </div>
                   <p className="blankslide__p">
-                    Nothing in this deck or your brief has a series to chart, and I won{"'"}t
-                    make numbers up. Paste them as <b>label value</b>, separated by commas.
+                    {pendingChart.family === 'diagram'
+                      ? <>Nothing here lists the steps, and I won{"'"}t invent a process. Write them in order, separated by arrows or commas.</>
+                      : <>Nothing in this deck or your brief has a series to chart, and I won{"'"}t make numbers up. Paste them as <b>label value</b>, separated by commas.</>}
                   </p>
                   <div className="blankslide__chips">
-                    <button className="chip" onClick={() => onSample('Q1 32, Q2 38, Q3 42, Q4 45')}>Q1 32, Q2 38, Q3 42, Q4 45</button>
-                    <button className="chip" onClick={() => onSample('SMB 1.2M, Mid 2.1M, Ent 8.4M')}>SMB 1.2M, Mid 2.1M, Ent 8.4M</button>
+                    {pendingChart.family === 'diagram' ? (
+                      <button className="chip" onClick={() => onSample('Flow: sign up → verify → first deck → invite team')}>sign up → verify → first deck</button>
+                    ) : (
+                      <>
+                        <button className="chip" onClick={() => onSample('Q1 32, Q2 38, Q3 42, Q4 45')}>Q1 32, Q2 38, Q3 42, Q4 45</button>
+                        <button className="chip" onClick={() => onSample('SMB 1.2M, Mid 2.1M, Ent 8.4M')}>SMB 1.2M, Mid 2.1M, Ent 8.4M</button>
+                      </>
+                    )}
                     <button className="chip" onClick={onCancelChart}>Never mind</button>
                   </div>
                 </div>
@@ -640,8 +680,10 @@ function App() {
   const [scope, setScope] = useState(saved && saved.scope ? saved.scope : {});
   const { org, orgs, offline: orgOffline } = useOrg(orgSlug);
   const [advDismissed, setAdvDismissed] = useState([]);
-  // A chart the user asked for that is waiting on its numbers.
+  // A visual the user asked for that is waiting on its numbers or steps.
   const [pendingChart, setPendingChart] = useState(null);
+  // A visual whose data is in hand but whose SHAPE is a real choice.
+  const [pendingVisual, setPendingVisual] = useState(null);
   // The applied template: brand + constraints for this deck. Persisted with
   // the deck state so a reload keeps drawing onto the same master.
   const [template, setTemplate] = useState(saved && saved.template ? saved.template : null);
@@ -752,38 +794,68 @@ function App() {
     // chart from them. Not found, it ASKS — a model asked to chart numbers
     // it does not have will invent them, and a slide of invented data is
     // the worst thing this program could put in front of a room.
-    if (window.wantsChart && window.wantsChart(text) && tool !== 'refine') {
+    if (window.visualIntent && tool !== 'refine') {
       const found = window.findSeries({
         prompt: text, slide: active, deck, scope: scopeAnswers, chat,
       });
-      if (found) {
-        const slide = window.buildChartSlide({
-          prompt: text, rows: found.rows, kind: window.chartKind(text),
+      const intent = window.visualIntent(text, found && found.rows);
+
+      // A process is not a bar chart. "Flow chart" asks about sequence;
+      // answering with magnitude was wrong and sure of itself.
+      if (intent.family === 'diagram') {
+        const steps = (intent.steps && intent.steps.length)
+          ? intent.steps
+          : (active && (active.bullets || []).filter(Boolean).length >= 2
+            ? active.bullets.filter(Boolean)
+            : []);
+        setLoading(false);
+        if (!steps.length) {
+          setPendingChart({ prompt: text, kind: intent.kind, family: 'diagram' });
+          pushChat('assistant', 'I can draw that — I just need the steps.');
+          return;
+        }
+        if (intent.confidence === 'low') {
+          setPendingVisual({ prompt: text, steps, options: intent.options, family: 'diagram' });
+          pushChat('assistant', 'Which shape fits — a flow or a funnel?');
+          return;
+        }
+        placeVisual(window.buildFlowSlide({
+          prompt: text, steps, kind: intent.kind,
           palette: template ? 'template' : deckPalette, audience,
           id: isBlankSlide(active) ? active.id : undefined,
-        });
-        setDeck(prev => ({
-          ...prev,
-          slides: isBlankSlide(active)
-            ? prev.slides.map(sl => (sl.id === active.id ? slide : sl))
-            : [...prev.slides, slide],
-          activeId: slide.id,
-        }));
-        setLoading(false);
-        setCoachStage('next');
-        setPendingChart(null);
-        setDashNotify(true);
-        pushChat('assistant',
-          `Charted ${found.rows.length} points from ${found.where}. Tune the type, order or highlight below.`);
-        pulse(slide.id);
+        }), `Drew a ${intent.kind} of ${steps.length} steps.`);
         return;
       }
-      // Nothing to chart: say so and ask, rather than generating prose.
-      setLoading(false);
-      setPendingChart({ prompt: text, kind: window.chartKind(text) });
-      setCoachStage('needdata');
-      pushChat('assistant', 'I can chart that — I just need the numbers.');
-      return;
+
+      if (intent.family === 'chart' && found && intent.confidence === 'low') {
+        // The data does not settle it — a short unordered set reads as
+        // either a comparison or a split. Offer rather than guess.
+        setLoading(false);
+        setPendingVisual({
+          prompt: text, rows: found.rows, where: found.where,
+          options: intent.options, family: 'chart',
+        });
+        pushChat('assistant', `Found ${found.rows.length} points in ${found.where}. Which chart?`);
+        return;
+      }
+
+      if (intent.family === 'chart' && found) {
+        setLoading(false);
+        placeVisual(window.buildChartSlide({
+          prompt: text, rows: found.rows, kind: intent.kind,
+          palette: template ? 'template' : deckPalette, audience,
+          id: isBlankSlide(active) ? active.id : undefined,
+        }), `Charted ${found.rows.length} points from ${found.where}. Tune the type, order or highlight below.`);
+        return;
+      }
+
+      if (intent.family === 'chart') {
+        // Nothing to chart: say so and ask, rather than generating prose.
+        setLoading(false);
+        setPendingChart({ prompt: text, kind: intent.kind, family: 'chart' });
+        pushChat('assistant', 'I can chart that — I just need the numbers.');
+        return;
+      }
     }
 
     const { patch, touched } = window.parseStylePatch(text);
@@ -948,6 +1020,39 @@ function App() {
 
   // "Add slide" adds a real blank slide and selects it; the next generation
   // fills that slide in place rather than appending a second one (doSend).
+  // Every visual lands the same way: into the blank slide in hand if there
+  // is one, appended otherwise.
+  function placeVisual(slide, message) {
+    setDeck(prev => ({
+      ...prev,
+      slides: isBlankSlide(active)
+        ? prev.slides.map(sl => (sl.id === active.id ? slide : sl))
+        : [...prev.slides, slide],
+      activeId: slide.id,
+    }));
+    setCoachStage('next');
+    setPendingChart(null);
+    setPendingVisual(null);
+    setDashNotify(true);
+    if (message) pushChat('assistant', message);
+    pulse(slide.id);
+  }
+
+  function chooseVisual(kind) {
+    const p = pendingVisual;
+    if (!p) return;
+    const built = p.family === 'diagram'
+      ? window.buildFlowSlide({ prompt: p.prompt, steps: p.steps, kind,
+          palette: template ? 'template' : deckPalette, audience,
+          id: isBlankSlide(active) ? active.id : undefined })
+      : window.buildChartSlide({ prompt: p.prompt, rows: p.rows, kind,
+          palette: template ? 'template' : deckPalette, audience,
+          id: isBlankSlide(active) ? active.id : undefined });
+    placeVisual(built, p.family === 'diagram'
+      ? `Drew a ${kind} of ${p.steps.length} steps.`
+      : `Charted ${p.rows.length} points from ${p.where} as a ${kind}.`);
+  }
+
   function addBlankSlide() {
     const id = uid();
     const palette = template ? 'template' : deckPalette;
@@ -1203,7 +1308,8 @@ function App() {
               onNext={() => stepSlide(1)}
               onAdd={addBlankSlide}
               pulseId={pulseId} template={template}
-              pendingChart={pendingChart} onCancelChart={() => setPendingChart(null)}
+              pendingChart={pendingChart} onCancelChart={() => { setPendingChart(null); setPendingVisual(null); }}
+              pendingVisual={pendingVisual} onChooseVisual={chooseVisual}
             />
           )}
         </div>

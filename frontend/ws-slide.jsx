@@ -248,6 +248,64 @@ function MiniChart({ chart, pal, w, h }) {
   );
 }
 
+/* A process or a funnel in the preview. The server draws the same shapes
+   for the export; this is the instant view. */
+function MiniDiagram({ diagram, pal, w, h }) {
+  const steps = ((diagram && diagram.steps) || []).filter(Boolean).slice(0, 7);
+  const kind = (diagram && diagram.kind) || 'flow';
+  if (!steps.length) return null;
+  const n = steps.length;
+
+  if (kind === 'funnel') {
+    const band = h / n, maxW = w * 0.8;
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+        {steps.map((label, i) => {
+          const y0 = i * band, y1 = y0 + band - 3;
+          const w1 = maxW * (1 - (i / Math.max(n, 2)) * 0.62);
+          const w0 = maxW * (1 - ((i + 1) / Math.max(n, 2)) * 0.62);
+          return (
+            <g key={i}>
+              <polygon
+                points={`${w / 2 - w1 / 2},${y0} ${w / 2 + w1 / 2},${y0} ${w / 2 + w0 / 2},${y1} ${w / 2 - w0 / 2},${y1}`}
+                fill={i === 0 ? pal.spark : pal.accent} opacity={1 - i * 0.12} />
+              <text x={w / 2} y={(y0 + y1) / 2 + 4} textAnchor="middle" fontSize="12"
+                fontWeight="800" fill={pal.bg}>{label}</text>
+            </g>
+          );
+        })}
+      </svg>
+    );
+  }
+
+  const gap = 14, bw = (w - gap * (n - 1)) / n, bh = Math.min(74, h * 0.6);
+  const y = (h - bh) / 2;
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+      {steps.map((label, i) => {
+        const x = i * (bw + gap);
+        const words = String(label).split(' ');
+        const mid = Math.ceil(words.length / 2);
+        const lines = words.length > 2 ? [words.slice(0, mid).join(' '), words.slice(mid).join(' ')] : [label];
+        return (
+          <g key={i}>
+            <rect x={x} y={y} width={bw} height={bh} rx="8"
+              fill={i === 0 ? pal.spark : pal.accent} />
+            {lines.map((ln, li) => (
+              <text key={li} x={x + bw / 2} y={y + bh / 2 + 4 + (li - (lines.length - 1) / 2) * 15}
+                textAnchor="middle" fontSize="12" fontWeight="800" fill={pal.bg}>{ln}</text>
+            ))}
+            {i < n - 1 ? (
+              <path d={`M ${x + bw + 2} ${y + bh / 2} L ${x + bw + gap - 4} ${y + bh / 2}`}
+                stroke={pal.mute} strokeWidth="2" markerEnd="" />
+            ) : null}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 /* Kept for callers that still pass raw rows. */
 function MiniBars({ data, pal, w, h }) {
   return <MiniChart chart={{ kind: 'column', data }} pal={pal} w={w} h={h} />;
@@ -350,6 +408,19 @@ function SlideCard({ slide }) {
     );
   }
 
+  if (slide.kind === 'diagram' && slide.diagram) {
+    return (
+      <div style={base}>
+        {eyebrow}
+        <h3 style={{ fontFamily: ffHead, margin: '14px 0 10px', fontSize: z(30), fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{slide.title}</h3>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center' }}>
+          <MiniDiagram diagram={slide.diagram} pal={pal} w={SLIDE_W - 96} h={168} />
+        </div>
+        {takeaway}
+        {footer}
+      </div>
+    );
+  }
   if (slide.kind === 'chart' && slide.chart) {
     return (
       <div style={base}>
@@ -531,5 +602,5 @@ Object.assign(window, {
   SLIDE_W, SLIDE_H, PALETTES, AUDIENCES, FEATURES, FEATURE_ICON,
   FONTS, FONT_LIST, FONT_SIZES,
   Ico, SlideCard, aiGenerate, uid,
-  MiniChart, chartRows,
+  MiniChart, MiniDiagram, chartRows,
 });
