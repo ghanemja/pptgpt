@@ -795,6 +795,20 @@ function App() {
       if (active) pulse(active.id);
     } else if (ctrlId === 'length') {
       setDeck(prev => { const slides = prev.slides.slice(0, parseInt(value, 10)); return { ...prev, slides, activeId: slides.some(s => s.id === prev.activeId) ? prev.activeId : slides[0].id }; });
+    } else if (ctrlId.startsWith('chart')) {
+      // Chart controls edit the slide's chart model, which every renderer
+      // reads — the HTML preview, the export, and the template cast.
+      setDeck(prev => ({ ...prev, slides: prev.slides.map(s => {
+        if (s.id !== prev.activeId || !s.chart) return s;
+        const chart = { ...s.chart, options: { ...(s.chart.options || {}) } };
+        if (ctrlId === 'chartKind') chart.kind = value;
+        if (ctrlId === 'chartLabels') chart.options.valueLabels = value === 'on';
+        if (ctrlId === 'chartGrid') chart.options.gridlines = value === 'on';
+        if (ctrlId === 'chartSort') chart.options.sort = value;
+        if (ctrlId === 'chartHighlight') chart.options.highlight = value === 'none' ? null : value;
+        return { ...s, chart };
+      }) }));
+      if (active) pulse(active.id);
     } else if (['title', 'takeaway', 'font', 'fontPt', 'emphasis'].includes(ctrlId)) {
       setDeck(prev => ({ ...prev, slides: prev.slides.map(s => s.id === prev.activeId ? { ...s, [ctrlId]: value } : s) }));
       if (active && ctrlId !== 'title' && ctrlId !== 'takeaway') pulse(active.id);

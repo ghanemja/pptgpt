@@ -155,9 +155,13 @@
       blocks.push({ type: 'text', x: X(48), y: X(chCapY), w: X(400), h: X(18),
         text: slide.chart.title || '', font: 'sans', size: PT(13), weight: 700, color: p.mute });
       const chartY = chCapY + 22;
+      const copts = slide.chart.options || {};
       blocks.push({ type: 'chart', x: X(48), y: X(chartY), w: X(624), h: X(Math.max(110, 316 - chartY)),
-        kind: 'bar', data: slide.chart.data || [], bg: p.bg, primaryColor: p.accent,
-        labelColor: p.mute, gridColor: p.bg, axisColor: p.mute, showValueLabels: true });
+        kind: slide.chart.kind || 'column', data: slide.chart.data || [],
+        sort: copts.sort || 'source', highlight: copts.highlight || null,
+        gridlines: !!copts.gridlines, showValueLabels: copts.valueLabels !== false,
+        bg: p.bg, primaryColor: p.accent, highlightColor: p.spark,
+        labelColor: p.mute, gridColor: p.mute, axisColor: p.mute });
       const tk = takeawayBlock(slide, p, 335, 40); if (tk) blocks.push(tk);
       const ft = footerBlock(slide, p); if (ft) blocks.push(ft);
       return fitToMargins({ canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks }, p.pad);

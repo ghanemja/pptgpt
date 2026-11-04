@@ -277,6 +277,25 @@ def _mpl_color(c: str | None):
     return s
 
 
+def chart_rows(block: dict) -> list[dict]:
+    """Order and emphasis, resolved the same way the preview resolves them.
+
+    Sorting and highlighting are decisions about the chart, not about a
+    renderer, so both sides apply the identical rule and cannot disagree.
+    """
+    rows = [dict(r) for r in (block.get("data") or [])]
+    order = block.get("sort") or "source"
+    if order == "desc":
+        rows.sort(key=lambda r: r.get("value") or 0, reverse=True)
+    elif order == "asc":
+        rows.sort(key=lambda r: r.get("value") or 0)
+    hi = block.get("highlight")
+    if hi:
+        for r in rows:
+            r["hi"] = str(r.get("label")) == str(hi)
+    return rows
+
+
 def _render_chart_png(block: dict) -> bytes | None:
     if not _have_mpl():
         return None
@@ -286,32 +305,91 @@ def _render_chart_png(block: dict) -> bytes | None:
 
     bg = _mpl_color(block.get("bg") or "#FFFFFF")
     primary = _mpl_color(block.get("primaryColor") or "#1E2761")
+    accent = _mpl_color(block.get("highlightColor") or block.get("primaryColor") or "#1E2761")
     fig = plt.figure(figsize=(block["w"] / 100.0, block["h"] / 100.0), dpi=200)
     ax = fig.add_subplot(111)
     fig.patch.set_facecolor(bg)
     ax.set_facecolor(bg)
 
-    rows = block.get("data") or []
+    rows = chart_rows(block)
     labels = [str(r.get("label", "")) for r in rows]
     values = [r.get("value", 0) for r in rows]
+    colors = [accent if r.get("hi") else primary for r in rows]
+    kind = (block.get("kind") or "column").lower()
+    show_values = block.get("showValueLabels") is not False
 
-    if block.get("kind") == "line":
+    if kind == "pie":
+        pie_kwargs = {
+            "labels": labels,
+            "colors": colors,
+            "textprops": {"fontsize": 9,
+                          "color": _mpl_color(block.get("labelColor") or "#6C7A89")},
+        }
+        if show_values:
+            pie_kwargs["autopct"] = "%1.0f%%"
+        drawn = ax.pie(values, **pie_kwargs)
+        # ax.pie returns a PieContainer: (wedges, texts) without autopct,
+        # (wedges, texts, autotexts) with it. It unpacks but has no len().
+        autotexts = drawn[2] if show_values else []
+        # The percentage sits ON a slice, so it reads against the slice's
+        # fill, not against the plate — otherwise white-on-white.
+        for t in autotexts:
+            t.set_color(bg)
+            t.set_fontweight("bold")
+        ax.set_aspect("equal")
+    elif kind in ("line", "area"):
         ax.plot(range(len(values)), values, color=primary, linewidth=3, marker="o")
+        if kind == "area":
+            ax.fill_between(range(len(values)), values, color=primary, alpha=0.22)
+        for i, r in enumerate(rows):
+            if r.get("hi"):
+                ax.plot([i], [values[i]], marker="o", markersize=10, color=accent)
+    elif kind == "bar":
+        ax.barh(range(len(values)), values, color=colors)
+        ax.invert_yaxis()
     else:
-        ax.bar(range(len(values)), values, color=primary)
-    ax.set_xticks(range(len(values)))
-    ax.set_xticklabels(labels)
+        ax.bar(range(len(values)), values, color=colors)
+
+    if kind == "pie":
+        ax.axis("off")
+    elif kind == "bar":
+        ax.set_yticks(range(len(values)))
+        ax.set_yticklabels(labels)
+    else:
+        ax.set_xticks(range(len(values)))
+        ax.set_xticklabels(labels)
+
+    if show_values and kind not in ("pie",):
+        for i, v in enumerate(values):
+            if kind == "bar":
+                ax.annotate(f"{v:g}", (v, i), textcoords="offset points", xytext=(4, 0),
+                            va="center", fontsize=8,
+                            color=_mpl_color(block.get("labelColor") or "#6C7A89"))
+            else:
+                ax.annotate(f"{v:g}", (i, v), textcoords="offset points", xytext=(0, 4),
+                            ha="center", fontsize=8,
+                            color=_mpl_color(block.get("labelColor") or "#6C7A89"))
 
     label_color = _mpl_color(block.get("labelColor") or "#6C7A89")
     ax.tick_params(colors=label_color)
-    grid_color = _mpl_color(block.get("gridColor") or "#F1F5F9")
-    ax.grid(True, color=grid_color, linewidth=0.6)
+    # grid(False, **props) still turns the grid ON — matplotlib warns and
+    # enables it. Hiding gridlines has to be a bare call.
+    if block.get("gridlines"):
+        ax.grid(True, color=_mpl_color(block.get("gridColor") or "#F1F5F9"),
+                linewidth=0.6, alpha=0.35)
+    else:
+        ax.grid(False)
     for s in ax.spines.values():
         s.set_color(_mpl_color(block.get("axisColor") or "#E5E7EB"))
 
-    if block.get("showValueLabels"):
-        for i, v in enumerate(values):
-            ax.text(i, v, str(v), ha="center", va="bottom", color=label_color, fontsize=9)
+    # (value labels are drawn above, per chart kind — a single loop at (i, v)
+    #  only ever made sense for vertical bars)
+
+    # A pie is square or it is an ellipse with a lot of dead canvas beside it.
+    if kind == "pie":
+        side = min(block["w"], block["h"]) / 100.0
+        fig.set_size_inches(side, side)
+    fig.tight_layout(pad=0.4)
 
     buf = io.BytesIO()
     # savefig facecolor needs alpha-stripped if it's a 4-tuple

@@ -112,28 +112,145 @@ function Ico({ name, size = 18 }) {
 const FEATURE_ICON = { create:'createx', data:'chart', refine:'refine', condense:'condense' };
 
 /* ── mini chart / plot renderers (self-contained) ─────────── */
-function MiniBars({ data, pal, w, h }) {
+/* Order and emphasis are decisions about the chart, not about the renderer,
+   so they are resolved once here and every renderer reads the result. The
+   export and the template cast apply the same rules server-side; keeping the
+   logic in one shape is what stops the preview and the file disagreeing. */
+function chartRows(chart) {
+  const o = (chart && chart.options) || {};
+  let rows = ((chart && chart.data) || []).map(d => ({ ...d }));
+  if (o.sort === 'desc') rows.sort((a, b) => (b.value || 0) - (a.value || 0));
+  if (o.sort === 'asc') rows.sort((a, b) => (a.value || 0) - (b.value || 0));
+  if (o.highlight) rows = rows.map(d => ({ ...d, hi: String(d.label) === String(o.highlight) }));
+  return rows;
+}
+
+function MiniChart({ chart, pal, w, h }) {
+  const o = (chart && chart.options) || {};
+  const kind = (chart && chart.kind) || 'column';
+  const rows = chartRows(chart);
+  const showValues = o.valueLabels !== false;
   const pad = { l: 6, r: 6, t: 18, b: 22 };
   const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-  const max = Math.max(...data.map(d => d.value), 1) * 1.15;
-  const n = data.length, slot = iw / n, bw = Math.min(48, slot * 0.5);
+  const max = Math.max(...rows.map(d => d.value), 1) * 1.15;
+  const n = Math.max(1, rows.length);
+  const baseY = pad.t + ih;
+
+  const grid = o.gridlines ? [0.25, 0.5, 0.75, 1].map((f, i) => (
+    <line key={`g${i}`} x1={pad.l} x2={pad.l + iw} y1={baseY - ih * f} y2={baseY - ih * f}
+      stroke={pal.rule} strokeWidth="1" />
+  )) : null;
+
+  if (kind === 'pie') {
+    const total = rows.reduce((t, d) => t + (d.value || 0), 0) || 1;
+    const r = Math.min(iw, ih) / 2 - 4, cx = pad.l + iw / 2, cy = pad.t + ih / 2;
+    let a0 = -Math.PI / 2;
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+        {rows.map((d, i) => {
+          const a1 = a0 + ((d.value || 0) / total) * Math.PI * 2;
+          const large = a1 - a0 > Math.PI ? 1 : 0;
+          const path = `M ${cx} ${cy} L ${cx + r * Math.cos(a0)} ${cy + r * Math.sin(a0)} `
+            + `A ${r} ${r} 0 ${large} 1 ${cx + r * Math.cos(a1)} ${cy + r * Math.sin(a1)} Z`;
+          const mid = (a0 + a1) / 2;
+          a0 = a1;
+          return (
+            <g key={i}>
+              <path d={path} fill={d.hi ? pal.spark : pal.accent}
+                opacity={d.hi ? 1 : 0.35 + 0.55 * (1 - i / n)} />
+              {showValues ? (
+                <text x={cx + (r * 0.68) * Math.cos(mid)} y={cy + (r * 0.68) * Math.sin(mid) + 4}
+                  textAnchor="middle" fontSize="11" fontWeight="900" fill={pal.bg}>{d.value}</text>
+              ) : null}
+            </g>
+          );
+        })}
+      </svg>
+    );
+  }
+
+  if (kind === 'line' || kind === 'area') {
+    const step = n > 1 ? iw / (n - 1) : 0;
+    const pts = rows.map((d, i) => [pad.l + i * step, baseY - ((d.value || 0) / max) * ih]);
+    const line = pts.map((p, i) => `${i ? 'L' : 'M'} ${p[0]} ${p[1]}`).join(' ');
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+        {grid}
+        <line x1={pad.l} y1={baseY} x2={pad.l + iw} y2={baseY} stroke={pal.rule} strokeWidth="1" />
+        {kind === 'area' ? (
+          <path d={`${line} L ${pts[pts.length - 1][0]} ${baseY} L ${pts[0][0]} ${baseY} Z`}
+            fill={pal.accent} opacity="0.22" />
+        ) : null}
+        <path d={line} fill="none" stroke={pal.accent} strokeWidth="2.5" strokeLinejoin="round" />
+        {rows.map((d, i) => (
+          <g key={i}>
+            <circle cx={pts[i][0]} cy={pts[i][1]} r={d.hi ? 5 : 3.5} fill={d.hi ? pal.spark : pal.accent} />
+            {showValues ? (
+              <text x={pts[i][0]} y={pts[i][1] - 8} textAnchor="middle" fontSize="11"
+                fontWeight="900" fill={pal.ink} className="tnum">{d.value}</text>
+            ) : null}
+            <text x={pts[i][0]} y={baseY + 15} textAnchor="middle" fontSize="11"
+              fontWeight="700" fill={pal.mute}>{d.label}</text>
+          </g>
+        ))}
+      </svg>
+    );
+  }
+
+  // bar = horizontal, column = vertical (the default)
+  if (kind === 'bar') {
+    const slot = ih / n, bh = Math.min(34, slot * 0.6);
+    return (
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+        <line x1={pad.l + 46} y1={pad.t} x2={pad.l + 46} y2={baseY} stroke={pal.rule} strokeWidth="1" />
+        {rows.map((d, i) => {
+          const bwid = ((d.value || 0) / max) * (iw - 56);
+          const y = pad.t + i * slot + (slot - bh) / 2;
+          return (
+            <g key={i}>
+              <rect x={pad.l + 47} y={y} width={bwid} height={bh} rx="3"
+                fill={d.hi ? pal.spark : pal.accent} />
+              <text x={pad.l + 42} y={y + bh / 2 + 4} textAnchor="end" fontSize="11"
+                fontWeight="700" fill={pal.mute}>{d.label}</text>
+              {showValues ? (
+                <text x={pad.l + 52 + bwid} y={y + bh / 2 + 4} fontSize="11" fontWeight="900"
+                  fill={pal.ink} className="tnum">{d.value}</text>
+              ) : null}
+            </g>
+          );
+        })}
+      </svg>
+    );
+  }
+
+  const slot = iw / n, bw = Math.min(48, slot * 0.5);
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
-      <line x1={pad.l} y1={pad.t + ih} x2={pad.l + iw} y2={pad.t + ih} stroke={pal.rule} strokeWidth="1" />
-      {data.map((d, i) => {
-        const bh = (d.value / max) * ih;
+      {grid}
+      <line x1={pad.l} y1={baseY} x2={pad.l + iw} y2={baseY} stroke={pal.rule} strokeWidth="1" />
+      {rows.map((d, i) => {
+        const bh = ((d.value || 0) / max) * ih;
         const x = pad.l + i * slot + (slot - bw) / 2;
-        const y = pad.t + ih - bh;
+        const y = baseY - bh;
         return (
           <g key={i}>
             <rect x={x} y={y} width={bw} height={bh} rx="3" fill={d.hi ? pal.spark : pal.accent} />
-            <text x={x + bw / 2} y={y - 6} textAnchor="middle" fontSize="12" fontWeight="900" fill={pal.ink} className="tnum">{d.value}</text>
-            <text x={x + bw / 2} y={pad.t + ih + 15} textAnchor="middle" fontSize="11" fontWeight="700" fill={pal.mute}>{d.label}</text>
+            {showValues ? (
+              <text x={x + bw / 2} y={y - 6} textAnchor="middle" fontSize="12" fontWeight="900"
+                fill={pal.ink} className="tnum">{d.value}</text>
+            ) : null}
+            <text x={x + bw / 2} y={baseY + 15} textAnchor="middle" fontSize="11"
+              fontWeight="700" fill={pal.mute}>{d.label}</text>
           </g>
         );
       })}
     </svg>
   );
+}
+
+/* Kept for callers that still pass raw rows. */
+function MiniBars({ data, pal, w, h }) {
+  return <MiniChart chart={{ kind: 'column', data }} pal={pal} w={w} h={h} />;
 }
 function MiniPlot({ fn, params, pal, w, h }) {
   const pad = 14, iw = w - pad * 2, ih = h - pad * 2, n = 140;
@@ -239,7 +356,7 @@ function SlideCard({ slide }) {
         {eyebrow}
         <h3 style={{ fontFamily: ffHead, margin: '14px 0 6px', fontSize: z(30), fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{slide.title}</h3>
         <div style={{ fontSize: z(13), fontWeight: 700, color: pal.mute, marginBottom: 6 }}>{slide.chart.title}</div>
-        <div style={{ flex: 1, minHeight: 0 }}><MiniBars data={slide.chart.data} pal={pal} w={SLIDE_W - 96} h={176} /></div>
+        <div style={{ flex: 1, minHeight: 0 }}><MiniChart chart={slide.chart} pal={pal} w={SLIDE_W - 96} h={176} /></div>
         {takeaway}
         {footer}
       </div>
@@ -414,4 +531,5 @@ Object.assign(window, {
   SLIDE_W, SLIDE_H, PALETTES, AUDIENCES, FEATURES, FEATURE_ICON,
   FONTS, FONT_LIST, FONT_SIZES,
   Ico, SlideCard, aiGenerate, uid,
+  MiniChart, chartRows,
 });

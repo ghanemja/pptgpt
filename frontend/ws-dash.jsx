@@ -102,6 +102,30 @@ function baselineCats(slide, feature) {
   cats.push({ id:'direction', label:'Direction', icon:'palette', controls:[
     { id:'palette', label:'Palette', type:'select', options:['warm','bold','clean'], labels: PALETTE_LABELS, value: slide.palette || 'warm' },
   ] });
+
+  // A chart slide gets controls that actually change the chart. The old ones
+  // were produced by text-matching a prompt and applied nowhere, so picking a
+  // type did nothing; these read from and write to the slide's chart model.
+  if (slide.kind === 'chart' && slide.chart) {
+    const o = slide.chart.options || {};
+    cats.push({ id:'chart', label:'Chart', icon:'chart', controls:[
+      { id:'chartKind', label:'Type', type:'select',
+        options:['bar','column','line','area','pie'],
+        labels:{ bar:'Bar', column:'Column', line:'Line', area:'Area', pie:'Pie' },
+        value: slide.chart.kind || 'column' },
+      { id:'chartLabels', label:'Values', type:'segmented', options:['on','off'],
+        labels:{ on:'Show', off:'Hide' }, value: o.valueLabels === false ? 'off' : 'on' },
+      { id:'chartGrid', label:'Gridlines', type:'segmented', options:['on','off'],
+        labels:{ on:'Show', off:'Hide' }, value: o.gridlines ? 'on' : 'off' },
+      { id:'chartSort', label:'Order', type:'select',
+        options:['source','desc','asc'],
+        labels:{ source:'As given', desc:'Largest first', asc:'Smallest first' },
+        value: o.sort || 'source' },
+      { id:'chartHighlight', label:'Highlight', type:'select',
+        options:['none', ...(slide.chart.data || []).map(d => String(d.label))],
+        labels:{ none:'None' }, value: o.highlight || 'none' },
+    ] });
+  }
   return cats;
 }
 

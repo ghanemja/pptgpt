@@ -260,6 +260,7 @@ def _chart_palette(profile) -> dict[str, str]:
     return {
         "bg": f"#{bg}",
         "primaryColor": f"#{accent}",
+        "highlightColor": f"#{getattr(theme, 'secondary', None) or accent}",
         "labelColor": f"#{ink}",
         "axisColor": f"#{ink}",
         "gridColor": f"#{ink}",
@@ -278,12 +279,16 @@ def _visual_png(slide: dict[str, Any], profile=None) -> Optional[bytes]:
         from .spec_render import _render_chart_png
         rows = [r for r in chart["data"] if r.get("label") is not None]
         if rows:
+            opts = chart.get("options") or {}
             block = {
                 "w": 900, "h": 520,
-                "kind": "line" if (chart.get("kind") == "line") else "bar",
-                "data": [{"label": str(r.get("label")), "value": r.get("value") or 0}
-                         for r in rows],
-                "showValueLabels": True,
+                "kind": chart.get("kind") or "column",
+                "data": [{"label": str(r.get("label")), "value": r.get("value") or 0,
+                          "hi": bool(r.get("hi"))} for r in rows],
+                "sort": opts.get("sort") or "source",
+                "highlight": opts.get("highlight"),
+                "gridlines": bool(opts.get("gridlines")),
+                "showValueLabels": opts.get("valueLabels") is not False,
             }
             if profile is not None:
                 block.update(_chart_palette(profile))
