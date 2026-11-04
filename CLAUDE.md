@@ -45,6 +45,10 @@ Read `README.md` for the full architecture diagram before making changes.
 - `deckengine/org.py` — per-organization profiles loaded from `orgs/*.json`:
   the scoping interview, narrative arc and house style rules. Convention,
   never geometry — the loader rejects a profile carrying coordinates.
+- `deckengine/preview.py` — EXACT slide previews: one spec through
+  `spec_render` onto the template master, rasterised by LibreOffice and
+  cached by content hash. The HTML preview can only draw with fonts the
+  viewer has installed, so it is the fallback, not the source of truth.
 - `deckengine/boundary.py` — adds `#` and converts inches→pixels at the JSON
   edge. The ONLY place that translation happens.
 - `server.py` — FastAPI, speaks the canvas contract. Offline.

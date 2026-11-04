@@ -184,3 +184,65 @@ function TemplatePanel({ appliedId, onApply, onRemove }) {
 }
 
 Object.assign(window, { TemplatePanel, paletteFromTemplate });
+
+/* ============================================================
+   ExactSlide — the slide as it actually exports.
+
+   The HTML preview is an approximation and always will be: a browser can
+   only draw with fonts the viewer has installed, so a deck on a template
+   built in Bookman Old Style previews in whatever the machine substitutes.
+   This asks the engine to render the real .pptx — same spec_render path as
+   export, same template master — and shows the image it gets back.
+
+   The HTML card stays underneath as the instant view: it appears at once,
+   and the exact render swaps in when it is ready (a few seconds, then
+   cached). If the engine cannot render — no LibreOffice — the HTML preview
+   simply stays, which is why `children` is always mounted.
+   ============================================================ */
+function ExactSlide({ slide, templateId, width, height, children }) {
+  const [src, setSrc] = useState(null);
+  const [state, setState] = useState('idle');    // idle | rendering | ok | off
+  const sig = JSON.stringify([slide, templateId]);
+
+  useEffect(() => {
+    if (!API || window.WS_NO_BACKEND || !window.slideToSpec) { setState('off'); return; }
+    let dead = false;
+    let url = null;
+    setState('rendering');
+    // A keystroke should not queue a render; wait for the edit to settle.
+    const timer = setTimeout(() => {
+      let spec;
+      try { spec = window.slideToSpec(slide); } catch (e) { setState('off'); return; }
+      fetch(API + '/api/preview_png', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ spec, templateId: templateId || null }),
+      })
+        .then(r => (r.ok ? r.blob() : Promise.reject(r.status)))
+        .then(blob => {
+          if (dead) return;
+          url = URL.createObjectURL(blob);
+          setSrc(url);
+          setState('ok');
+        })
+        .catch(() => { if (!dead) setState('off'); });
+    }, 450);
+
+    return () => {
+      dead = true;
+      clearTimeout(timer);
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [sig]);
+
+  return (
+    <div className="exact" style={{ width, height }}>
+      <div className="exact__html" aria-hidden={state === 'ok'}>{children}</div>
+      {src ? <img className={`exact__img ${state === 'ok' ? 'is-on' : ''}`} src={src} alt="" /> : null}
+      {state === 'rendering' ? <span className="exact__badge">rendering exact…</span> : null}
+      {state === 'ok' ? <span className="exact__badge is-ok">exact</span> : null}
+    </div>
+  );
+}
+
+Object.assign(window, { ExactSlide });

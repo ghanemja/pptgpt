@@ -21,6 +21,8 @@
     return {
       bg: p.bg || '#FFFFFF', ink: p.ink || '#11120E', sub: p.sub || '#3D3F38',
       mute: p.mute || '#807C6E', accent: p.accent || '#0E5B36', spark: p.spark || '#E26A2C',
+      bodyFont: p.bodyFont || null, headerFont: p.headerFont || null,
+      pad: p.pad || null,
     };
   }
 
@@ -43,6 +45,46 @@
       text: slide.footer, font: 'sans', size: PT(10.5), weight: 700, color: p.mute };
   }
 
+  /* The design box this file lays out in: 720x405 with SlideCard's own
+     insets. Everything below is written against it. */
+  const DESIGN_PAD = { top: 44, right: 48, bottom: 44, left: 48 };
+
+  /* Fit the laid-out slide inside a template's working margins.
+
+     A template can spend the edges of the canvas on an ornamental frame or
+     a logo band. deckengine/template.py reports what is left; this maps the
+     design box's safe area onto that, so blocks move and scale together
+     rather than running underneath the frame. Deterministic and geometric —
+     the engine's own mapping, not anything a model chose (§0). */
+  function fitToMargins(spec, pad) {
+    if (!pad) return spec;
+    const dl = X(DESIGN_PAD.left), dt = X(DESIGN_PAD.top);
+    const dw = X(720 - DESIGN_PAD.left - DESIGN_PAD.right);
+    const dh = X(405 - DESIGN_PAD.top - DESIGN_PAD.bottom);
+
+    const tl = X(pad.left), tt = X(pad.top);
+    const tw = CANVAS_W - X(pad.left) - X(pad.right);
+    const th = CANVAS_H - X(pad.top) - X(pad.bottom);
+    if (dw <= 0 || dh <= 0 || tw <= 0 || th <= 0) return spec;
+
+    // One scale for both axes: scaling x and y differently would stretch
+    // type and distort any chart.
+    const k = Math.min(tw / dw, th / dh);
+    const ox = tl + (tw - dw * k) / 2;
+    const oy = tt + (th - dh * k) / 2;
+
+    spec.blocks = spec.blocks.map(b => {
+      const out = { ...b,
+        x: Math.round(ox + (b.x - dl) * k),
+        y: Math.round(oy + (b.y - dt) * k),
+        w: Math.round((b.w || 0) * k),
+        h: Math.round((b.h || 0) * k) };
+      if (typeof b.size === 'number') out.size = Math.max(6, Math.round(b.size * k));
+      return out;
+    });
+    return spec;
+  }
+
   function slideToSpec(slide) {
     const p = pal(slide);
     const blocks = [];
@@ -61,7 +103,7 @@
         text: slide.footer || '', font: 'sans', size: PT(12), weight: 700, color: p.mute });
       blocks.push({ type: 'text', x: X(500), y: X(370), w: X(180), h: X(16),
         text: slide.date || '', font: 'sans', size: PT(12), weight: 700, color: p.mute, align: 'right' });
-      return { canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks };
+      return fitToMargins({ canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks }, p.pad);
     }
 
     blocks.push(eyebrowBlock(slide, p, 44));
@@ -76,7 +118,7 @@
         labelColor: p.mute, gridColor: p.bg, axisColor: p.mute, showValueLabels: true });
       const tk = takeawayBlock(slide, p, 335, 40); if (tk) blocks.push(tk);
       const ft = footerBlock(slide, p); if (ft) blocks.push(ft);
-      return { canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks };
+      return fitToMargins({ canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks }, p.pad);
     }
 
     if (slide.kind === 'plot' && slide.plot) {
@@ -92,7 +134,7 @@
         axisColor: p.mute, curves: [{ fn: slide.plot.fn || 'damped', params, color: p.accent, width: 2.4 }] });
       const tk = takeawayBlock(slide, p, 335, 40); if (tk) blocks.push(tk);
       const ft = footerBlock(slide, p); if (ft) blocks.push(ft);
-      return { canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks };
+      return fitToMargins({ canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks }, p.pad);
     }
 
     // text slide
@@ -117,7 +159,7 @@
     }
     const tk = takeawayBlock(slide, p, 335, 40); if (tk) blocks.push(tk);
     const ft = footerBlock(slide, p); if (ft) blocks.push(ft);
-    return { canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks };
+    return fitToMargins({ canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks }, p.pad);
   }
 
   Object.assign(window, { slideToSpec });

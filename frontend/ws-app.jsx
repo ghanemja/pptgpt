@@ -265,7 +265,7 @@ function ThinkingSlide() {
 }
 
 /* ── working area ─────────────────────────────────────────── */
-function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, onAdd, pulseId }) {
+function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, onAdd, pulseId, template }) {
   const [boxRef, box] = useBox();
   const active = deck.slides.find(s => s.id === deck.activeId);
   const idx = deck.slides.findIndex(s => s.id === deck.activeId);
@@ -298,9 +298,20 @@ function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, o
               {loading && !active ? <ThinkingSlide /> : active && (
                 <div className={`slide-frame ${pulseId === active.id ? 'is-updating' : ''}`} key={active.id + pulseId}
                      style={{ width: SLIDE_W * scale, height: SLIDE_H * scale }}>
-                  <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: SLIDE_W, height: SLIDE_H }}>
-                    <SlideCard slide={active} />
-                  </div>
+                  {/* On a template, show the slide as it actually exports —
+                      the HTML card can only approximate it. */}
+                  {template && window.ExactSlide ? (
+                    <window.ExactSlide slide={active} templateId={template.id}
+                      width={SLIDE_W * scale} height={SLIDE_H * scale}>
+                      <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: SLIDE_W, height: SLIDE_H }}>
+                        <SlideCard slide={active} />
+                      </div>
+                    </window.ExactSlide>
+                  ) : (
+                    <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: SLIDE_W, height: SLIDE_H }}>
+                      <SlideCard slide={active} />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1032,7 +1043,7 @@ function App() {
               onPrev={() => stepSlide(-1)}
               onNext={() => stepSlide(1)}
               onAdd={() => { gotoFeature('create', false); setCoachStage(null); }}
-              pulseId={pulseId}
+              pulseId={pulseId} template={template}
             />
           )}
         </div>

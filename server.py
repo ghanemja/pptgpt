@@ -65,6 +65,7 @@ from deckengine.boundary import (
 )
 from deckengine.ambiguity import detect as detect_questions, to_dict as q_to_dict
 from deckengine.org import list_orgs, load_org, to_dict as org_to_dict, OrgError
+from deckengine.preview import slide_png, available as preview_available
 from deckengine.template import (
     save_template, load_template, list_templates, delete_template,
     template_path, to_dict as tpl_to_dict, TemplateError,
@@ -112,6 +113,11 @@ class CritiqueReq(BaseModel):
     audience: str = "exec"
     mode: str = "draft"
     outline: list[dict] = []
+
+
+class PreviewReq(BaseModel):
+    spec: dict                      # ONE resolved SlideSpec (frontend shape)
+    templateId: str | None = None
 
 
 class RenderReq(BaseModel):
@@ -172,6 +178,25 @@ class WorkspaceGenReq(BaseModel):
 
 
 # ---- API routes ----------------------------------------------------------
+
+@app.post("/api/preview_png")
+def api_preview_png(req: PreviewReq):
+    """One slide, rendered exactly as it exports.
+
+    The HTML preview can only use fonts the viewer has installed, so a deck
+    on a template built in Bookman Old Style silently previews in something
+    else. This renders the real .pptx through LibreOffice and returns the
+    image, so the preview and the file agree. 503 when LibreOffice is absent
+    — the UI keeps its HTML preview rather than showing nothing.
+    """
+    path = slide_png(req.spec, req.templateId)
+    if not path:
+        reason = ("LibreOffice is not installed on the server"
+                  if not preview_available() else "could not render this slide")
+        return JSONResponse({"error": reason}, status_code=503)
+    return FileResponse(path, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=600"})
+
 
 @app.get("/api/templates")
 def api_templates():
