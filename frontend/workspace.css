@@ -18,6 +18,9 @@
   --ease-snap: cubic-bezier(0.4, 0, 0.2, 1);
   --rail-w: 244px;
   --rail-w-collapsed: 72px;
+  /* Every row in the sidebar stands this tall, expanded or collapsed, so the
+     rail reads as one list rather than four stacked widgets. */
+  --rail-row-h: 42px;
 }
 
 /* ============================================================
@@ -175,28 +178,91 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 }
 .brand__mark { width: 22px; height: 22px; border-radius: var(--r-sm); flex: none; background: var(--accent); position: relative; }
 .brand__mark::after { content: ""; position: absolute; inset: 6px 6px auto 6px; height: 3px; border-radius: 2px; background: var(--spark); }
-.rail__collapse { margin-left: auto; width: 28px; height: 28px; border-radius: var(--r-sm); display: grid; place-items: center; color: var(--mute); flex: none; transition: background 160ms, color 160ms; }
-.rail__collapse:hover { background: var(--bg-3); color: var(--ink); }
-.is-collapsed .brand__name, .is-collapsed .rail__collapse { }
+.rail__collapse { margin-left: auto; width: 30px; height: 30px; border-radius: var(--r-sm); display: grid; place-items: center;
+  color: var(--mute); flex: none; border: var(--bw) solid transparent;
+  transition: background 150ms var(--ease), border-color 150ms var(--ease), color 150ms var(--ease); }
+.rail__collapse:hover { background: var(--bg-3); border-color: var(--border); color: var(--ink); }
+.is-collapsed .rail__collapse { margin: 0; }
 .is-collapsed .brand__name { display: none; }
 .is-collapsed .rail__top { flex-direction: column; justify-content: center; gap: 10px; height: auto; padding: 16px 0 12px; }
-.is-collapsed .rail__collapse { display: grid; margin: 0; width: 40px; height: 30px; border: 1px solid var(--border); background: var(--card); box-shadow: var(--shadow-card); color: var(--ink-2); }
-.is-collapsed .rail__collapse:hover { background: var(--card); border-color: var(--border); color: var(--ink-2); }
-.is-collapsed .feat:hover, .is-collapsed .rail__new:hover, .is-collapsed .deckcard:hover { background: none; border-color: var(--border); box-shadow: var(--shadow-card); transform: none; }
-[data-theme="bolt"] .is-collapsed .feat:hover, [data-theme="bolt"] .is-collapsed .rail__new:hover, [data-theme="bolt"] .is-collapsed .deckcard:hover { background: none; border-color: #131313; }
-[data-theme="bolt"] .is-collapsed .rail__collapse { border-color: #131313; }
 
+/* ── one interaction language for every rail row ───────────────
+   Each row in the sidebar — New deck, a phase, a phase's tool, a deck —
+   is the same kind of control, so it gets the same shape, the same hover,
+   the same current state and the same press. Collapsed, the row becomes a
+   square but the language does not change: hovering still fills, current
+   still reads as a raised card with an accent edge. Before this, hover
+   filled in one mode and outlined in the other, which is what made the
+   rail feel assembled from parts. */
+.rail__new,
+.feat,
+.ptool,
+.deckcard {
+  border: var(--bw) solid transparent;
+  border-radius: var(--r);
+  background: none;
+  box-shadow: none;
+  transition: background 150ms var(--ease), border-color 150ms var(--ease),
+              box-shadow 150ms var(--ease), color 150ms var(--ease), transform 120ms var(--ease);
+}
+.rail__new:hover,
+.feat:hover,
+.ptool:hover,
+.deckcard:hover { background: var(--bg-3); border-color: var(--border); color: var(--ink); }
+
+.rail__new:active,
+.feat:active,
+.ptool:active,
+.deckcard:active { transform: translateY(1px); }
+
+/* The current row, whatever kind it is. */
+.feat.is-active,
+.ptool.is-on,
+.deckcard.is-active {
+  background: var(--card);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+}
+
+/* Keyboard users get the same affordance, visibly. */
+.rail__new:focus-visible,
+.feat:focus-visible,
+.ptool:focus-visible,
+.deckcard:focus-visible,
+.rail__collapse:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Collapsed: same rules, square footprint, nothing special-cased. */
+.is-collapsed .rail__new,
+.is-collapsed .feat,
+.is-collapsed .ptool,
+.is-collapsed .deckcard { justify-content: center; gap: 0; padding: 0; height: 40px; }
+.is-collapsed .rail__new span,
+.is-collapsed .feat__txt,
+.is-collapsed .ptool__txt,
+.is-collapsed .deckcard__meta { display: none; }
+/* `.phaserail .phase` is two classes deep and would otherwise keep its
+   expanded padding here, pinning the chip to the left of a centred row. */
+.is-collapsed .phaserail .phase { padding: 0; justify-content: center; }
+/* Collapsed, every row is the same 40px square: the gutters differ per
+   section (nav, new-deck margin, tray padding), so each is set to land on
+   the same width rather than each picking its own. */
+.is-collapsed .rail__new { margin: 4px 16px 14px; }
+/* A phase row sits inside its group wrapper; without this the button shrinks
+   to its chip and sits narrower than every other row. */
+.phasegroup { display: flex; flex-direction: column; }
+.is-collapsed .rail__nav { padding: 0 16px; }
+.is-collapsed .deckcard { padding: 4px; }
+
+/* New deck is the rail's primary action: same row, carried on card stock. */
 .rail__new {
   margin: 4px 12px 14px; display: flex; align-items: center; gap: 9px;
-  padding: 10px 12px; border-radius: var(--r); background: var(--card); border: var(--bw) solid var(--border);
-  font-weight: 700; font-size: 13.5px; color: var(--ink);
-  transition: border-color 160ms, box-shadow 160ms, transform 120ms; white-space: nowrap; overflow: hidden;
+  padding: 0 12px; height: var(--rail-row-h); background: var(--card); border-color: var(--border);
+  box-shadow: var(--shadow-card);
+  font-weight: 700; font-size: 13.5px; color: var(--ink); white-space: nowrap; overflow: hidden;
 }
-.rail__new:hover { border-color: var(--accent); box-shadow: var(--shadow-card); }
-.rail__new:active { transform: translateY(1px); }
+.rail__new:hover { background: var(--card); border-color: var(--accent); }
 .rail__new svg { flex: none; }
-.is-collapsed .rail__new { justify-content: center; margin: 4px 12px 14px; padding: 10px 0; }
-.is-collapsed .rail__new span { display: none; }
 
 .rail__label { padding: 0 18px 8px; font-family: var(--label-font); font-size: 10.5px; font-weight: var(--label-weight); letter-spacing: var(--label-spacing); text-transform: var(--label-transform); color: var(--mute); white-space: nowrap; }
 .is-collapsed .rail__label { text-align: center; padding: 0 0 8px; }
@@ -204,9 +270,8 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 .is-collapsed .rail__label::after { content: "···"; letter-spacing: 0; }
 
 .rail__nav { display: flex; flex-direction: column; gap: 3px; padding: 0 12px; }
-.feat { display: flex; align-items: center; gap: 11px; padding: 10px 11px; border-radius: var(--r); text-align: left; color: var(--ink-2); transition: background 150ms, color 150ms; position: relative; white-space: nowrap; overflow: hidden; }
-.feat:hover { background: var(--bg-3); }
-.feat.is-active { background: var(--card); box-shadow: var(--shadow-card); }
+.feat { display: flex; align-items: center; gap: 11px; padding: 0 11px; min-height: var(--rail-row-h);
+  text-align: left; color: var(--ink-2); position: relative; white-space: nowrap; overflow: hidden; }
 .feat.is-active .feat__title { color: var(--ink); }
 .feat__ico { width: 30px; height: 30px; border-radius: var(--r-sm); flex: none; display: grid; place-items: center; background: var(--bg-2); color: var(--mute); transition: background 150ms, color 150ms; }
 .feat.is-active .feat__ico { background: var(--accent-soft); color: var(--accent); }
@@ -214,7 +279,7 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 .feat__title { display: block; font-weight: 700; font-size: 14px; color: var(--ink-2); }
 .feat__sub { display: block; font-size: 11.5px; color: var(--mute); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; }
 /* ── pipeline phases in the rail ───────────────────────────── */
-.phaserail .phase { gap: 10px; padding: 9px 11px; }
+.phaserail .phase { gap: 10px; padding: 7px 11px; }
 .phase__num { width: 30px; height: 30px; border-radius: var(--r-sm); flex: none; display: grid; place-items: center;
   background: var(--bg-2); color: var(--mute); font-size: 11.5px; font-weight: 700; transition: background 150ms, color 150ms; }
 .phase.is-active .phase__num { background: var(--accent-soft); color: var(--accent); }
@@ -230,12 +295,16 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 /* Tools belonging to the open phase, indented under it. */
 .phasetools { display: flex; flex-direction: column; gap: 2px; padding: 4px 0 6px 22px; position: relative; }
 .phasetools::before { content: ""; position: absolute; left: 11px; top: 2px; bottom: 8px; width: 1px; background: var(--border); }
-.ptool { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--r-sm);
+.ptool { display: flex; align-items: center; gap: 8px; padding: 0 10px; height: 32px;
   text-align: left; color: var(--mute); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
-.ptool:hover { background: var(--bg-3); color: var(--ink-2); }
-.ptool.is-on { background: var(--accent-soft); color: var(--accent); }
+.ptool.is-on .ptool__ico { color: var(--accent); }
 .ptool__ico { display: grid; place-items: center; flex: none; }
-.is-collapsed .phasetools { display: none; }
+
+/* Collapsed, a tool is still reachable — it just loses its label, like
+   every other row. The connector line has nothing to connect, so it goes. */
+.is-collapsed .phasetools { padding: 3px 0 5px; align-items: center; }
+.is-collapsed .phasetools::before { display: none; }
+.is-collapsed .ptool { width: 38px; height: 32px; }
 .is-collapsed .phase__tick { display: none; }
 
 /* ── phase surfaces (scope, visuals) ───────────────────────── */
@@ -360,12 +429,8 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 .is-collapsed .feat__txt { display: none; }
 
 .rail__tray { margin-top: auto; padding: 12px; border-top: var(--bw) solid var(--border); }
-.is-collapsed .rail__tray { display: block; padding: 10px 12px; }
+.is-collapsed .rail__tray { display: block; padding: 10px 16px; }
 .is-collapsed .tray__head { display: none; }
-.is-collapsed .deckcard { justify-content: center; padding: 5px; gap: 0; }
-.is-collapsed .deckcard:hover { border-color: var(--border); }
-.is-collapsed .deckcard.is-active { border-color: var(--accent); }
-.is-collapsed .deckcard__meta { display: none; }
 .tray__head { display: flex; align-items: baseline; justify-content: space-between; padding: 0 6px 8px; }
 .tray__title { font-size: 12px; font-weight: 700; color: var(--ink-2); }
 .tray__count { font-size: 11px; color: var(--mute); }
@@ -380,8 +445,9 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 .tray__meta-title { display: block; font-size: 12px; color: var(--ink-2); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tray__empty { font-size: 12px; color: var(--mute); padding: 8px 6px; line-height: 1.5; }
 .deckcard-list { display: flex; flex-direction: column; gap: 7px; }
-.deckcard { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px; border-radius: var(--r); border: var(--bw) solid var(--border); background: var(--card); box-shadow: var(--shadow-card); transition: border-color 140ms; }
-.deckcard:hover { border-color: var(--accent); }
+.deckcard { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px;
+  border-color: var(--border); background: var(--card); box-shadow: var(--shadow-card); }
+.deckcard:hover { background: var(--card); border-color: var(--accent); }
 .deckcard.is-active { border-color: var(--accent); }
 .deckcard__thumb { width: 54px; height: 30px; flex: none; border-radius: 5px; overflow: hidden; border: 1px solid var(--border); background: #fff; }
 .deckcard__thumb-empty { width: 100%; height: 100%; display: grid; place-items: center; color: var(--mute); background: var(--bg-2); }

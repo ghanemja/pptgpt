@@ -317,7 +317,7 @@ function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, o
               <span>{FEATURES[feature].name}</span><span className="dot" />
               <span className="tnum">{idx + 1} / {deck.slides.length}</span><span className="dot" />
               <span>{active.kind} slide</span><span className="dot" />
-              <span>{PALETTES[active.palette].label} · 16:9</span>
+              <span>{(PALETTES[active.palette] || PALETTES.warm).label} · 16:9</span>
               {loading && <><span className="dot" /><span>updating…</span></>}
             </div>
           )}
@@ -867,13 +867,18 @@ function App() {
   // screen matches what exports. Registered on PALETTES because SlideCard
   // looks palettes up by key; it is a translation of the template's theme,
   // not a design decision of the UI's (R0.3).
-  useEffect(() => {
-    if (template && window.paletteFromTemplate) {
+  //
+  // Done during render, NOT in an effect: slides restored from localStorage
+  // already carry palette 'template', and an effect runs after the first
+  // paint — which rendered those slides against a palette that did not exist
+  // yet.
+  if (template && window.paletteFromTemplate) {
+    if (!PALETTES.template || PALETTES.template.label !== (template.name || 'Template')) {
       PALETTES.template = window.paletteFromTemplate(template);
-    } else {
-      delete PALETTES.template;
     }
-  }, [template]);
+  } else if (PALETTES.template) {
+    delete PALETTES.template;
+  }
 
   function applyTemplate(tpl) {
     if (!tpl || !tpl.id) return;
