@@ -1,0 +1,158 @@
+/* ============================================================
+   ws-template.jsx — upload a .pptx template, apply or remove it.
+
+   A template is brand plus constraints, never layout. The server
+   (deckengine/template.py) reads the file into a theme — colours,
+   type, slide size, any band the master already occupies — and the
+   engine keeps resolving every box itself inside those margins.
+
+   Applying one here does two things:
+     1. the preview switches to a palette built from the template's
+        own colours, so the screen matches what exports;
+     2. the export carries `templateId`, so the .pptx is drawn onto
+        the real master and the logo and background come through.
+
+   Removing it puts both back. Nothing about the slides' content or
+   their geometry changes either way.
+   ============================================================ */
+
+const { Ico } = window;
+const { useState, useEffect, useRef } = React;
+
+const API = window.WS_NO_BACKEND ? ''
+  : ((window.BU_API_BASE || '').replace(/\/$/, '')
+    || ((location.protocol === 'http:' || location.protocol === 'https:') ? location.origin : ''));
+
+/* A template's theme -> the palette shape the preview renders with.
+   Pure translation, no judgement: the colours are the template's. */
+function paletteFromTemplate(tpl) {
+  const t = tpl.theme || {};
+  const hx = v => (v && /^[0-9A-Fa-f]{6}$/.test(v) ? `#${v}` : null);
+  const dark = !!t.dark;
+  const bg = hx(t.primary) || (dark ? '#12130F' : '#FFFFFF');
+  const ink = hx(dark ? t.fg_on_dark : t.fg_on_light) || (dark ? '#FAF7EF' : '#11120E');
+  const sub = hx(dark ? t.sub_on_dark : t.sub_on_light) || (dark ? '#CFC9B7' : '#3D3F38');
+  const accent = hx(t.accent) || '#0E5B36';
+  return {
+    key: 'template', label: tpl.name || 'Template', swatch: accent,
+    bg, ink, sub, mute: sub, accent, spark: accent,
+    rule: dark ? 'rgba(255,255,255,0.14)' : '#ECEAE2',
+  };
+}
+
+function useTemplates() {
+  const [items, setItems] = useState([]);
+  const [state, setState] = useState(API ? 'loading' : 'off');
+
+  function refresh() {
+    if (!API) { setState('off'); return Promise.resolve([]); }
+    return fetch(API + '/api/templates')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(d => { setItems(d.templates || []); setState('ok'); return d.templates || []; })
+      .catch(() => { setState('off'); return []; });
+  }
+
+  useEffect(() => { refresh(); }, []);
+  return { items, state, refresh };
+}
+
+function TemplatePanel({ appliedId, onApply, onRemove }) {
+  const { items, state, refresh } = useTemplates();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const fileRef = useRef(null);
+
+  async function upload(file) {
+    if (!file) return;
+    setErr(''); setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(API + '/api/templates', { method: 'POST', body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `upload failed (${res.status})`);
+      await refresh();
+      onApply(data);                       // applying what you just uploaded
+    } catch (e) {
+      setErr(e.message || 'Upload failed.');
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  async function remove(tid, e) {
+    e.stopPropagation();
+    setErr('');
+    try {
+      const res = await fetch(`${API}/api/templates/${tid}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('could not delete it');
+      if (appliedId === tid) onRemove();
+      await refresh();
+    } catch (e2) {
+      setErr(e2.message);
+    }
+  }
+
+  if (state === 'off') {
+    return (
+      <div className="vnote">
+        Templates are read by the engine, and this build has none behind it.
+        Run the local server to upload a .pptx and draw your decks onto it.
+      </div>
+    );
+  }
+
+  return (
+    <div className="tplpanel">
+      <div className="tplrow">
+        <button className="tplup" disabled={busy} onClick={() => fileRef.current && fileRef.current.click()}>
+          <Ico name="attach" size={15} />
+          {busy ? 'Reading the template…' : 'Upload a .pptx template'}
+        </button>
+        <input ref={fileRef} type="file" accept=".pptx,.potx" hidden
+          onChange={e => upload(e.target.files && e.target.files[0])} />
+        {appliedId ? (
+          <button className="tplclear" onClick={onRemove}>Remove from deck</button>
+        ) : null}
+      </div>
+      {err ? <div className="tplerr">{err}</div> : null}
+
+      {items.length ? (
+        <div className="tpllist">
+          {items.map(t => {
+            const on = appliedId === t.id;
+            const pal = paletteFromTemplate(t);
+            return (
+              <button key={t.id} className={`tplcard ${on ? 'on' : ''}`}
+                onClick={() => (on ? onRemove() : onApply(t))}>
+                <span className="tplcard__swatches">
+                  <i style={{ background: pal.bg }} />
+                  <i style={{ background: pal.accent }} />
+                  <i style={{ background: pal.ink }} />
+                </span>
+                <span className="tplcard__body">
+                  <span className="tplcard__name">{t.name}</span>
+                  <span className="tplcard__meta">
+                    {(t.theme && t.theme.header_font) || 'default type'} · {t.slide_w}×{t.slide_h}in
+                    {t.reserved && t.reserved.length
+                      ? ` · ${t.reserved.length} reserved band${t.reserved.length === 1 ? '' : 's'}`
+                      : ''}
+                  </span>
+                </span>
+                <span className="tplcard__state">{on ? 'Applied' : 'Apply'}</span>
+                <span className="tplcard__del" title="Delete this template" onClick={e => remove(t.id, e)}>
+                  <Ico name="close" size={13} />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="tplempty">No templates yet. Upload one and every generated slide is drawn onto its master.</p>
+      )}
+    </div>
+  );
+}
+
+Object.assign(window, { TemplatePanel, paletteFromTemplate });

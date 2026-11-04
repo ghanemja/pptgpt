@@ -183,10 +183,29 @@ function PhaseRail({ phase, onPhase, status, feature, onTool, features, featureI
 }
 
 /* ── phase 1 · scope ──────────────────────────────────────── */
+/* A plausible answer for a question, taken from the profile itself: a choice
+   question answers with its first option, anything else with its own
+   placeholder. Nothing is invented here, so the fill works for any org's
+   question set — including ones added after this was written. */
+function demoAnswer(q) {
+  if (q.kind === 'choice') return (q.options && q.options[0]) || '';
+  return q.placeholder || '';
+}
+
 function ScopePhase({ org, orgs, orgSlug, onOrg, answers, onAnswer, onStart, offline,
                       mode, onMode, carry, onCarry }) {
   const p = scopeProgress(org, answers);
   const m = mode || 'prompt';
+  // Testing the pipeline means getting past this form a lot. The toggle fills
+  // every question from the profile's own examples, and clears them again.
+  const filled = (org.scope_questions || []).length > 0
+    && (org.scope_questions || []).every(q => (answers[q.id] || '') === demoAnswer(q));
+  function toggleDemo() {
+    (org.scope_questions || []).forEach(q => onAnswer(q.id, filled ? '' : demoAnswer(q)));
+    if (!filled && !(carry || '').trim() && m === 'prompt') {
+      onCarry('We beat Q3 plan by 14% and I want two enterprise AEs for Q1.');
+    }
+  }
   return (
     <div className="stage__scroll stage__scroll--phase">
       <div className="phasewrap">
@@ -204,6 +223,10 @@ function ScopePhase({ org, orgs, orgSlug, onOrg, answers, onAnswer, onStart, off
             </select>
             <span className="orgpick__tag">{org.tagline}</span>
             {offline ? <span className="orgpick__off" title="No backend reachable — showing the default profile">default profile</span> : null}
+            <button className={`demofill ${filled ? 'on' : ''}`} onClick={toggleDemo}
+              title="Fill every question from this profile's own examples">
+              {filled ? 'Clear demo' : 'Demo fill'}
+            </button>
           </div>
         </header>
 
@@ -293,9 +316,11 @@ function ScopePhase({ org, orgs, orgSlug, onOrg, answers, onAnswer, onStart, off
 }
 
 /* ── phase 3 · visuals ────────────────────────────────────── */
-function VisualsPhase({ org, themes, theme, onTheme, palettes, palette, onPalette, deck }) {
+function VisualsPhase({ org, themes, theme, onTheme, palettes, palette, onPalette, deck,
+                       template, onTemplate, onTemplateRemove }) {
   const style = org.style || {};
   const offStyle = style.theme && theme !== style.theme;
+  const TemplatePanel = window.TemplatePanel;
   return (
     <div className="stage__scroll stage__scroll--phase">
       <div className="phasewrap">
@@ -307,6 +332,22 @@ function VisualsPhase({ org, themes, theme, onTheme, palettes, palette, onPalett
             resolves boxes the same way in every theme.
           </p>
         </header>
+
+        <section className="vsec">
+          <h2 className="vsec__h">Template
+            <span className="vsec__sub">your own .pptx — its master, background and logo carry through</span>
+          </h2>
+          {TemplatePanel ? (
+            <TemplatePanel appliedId={template ? template.id : null}
+              onApply={onTemplate} onRemove={onTemplateRemove} />
+          ) : null}
+          {template ? (
+            <div className="vnote">
+              Drawing onto <b>{template.name}</b>. The engine still resolves every box inside
+              its margins — the template supplies the brand and the backdrop, never a position.
+            </div>
+          ) : null}
+        </section>
 
         <section className="vsec">
           <h2 className="vsec__h">Theme</h2>

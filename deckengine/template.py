@@ -1,0 +1,292 @@
+"""template.py — an uploaded .pptx/.potx as a Theme plus constraints.
+
+A template is brand, not layout. It tells the engine which colours and type
+the deck speaks in, how much of the canvas is already spoken for (a logo
+band, a footer), and what the slide size is. It does NOT tell the engine
+where to put a stat.
+
+That split is what keeps §0 intact:
+
+  * extract_template() reads the file into a `TemplateProfile` — a Theme and
+    a set of CONSTRAINTS (margins, reserved bands). Theme already carries
+    margin_in/gap_in as constraints, so this is the same kind of value.
+  * layout.py resolves every box as it always has, inside those margins.
+  * render.py opens the template file as the presentation base, so masters,
+    backgrounds, logos and footers come through underneath engine-placed
+    shapes.
+
+Nothing here emits a coordinate for a content box. The reserved bands are
+inputs that SHRINK the area layout.py may use; they are not positions for
+anything the engine draws.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import os
+import re
+from dataclasses import dataclass, field, asdict
+from typing import Any, Optional
+
+from pptx import Presentation
+from pptx.util import Emu
+
+from .ir import Theme
+
+# Where uploaded templates live. One directory, flat, content-addressed.
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TEMPLATES_DIR = os.path.join(ROOT, "uploads", "templates")
+
+ALLOWED_EXT = (".pptx", ".potx")
+MAX_BYTES = 40 * 1024 * 1024
+
+_THEME_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
+_COLOR_RE = re.compile(r"<a:(dk1|lt1|dk2|lt2|accent[1-6])>.*?val=\"([0-9A-Fa-f]{6})\"", re.S)
+_FONT_RE = re.compile(r"<a:(majorFont|minorFont)>\s*<a:latin typeface=\"([^\"]*)\"")
+_ID_RE = re.compile(r"^[0-9a-f]{12}$")
+_SLUG_SAFE = re.compile(r"[^A-Za-z0-9._ -]+")
+
+
+def _slug(name: str) -> str:
+    """A display name that is safe to carry in a filename."""
+    base = os.path.splitext(os.path.basename(name or ""))[0]
+    return _SLUG_SAFE.sub("", base).strip()[:60] or "template"
+
+
+class TemplateError(ValueError):
+    """An upload we will not accept, or a stored template we cannot read."""
+
+
+@dataclass
+class ReservedBand:
+    """Canvas the template has already spent — a logo strip, a footer rule.
+
+    Expressed as an inset from one edge, in inches. This is a constraint on
+    the engine's working area, not a box the engine draws into.
+    """
+    edge: str          # 'top' | 'bottom' | 'left' | 'right'
+    inches: float
+
+
+@dataclass
+class TemplateProfile:
+    id: str
+    name: str
+    slide_w: float
+    slide_h: float
+    theme: Theme
+    reserved: list[ReservedBand] = field(default_factory=list)
+    layouts: list[str] = field(default_factory=list)
+    source: str = ""           # absolute path to the stored file
+
+    def working_margins(self) -> dict[str, float]:
+        """The margin the engine must respect on each edge, in inches."""
+        m = {e: self.theme.margin_in for e in ("top", "bottom", "left", "right")}
+        for band in self.reserved:
+            if band.edge in m:
+                m[band.edge] = max(m[band.edge], self.theme.margin_in + band.inches)
+        return m
+
+
+def _luma(hex_rgb: str) -> float:
+    r, g, b = (int(hex_rgb[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _theme_xml(prs: Presentation) -> str:
+    try:
+        part = prs.slide_masters[0].part.part_related_by(_THEME_NS)
+        return part.blob.decode("utf-8", "ignore")
+    except Exception:
+        return ""
+
+
+def _reserved_bands(prs: Presentation, slide_w: float, slide_h: float) -> list[ReservedBand]:
+    """Infer bands the master already occupies.
+
+    Only shapes that are NOT content placeholders count — a logo, a footer
+    rule, a decorative bar. A shape hugging an edge and occupying less than
+    a quarter of that dimension reserves that edge.
+    """
+    bands: dict[str, float] = {}
+    try:
+        master = prs.slide_masters[0]
+    except Exception:
+        return []
+
+    for shape in master.shapes:
+        if getattr(shape, "is_placeholder", False):
+            continue
+        try:
+            x, y = Emu(shape.left).inches, Emu(shape.top).inches
+            w, h = Emu(shape.width).inches, Emu(shape.height).inches
+        except Exception:
+            continue
+        if w <= 0 or h <= 0:
+            continue
+        if h <= slide_h / 4:
+            if y <= 0.05:
+                bands["top"] = max(bands.get("top", 0.0), y + h)
+            elif y + h >= slide_h - 0.05:
+                bands["bottom"] = max(bands.get("bottom", 0.0), slide_h - y)
+        if w <= slide_w / 4:
+            if x <= 0.05:
+                bands["left"] = max(bands.get("left", 0.0), x + w)
+            elif x + w >= slide_w - 0.05:
+                bands["right"] = max(bands.get("right", 0.0), slide_w - x)
+
+    # A band wider than a third of the canvas is not a band; ignore it rather
+    # than starve the engine of room.
+    return [
+        ReservedBand(edge=e, inches=round(v, 3))
+        for e, v in sorted(bands.items())
+        if 0.05 < v < (slide_h if e in ("top", "bottom") else slide_w) / 3
+    ]
+
+
+def profile_from_file(path: str, *, tid: str = "", name: str = "") -> TemplateProfile:
+    """Read a .pptx/.potx into a TemplateProfile. Raises TemplateError."""
+    try:
+        prs = Presentation(path)
+    except Exception as e:
+        raise TemplateError(f"could not read the template: {e}") from e
+
+    slide_w = Emu(prs.slide_width).inches
+    slide_h = Emu(prs.slide_height).inches
+    xml = _theme_xml(prs)
+    colors = dict(_COLOR_RE.findall(xml))
+    fonts = dict(_FONT_RE.findall(xml))
+
+    accent = colors.get("accent1", "F96167")
+    primary = colors.get("dk2") or colors.get("dk1") or "1E2761"
+    secondary = colors.get("lt2") or colors.get("lt1") or "CADCFC"
+    dark = _luma(primary) < 0.5
+
+    theme = Theme(
+        primary=primary,
+        secondary=secondary,
+        accent=accent,
+        header_font=fonts.get("majorFont") or "Georgia",
+        body_font=fonts.get("minorFont") or "Calibri",
+        dark=dark,
+        name=name or os.path.splitext(os.path.basename(path))[0],
+    )
+
+    return TemplateProfile(
+        id=tid,
+        name=theme.name,
+        slide_w=round(slide_w, 4),
+        slide_h=round(slide_h, 4),
+        theme=theme,
+        reserved=_reserved_bands(prs, slide_w, slide_h),
+        layouts=[l.name for l in prs.slide_layouts],
+        source=path,
+    )
+
+
+def save_template(data: bytes, filename: str) -> TemplateProfile:
+    """Store an uploaded template and return its profile."""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOWED_EXT:
+        raise TemplateError(f"{ext or 'that file'} is not a .pptx or .potx")
+    if not data:
+        raise TemplateError("the file is empty")
+    if len(data) > MAX_BYTES:
+        raise TemplateError(f"templates are capped at {MAX_BYTES // (1024 * 1024)}MB")
+
+    tid = hashlib.sha256(data).hexdigest()[:12]
+    os.makedirs(TEMPLATES_DIR, exist_ok=True)
+    # The display name rides along in the filename, so a template re-read from
+    # disk is still called what the user called it.
+    path = os.path.join(TEMPLATES_DIR, f"{tid}__{_slug(filename)}{ext}")
+    for stale in _candidates(tid):
+        if stale != path:
+            try:
+                os.remove(stale)
+            except OSError:
+                pass
+    if not os.path.exists(path):
+        with open(path, "wb") as fh:
+            fh.write(data)
+
+    try:
+        return profile_from_file(path, tid=tid, name=_slug(filename))
+    except TemplateError:
+        # Don't keep a file we cannot read.
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        raise
+
+
+def _candidates(tid: str) -> list[str]:
+    """Stored files for this id, newest naming scheme first."""
+    if not os.path.isdir(TEMPLATES_DIR):
+        return []
+    out = []
+    for fname in sorted(os.listdir(TEMPLATES_DIR)):
+        stem, ext = os.path.splitext(fname)
+        if ext.lower() in ALLOWED_EXT and (stem == tid or stem.startswith(f"{tid}__")):
+            out.append(os.path.join(TEMPLATES_DIR, fname))
+    return out
+
+
+def _path_for(tid: str) -> str:
+    if not _ID_RE.match(tid or ""):
+        raise TemplateError(f"bad template id {tid!r}")
+    found = _candidates(tid)
+    if found:
+        return found[0]
+    raise TemplateError(f"no template {tid!r}")
+
+
+def _name_from_path(path: str) -> str:
+    stem = os.path.splitext(os.path.basename(path))[0]
+    return stem.split("__", 1)[1] if "__" in stem else stem
+
+
+def load_template(tid: str) -> TemplateProfile:
+    path = _path_for(tid)
+    return profile_from_file(path, tid=tid, name=_name_from_path(path))
+
+
+def list_templates() -> list[dict[str, Any]]:
+    """Every stored template. An unreadable file is skipped, not fatal."""
+    out: list[dict[str, Any]] = []
+    if not os.path.isdir(TEMPLATES_DIR):
+        return out
+    for fname in sorted(os.listdir(TEMPLATES_DIR)):
+        stem, ext = os.path.splitext(fname)
+        if ext.lower() not in ALLOWED_EXT:
+            continue
+        tid = stem.split("__", 1)[0]
+        try:
+            p = load_template(tid)
+        except TemplateError:
+            continue
+        out.append(to_dict(p))
+    return out
+
+
+def delete_template(tid: str) -> bool:
+    path = _path_for(tid)
+    os.remove(path)
+    return True
+
+
+def to_dict(p: TemplateProfile) -> dict[str, Any]:
+    d = asdict(p)
+    d.pop("source", None)          # a filesystem path is not the UI's business
+    d["margins"] = p.working_margins()
+    return d
+
+
+def template_path(tid: Optional[str]) -> Optional[str]:
+    """The .pptx to open as a render base, or None for the engine's own."""
+    if not tid:
+        return None
+    try:
+        return _path_for(tid)
+    except TemplateError:
+        return None

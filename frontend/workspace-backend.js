@@ -77,12 +77,14 @@
       }
     };
 
-    window.exportPptx = async function (slides) {
+    // `templateId` draws the deck onto an uploaded .pptx master — see
+    // deckengine/template.py. Omitted, the engine renders on its own base.
+    window.exportPptx = async function (slides, templateId) {
       const specs = slides.map(s => window.slideToSpec(s));
       const res = await fetch(ORIGIN + '/api/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slides: specs }),
+        body: JSON.stringify({ slides: specs, templateId: templateId || null }),
       });
       if (!res.ok) throw new Error('export ' + res.status);
       const blob = await res.blob();

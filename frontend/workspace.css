@@ -261,6 +261,10 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
   background: var(--card); color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; }
 .orgpick__sel:disabled { opacity: .6; }
 .orgpick__tag { font-size: 12.5px; color: var(--mute); }
+.demofill { margin-left: auto; padding: 6px 12px; border-radius: var(--r-pill); border: var(--bw) solid var(--border);
+  background: var(--card); font-size: 12px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
+.demofill:hover { border-color: var(--accent); color: var(--accent); }
+.demofill.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .orgpick__off { font-size: 11px; font-weight: 700; color: var(--mute); border: 1px dashed var(--border); border-radius: var(--r-pill); padding: 3px 9px; }
 
 /* Entry modes — how you arrived at this deck. */
@@ -313,6 +317,34 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 .themecard__desc { display: block; font-size: 11.5px; color: var(--mute); margin-top: 4px; line-height: 1.45; }
 .vnote { margin-top: 12px; font-size: 12.5px; color: var(--ink-2); background: var(--bg-2);
   border-left: 3px solid var(--accent); border-radius: var(--r-sm); padding: 10px 12px; line-height: 1.5; }
+/* Template panel — upload, apply, remove. */
+.tplpanel { display: flex; flex-direction: column; gap: 12px; }
+.tplrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tplup { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: var(--r-pill);
+  border: var(--bw) dashed var(--border); background: var(--card); font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.tplup:hover { border-color: var(--accent); color: var(--accent); }
+.tplup:disabled { opacity: .6; cursor: progress; }
+.tplclear { padding: 8px 13px; border-radius: var(--r-pill); border: var(--bw) solid var(--border);
+  background: var(--card); font-size: 12.5px; font-weight: 700; color: var(--ink-2); }
+.tplclear:hover { border-color: var(--accent); color: var(--accent); }
+.tplerr { font-size: 12.5px; color: var(--accent); line-height: 1.5; }
+.tplempty { font-size: 12.5px; color: var(--mute); margin: 0; line-height: 1.5; }
+.tpllist { display: flex; flex-direction: column; gap: 8px; }
+.tplcard { display: flex; align-items: center; gap: 12px; padding: 11px 13px; text-align: left;
+  border-radius: var(--r); border: var(--bw) solid var(--border); background: var(--card); }
+.tplcard.on { border-color: var(--accent); box-shadow: var(--shadow-card); }
+.tplcard__swatches { display: flex; gap: 3px; flex: none; }
+.tplcard__swatches i { width: 14px; height: 22px; border-radius: 3px; display: block; border: 1px solid rgba(0,0,0,.14); }
+.tplcard__body { min-width: 0; flex: 1; }
+.tplcard__name { display: block; font-size: 13.5px; font-weight: 700; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tplcard__meta { display: block; font-size: 11.5px; color: var(--mute); margin-top: 2px; }
+.tplcard__state { flex: none; font-size: 11.5px; font-weight: 700; color: var(--mute); }
+.tplcard.on .tplcard__state { color: var(--accent); }
+.tplcard__del { flex: none; display: grid; place-items: center; width: 24px; height: 24px;
+  border-radius: var(--r-sm); color: var(--mute); }
+.tplcard__del:hover { background: var(--bg-3); color: var(--ink); }
+
 .dirgrid { display: flex; flex-wrap: wrap; gap: 9px; }
 .dircard { display: inline-flex; align-items: center; gap: 9px; padding: 9px 14px; border-radius: var(--r-pill);
   border: var(--bw) solid var(--border); background: var(--card); font-size: 13px; font-weight: 600; color: var(--ink-2); }

@@ -553,6 +553,9 @@ function App() {
   const [scope, setScope] = useState(saved && saved.scope ? saved.scope : {});
   const { org, orgs, offline: orgOffline } = useOrg(orgSlug);
   const [advDismissed, setAdvDismissed] = useState([]);
+  // The applied template: brand + constraints for this deck. Persisted with
+  // the deck state so a reload keeps drawing onto the same master.
+  const [template, setTemplate] = useState(saved && saved.template ? saved.template : null);
 
   const deck = decks.find(d => d.id === deckId) || decks[0];
   function setDeck(updater) {
@@ -562,8 +565,8 @@ function App() {
 
   // persist
   useEffect(() => {
-    try { localStorage.setItem(LS_KEY, JSON.stringify({ feature, audience, theme, decks, deckId, chat, phase, orgSlug, scope })); } catch (e) {}
-  }, [feature, audience, theme, decks, deckId, chat, phase, orgSlug, scope]);
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ feature, audience, theme, decks, deckId, chat, phase, orgSlug, scope, template })); } catch (e) {}
+  }, [feature, audience, theme, decks, deckId, chat, phase, orgSlug, scope, template]);
 
   // apply theme to the document so fixed elements (toasts) inherit it too
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
@@ -768,7 +771,7 @@ function App() {
 
   function doExport(fmt) {
     if (fmt === 'pptx' && window.exportPptx) {
-      window.exportPptx(deck.slides)
+      window.exportPptx(deck.slides, template ? template.id : null)
         .then(() => {
           toast(`Exported ${deck.title || 'deck'} · ${deck.slides.length} slides · .pptx`);
           pushChat('assistant', `Exported the deck as .pptx (${deck.slides.length} slides).`);
@@ -857,6 +860,34 @@ function App() {
 
   const deckPalette = deck.slides.length ? deck.slides[0].palette : (org.style && org.style.palette) || 'warm';
 
+  // A template's colours become a palette the preview can render, so the
+  // screen matches what exports. Registered on PALETTES because SlideCard
+  // looks palettes up by key; it is a translation of the template's theme,
+  // not a design decision of the UI's (R0.3).
+  useEffect(() => {
+    if (template && window.paletteFromTemplate) {
+      PALETTES.template = window.paletteFromTemplate(template);
+    } else {
+      delete PALETTES.template;
+    }
+  }, [template]);
+
+  function applyTemplate(tpl) {
+    if (!tpl || !tpl.id) return;
+    PALETTES.template = window.paletteFromTemplate(tpl);
+    setTemplate(tpl);
+    setDeck(prev => ({ ...prev, slides: prev.slides.map(sl => ({ ...sl, palette: 'template' })) }));
+    toast(`Applied ${tpl.name} — exports draw onto its master.`);
+    pushChat('assistant', `Applied the ${tpl.name} template. Same slides, your brand and backdrop.`);
+  }
+
+  function removeTemplate() {
+    const back = (org.style && org.style.palette) || 'warm';
+    setTemplate(null);
+    setDeck(prev => ({ ...prev, slides: prev.slides.map(sl => (sl.palette === 'template' ? { ...sl, palette: back } : sl)) }));
+    toast('Removed the template.');
+  }
+
   const sp = scopeProgress(org, scopeAnswers);  // meta keys are ignored: it walks org.scope_questions
   // The pipeline runs in order. A phase is locked until the thing it works on
   // exists — there is no storyboard to arrange before a spine is written, and
@@ -943,6 +974,7 @@ function App() {
             <VisualsPhase
               org={org} themes={THEMES} theme={theme} onTheme={setTheme}
               palettes={PALETTES} palette={deckPalette} deck={deck}
+              template={template} onTemplate={applyTemplate} onTemplateRemove={removeTemplate}
               onPalette={v => {
                 setDeck(prev => ({ ...prev, slides: prev.slides.map(sl => ({ ...sl, palette: v })) }));
                 if (deck.slides.length) toast(`Applied the ${PALETTES[v].label} direction.`);

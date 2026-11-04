@@ -285,12 +285,15 @@ def _render_chart_png(block: dict) -> bytes | None:
 
 # ---- main entry ----------------------------------------------------------
 
-def render_specs(specs: list[dict], path: str) -> str:
-    """Render a list of SlideSpec dicts (frontend shape) to a `.pptx` at `path`."""
-    prs = Presentation()
-    prs.slide_width = Inches(CANVAS_W_IN)
-    prs.slide_height = Inches(CANVAS_H_IN)
-    blank = prs.slide_layouts[6]
+def render_specs(specs: list[dict], path: str, template_path: str | None = None) -> str:
+    """Render a list of SlideSpec dicts (frontend shape) to a `.pptx` at `path`.
+
+    With `template_path`, the deck is drawn onto that template's master so
+    its background, logo and footer carry through. Still judgment-free: the
+    boxes come in already resolved.
+    """
+    from .render import open_base
+    prs, blank = open_base(template_path, CANVAS_W_IN, CANVAS_H_IN)
 
     for spec in specs:
         slide = prs.slides.add_slide(blank)

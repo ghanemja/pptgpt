@@ -75,19 +75,53 @@ def _render_chart_png(chart_data: dict) -> bytes | None:
     return buf.getvalue()
 
 
-def render_deck(resolved_slides: list[ResolvedSlide], path: str) -> str:
-    prs = Presentation()
-    prs.slide_width = Inches(CANVAS_W)
-    prs.slide_height = Inches(CANVAS_H)
-    blank = prs.slide_layouts[6]  # truly blank layout
+def open_base(template_path: str | None, w: float, h: float):
+    """The presentation to draw into, and the blank layout to add slides with.
+
+    With a template, we open THAT file so its masters, backgrounds, logos and
+    footers come through underneath whatever the engine places. Its own
+    example slides are dropped — we keep the master, not its content. The
+    engine still resolves every box itself (R0.2); the template supplies the
+    backdrop and the brand, never a position.
+    """
+    prs = Presentation(template_path) if template_path else Presentation()
+
+    if template_path:
+        # Strip the template's sample slides; keep its masters and layouts.
+        xml_slides = prs.slides._sldIdLst
+        for sld in list(xml_slides):
+            rId = sld.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
+            if rId:
+                prs.part.drop_rel(rId)
+            xml_slides.remove(sld)
+    else:
+        prs.slide_width = Inches(w)
+        prs.slide_height = Inches(h)
+
+    # Prefer a truly blank layout; fall back to the emptiest one available.
+    blank = None
+    for layout in prs.slide_layouts:
+        if (layout.name or "").strip().lower() == "blank":
+            blank = layout
+            break
+    if blank is None:
+        blank = min(prs.slide_layouts, key=lambda l: len(l.placeholders._element))
+    return prs, blank
+
+
+def render_deck(resolved_slides: list[ResolvedSlide], path: str,
+                template_path: str | None = None) -> str:
+    prs, blank = open_base(template_path, CANVAS_W, CANVAS_H)
 
     for rs in resolved_slides:
         slide = prs.slides.add_slide(blank)
 
-        # background fill
-        bg = slide.background
-        bg.fill.solid()
-        bg.fill.fore_color.rgb = _rgb(rs.bg)
+        # background fill — skipped under a template, whose master already
+        # carries the background the brand expects.
+        if not template_path:
+            bg = slide.background
+            bg.fill.solid()
+            bg.fill.fore_color.rgb = _rgb(rs.bg)
 
         for b in rs.boxes:
             # ── Picture branch (photo / diagram) ─────────────────

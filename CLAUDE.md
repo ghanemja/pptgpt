@@ -33,6 +33,10 @@ Read `README.md` for the full architecture diagram before making changes.
   by design per R7.2.2).
 - `deckengine/condense.py` — IR → smaller IR. Deterministic stat-gathering
   fallback + model-based path with anti-fabrication guard.
+- `deckengine/template.py` — an uploaded .pptx/.potx as a Theme + CONSTRAINTS
+  (margins, bands the master already occupies). Never a content box: the
+  template supplies brand and backdrop, `layout.py` still resolves geometry.
+  `render.open_base()` opens the template file as the presentation base.
 - `deckengine/org.py` — per-organization profiles loaded from `orgs/*.json`:
   the scoping interview, narrative arc and house style rules. Convention,
   never geometry — the loader rejects a profile carrying coordinates.
@@ -40,8 +44,8 @@ Read `README.md` for the full architecture diagram before making changes.
   edge. The ONLY place that translation happens.
 - `server.py` — FastAPI, speaks the canvas contract. Offline.
 - `tests/test_layout.py`, `tests/test_ingest.py`, `tests/test_condense.py`,
-  `tests/test_ambiguity.py`, `tests/test_org.py`, `tests/smoke_e2e.py` —
-  invariant + endpoint tests.
+  `tests/test_ambiguity.py`, `tests/test_org.py`, `tests/test_template.py`,
+  `tests/smoke_e2e.py` — invariant + endpoint tests.
 
 ## Conventions
 - Python 3.11+, dataclasses over dicts for internal types, type hints required.

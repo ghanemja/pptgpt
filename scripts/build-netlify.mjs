@@ -43,6 +43,7 @@ const ASSETS = [
   ["ws-dash.jsx", "ws-dash.jsx"],
   ["ws-story.jsx", "ws-story.jsx"],
   ["ws-phases.jsx", "ws-phases.jsx"],
+  ["ws-template.jsx", "ws-template.jsx"],
   ["ws-demo-seed.js", "ws-demo-seed.js"],
   ["ws-export.js", "ws-export.js"],
   ["workspace-backend.js", "workspace-backend.js"],

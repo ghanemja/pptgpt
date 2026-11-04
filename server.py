@@ -39,6 +39,7 @@ literally `mockBackend.js` -> `fetch('/api/backend', ...)`.
 """
 from __future__ import annotations
 import os
+import re
 import io
 import tempfile
 from typing import Any
@@ -64,6 +65,10 @@ from deckengine.boundary import (
 )
 from deckengine.ambiguity import detect as detect_questions, to_dict as q_to_dict
 from deckengine.org import list_orgs, load_org, to_dict as org_to_dict, OrgError
+from deckengine.template import (
+    save_template, load_template, list_templates, delete_template,
+    template_path, to_dict as tpl_to_dict, TemplateError,
+)
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 FRONTEND = os.path.join(ROOT, "frontend")
@@ -110,6 +115,7 @@ class CritiqueReq(BaseModel):
 
 class RenderReq(BaseModel):
     slides: list[dict]
+    templateId: str | None = None   # render onto this uploaded template
 
 
 class PlotReq(BaseModel):
@@ -166,6 +172,45 @@ class WorkspaceGenReq(BaseModel):
 
 # ---- API routes ----------------------------------------------------------
 
+@app.get("/api/templates")
+def api_templates():
+    """Every uploaded slide template, as profiles (theme + constraints)."""
+    return {"templates": list_templates()}
+
+
+@app.post("/api/templates")
+async def api_template_upload(file: UploadFile = File(...)):
+    """Store a .pptx/.potx and return its profile.
+
+    The template supplies brand and constraints; layout.py still resolves
+    every box. See deckengine/template.py for why that keeps §0 intact.
+    """
+    try:
+        data = await file.read()
+        return tpl_to_dict(save_template(data, file.filename or "template.pptx"))
+    except TemplateError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@app.get("/api/templates/{tid}")
+def api_template(tid: str):
+    try:
+        return tpl_to_dict(load_template(tid))
+    except TemplateError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
+
+
+@app.delete("/api/templates/{tid}")
+def api_template_delete(tid: str):
+    try:
+        delete_template(tid)
+        return {"ok": True, "id": tid}
+    except TemplateError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
+    except OSError as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @app.get("/api/orgs")
 def api_orgs():
     """Every org profile this install knows about (slug + name only)."""
@@ -200,7 +245,7 @@ def api_critique(req: CritiqueReq):
 def api_render(req: RenderReq):
     fd, out = tempfile.mkstemp(prefix="deckengine-", suffix=".pptx")
     os.close(fd)
-    render_specs(req.slides, out)
+    render_specs(req.slides, out, template_path=template_path(req.templateId))
     return FileResponse(
         out, filename="deck.pptx",
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -551,10 +596,33 @@ def login(req: LoginReq):
 V2_ASSETS = os.path.join(FRONTEND, "v2-assets")
 
 
+_ASSET_REF = re.compile(r'\b(src|href)="(?!https?:|//|#|data:|mailto:)([^"?#]+\.(?:jsx|js|css))"')
+
+
 def _serve_html(relpath: str) -> HTMLResponse:
+    """Serve a page, stamping local asset refs with the file's mtime.
+
+    This is the dev server. Its pages are edited constantly, and a browser
+    holding a stale .jsx looks exactly like an edit that did not take — the
+    request never leaves the cache, so no header on the response can fix it
+    after the fact. Stamping the URL changes it, which is the one thing a
+    cache cannot ignore. Netlify builds its own pages and sets its own cache
+    headers; nothing here affects them.
+    """
     target = os.path.join(FRONTEND, relpath)
+    page_dir = os.path.dirname(target)
     with open(target, "r", encoding="utf-8") as f:
-        return HTMLResponse(f.read())
+        html = f.read()
+
+    def stamp(m: "re.Match[str]") -> str:
+        attr, path = m.group(1), m.group(2)
+        for base in (page_dir, FRONTEND, V2_ASSETS):
+            candidate = os.path.normpath(os.path.join(base, path.lstrip("/")))
+            if os.path.isfile(candidate):
+                return f'{attr}="{path}?v={int(os.path.getmtime(candidate))}"'
+        return m.group(0)
+
+    return HTMLResponse(_ASSET_REF.sub(stamp, html))
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -630,5 +698,9 @@ if os.path.isdir(FRONTEND):
             if not target.startswith(base):
                 continue
             if os.path.isfile(target):
-                return FileResponse(target)
+                # Local dev edits these files constantly, and a stale .jsx in
+                # the browser cache looks exactly like a change that did not
+                # take. Netlify sets its own (short) cache headers in
+                # netlify.toml; this server is only ever the dev server.
+                return FileResponse(target, headers={"Cache-Control": "no-store"})
         return Response(status_code=404)
