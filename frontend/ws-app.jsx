@@ -707,6 +707,10 @@ function App() {
         slides = Array.isArray(result) ? result : [result]; activeId = slides[0].id;
       } else if (tool === 'refine' && active) {
         slides = prev.slides.map(s => s.id === result.id ? result : s); activeId = result.id;
+      } else if (isBlankSlide(active)) {
+        // The user asked for a slide, then said what it is. One slide.
+        slides = prev.slides.map(s => (s.id === active.id ? { ...result, id: active.id } : s));
+        activeId = active.id;
       } else {
         slides = [...prev.slides, result]; activeId = result.id;
       }
@@ -810,6 +814,38 @@ function App() {
     if (next === 'refine') { setCoachStage('refine'); if (fromChip) pushChat('assistant', 'Moved the deck into Refine. Tell me what feels off.'); }
     else if (next === 'condense') { setCoachStage(deck.slides.length > 1 ? 'count' : null); if (fromChip) pushChat('assistant', 'Moved into Condense — paste more, or tune the spine.'); }
     else { setCoachStage('next'); if (fromChip) pushChat('assistant', 'Back in Create. Add another slide, or export.'); }
+  }
+
+  // "Add slide" used to only switch to the Create tool — which, standing in
+  // Deck with Create already active, did nothing at all. It now adds a real
+  // blank slide and selects it; the next generation fills that slide in
+  // place rather than appending a second one (see doSend).
+  function isBlankSlide(s) {
+    if (!s) return false;
+    return !(s.title || '').trim()
+      && !(s.takeaway || '').trim()
+      && !(s.metric || '').trim()
+      && !(s.bullets || []).filter(b => String(b).trim()).length
+      && !s.chart && !s.plot;
+  }
+
+  function addBlankSlide() {
+    const id = uid();
+    const palette = template ? 'template' : deckPalette;
+    setDeck(prev => ({
+      ...prev,
+      slides: [...prev.slides, {
+        id, kind: 'text', palette,
+        emphasis: audience === 'conf' ? 'story' : 'number',
+        eyebrow: '', title: '', bullets: [], takeaway: '',
+      }],
+      activeId: id,
+    }));
+    setPhase('deck');
+    gotoFeature('create', false, true);
+    setCoachStage(null);
+    toast('Blank slide added — describe it below and it fills in place.');
+    return id;
   }
 
   function newDeck() {
@@ -1031,7 +1067,7 @@ function App() {
               onReorderByTitle={reorderByTitle}
               onSwapBumper={swapBumper}
               onTrim={trimSlide}
-              onAdd={() => { setPhase('deck'); gotoFeature('create', false); setCoachStage(null); }}
+              onAdd={addBlankSlide}
               advisories={advisories}
               onAccept={acceptAdvisory} onDismiss={dismissAdvisory}
             />
@@ -1042,7 +1078,7 @@ function App() {
               onPickSlide={id => setDeck(p => ({ ...p, activeId: id }))}
               onPrev={() => stepSlide(-1)}
               onNext={() => stepSlide(1)}
-              onAdd={() => { gotoFeature('create', false); setCoachStage(null); }}
+              onAdd={addBlankSlide}
               pulseId={pulseId} template={template}
             />
           )}
