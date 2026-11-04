@@ -26,6 +26,44 @@
     };
   }
 
+  /* How tall a heading actually is, in design px.
+
+     Every heading box here had a fixed height, so a title that wrapped to
+     three lines ran straight over the content beneath it. There is no text
+     measurement available at this layer, so the wrap is ESTIMATED: a bold
+     grotesk averages about 0.52em per character, which gives a characters-
+     per-line figure and from that a line count. Deterministic, and wrong
+     only in the safe direction — it over-estimates width for narrow glyph
+     runs, so it reserves a little too much rather than too little. */
+  function headingBox(text, boxW, size, lineHeight, weight) {
+    // Bold display faces run much wider than the 0.52em a regular face
+    // averages, and the renderer may substitute a wider font again. Erring
+    // narrow costs a little whitespace; erring wide collides with the next
+    // block, so the heavier the weight the more room each character gets.
+    const em = (weight || 400) >= 700 ? 0.62 : 0.52;
+    const cpl = Math.max(8, Math.floor(boxW / (size * em)));
+    const words = String(text || '').split(/\s+/).filter(Boolean);
+    let lines = words.length ? 1 : 0, col = 0;
+    for (const word of words) {
+      const add = col ? word.length + 1 : word.length;
+      if (col + add > cpl && col > 0) { lines += 1; col = word.length; }
+      else { col += add; }
+    }
+    return { lines: Math.max(1, lines), height: Math.ceil(Math.max(1, lines) * size * lineHeight) };
+  }
+
+  /* A heading sized to fit its band: shrink a long title a step at a time
+     rather than let it push everything else off the slide. */
+  function fitHeading(text, boxW, size, lineHeight, maxH, minSize) {
+    let s = size;
+    let box = headingBox(text, boxW, s, lineHeight, 900);
+    while (box.height > maxH && s > minSize) {
+      s -= 2;
+      box = headingBox(text, boxW, s, lineHeight, 900);
+    }
+    return { size: s, height: Math.min(box.height, maxH), lines: box.lines };
+  }
+
   function eyebrowBlock(slide, p, y) {
     return { type: 'text', x: X(48), y: X(y), w: X(500), h: X(24),
       text: slide.eyebrow || '', font: 'sans', size: PT(13), weight: 700,
@@ -93,10 +131,11 @@
       blocks.push({ type: 'text', x: X(58), y: X(54), w: X(500), h: X(24),
         text: slide.eyebrow || '', font: 'sans', size: PT(13), weight: 700,
         color: p.spark, transform: 'uppercase', letterSpacing: 0.16 });
-      blocks.push({ type: 'text', x: X(58), y: X(80), w: X(600), h: X(120),
-        text: slide.title || '', font: 'sans', size: PT(46), weight: 900, color: p.ink, lineHeight: 1.04 });
+      const cv = fitHeading(slide.title, 600, 46, 1.04, 170, 26);
+      blocks.push({ type: 'text', x: X(58), y: X(80), w: X(600), h: X(cv.height),
+        text: slide.title || '', font: 'sans', size: PT(cv.size), weight: 900, color: p.ink, lineHeight: 1.04 });
       if (slide.subtitle) {
-        blocks.push({ type: 'text', x: X(58), y: X(210), w: X(520), h: X(80),
+        blocks.push({ type: 'text', x: X(58), y: X(Math.max(210, 80 + cv.height + 12)), w: X(520), h: X(80),
           text: slide.subtitle, font: 'sans', size: PT(19), weight: 500, color: p.sub, lineHeight: 1.4 });
       }
       blocks.push({ type: 'text', x: X(58), y: X(370), w: X(300), h: X(16),
@@ -109,11 +148,14 @@
     blocks.push(eyebrowBlock(slide, p, 44));
 
     if (slide.kind === 'chart' && slide.chart) {
-      blocks.push({ type: 'text', x: X(48), y: X(70), w: X(624), h: X(48),
-        text: slide.title || '', font: 'sans', size: PT(30), weight: 900, color: p.ink, lineHeight: 1.1 });
-      blocks.push({ type: 'text', x: X(48), y: X(118), w: X(400), h: X(18),
+      const ch = fitHeading(slide.title, 624, 30, 1.1, 96, 20);
+      blocks.push({ type: 'text', x: X(48), y: X(70), w: X(624), h: X(ch.height),
+        text: slide.title || '', font: 'sans', size: PT(ch.size), weight: 900, color: p.ink, lineHeight: 1.1 });
+      const chCapY = 70 + ch.height + 4;
+      blocks.push({ type: 'text', x: X(48), y: X(chCapY), w: X(400), h: X(18),
         text: slide.chart.title || '', font: 'sans', size: PT(13), weight: 700, color: p.mute });
-      blocks.push({ type: 'chart', x: X(48), y: X(140), w: X(624), h: X(176),
+      const chartY = chCapY + 22;
+      blocks.push({ type: 'chart', x: X(48), y: X(chartY), w: X(624), h: X(Math.max(110, 316 - chartY)),
         kind: 'bar', data: slide.chart.data || [], bg: p.bg, primaryColor: p.accent,
         labelColor: p.mute, gridColor: p.bg, axisColor: p.mute, showValueLabels: true });
       const tk = takeawayBlock(slide, p, 335, 40); if (tk) blocks.push(tk);
@@ -122,10 +164,11 @@
     }
 
     if (slide.kind === 'plot' && slide.plot) {
-      blocks.push({ type: 'text', x: X(48), y: X(70), w: X(624), h: X(48),
-        text: slide.title || '', font: 'sans', size: PT(28), weight: 900, color: p.ink, lineHeight: 1.1 });
+      const ph = fitHeading(slide.title, 624, 28, 1.1, 96, 20);
+      blocks.push({ type: 'text', x: X(48), y: X(70), w: X(624), h: X(ph.height),
+        text: slide.title || '', font: 'sans', size: PT(ph.size), weight: 900, color: p.ink, lineHeight: 1.1 });
       if (slide.plot.eq) {
-        blocks.push({ type: 'text', x: X(48), y: X(118), w: X(500), h: X(24),
+        blocks.push({ type: 'text', x: X(48), y: X(70 + ph.height + 4), w: X(500), h: X(24),
           text: slide.plot.eq, font: 'serif', size: PT(18), weight: 700, color: p.accent });
       }
       const params = slide.plot.params || {};
@@ -139,25 +182,32 @@
 
     // text slide
     const story = slide.emphasis === 'story';
-    blocks.push({ type: 'text', x: X(48), y: X(70), w: X(624), h: X(60),
-      text: slide.title || '', font: 'sans', size: PT(story ? 40 : 33), weight: 900, color: p.ink, lineHeight: 1.08 });
+    const head = fitHeading(slide.title, 624, story ? 40 : 33, 1.08, 132, 22);
+    blocks.push({ type: 'text', x: X(48), y: X(70), w: X(624), h: X(head.height),
+      text: slide.title || '', font: 'sans', size: PT(head.size), weight: 900, color: p.ink, lineHeight: 1.08 });
 
+    // Content starts below the title, wherever the title actually ended.
+    const contentY = Math.max(150, 70 + head.height + 14);
     let contentX = 48, contentW = 624;
     if (slide.metric && !story) {
-      blocks.push({ type: 'text', x: X(48), y: X(150), w: X(200), h: X(70),
+      blocks.push({ type: 'text', x: X(48), y: X(contentY), w: X(200), h: X(70),
         text: String(slide.metric), font: 'sans', size: PT(68), weight: 900, color: p.accent, lineHeight: 0.95 });
       if (slide.metricSub) {
-        blocks.push({ type: 'text', x: X(48), y: X(224), w: X(190), h: X(40),
+        blocks.push({ type: 'text', x: X(48), y: X(contentY + 74), w: X(190), h: X(40),
           text: slide.metricSub, font: 'sans', size: PT(13), weight: 700, color: p.mute });
       }
       contentX = 250; contentW = 422;
     }
+    // The takeaway keeps its place at the foot of the slide; the content band
+    // is whatever is left between the title and it.
+    const takeawayY = 335;
+    const contentH = Math.max(60, takeawayY - 12 - contentY);
     if (Array.isArray(slide.bullets) && slide.bullets.length) {
-      blocks.push({ type: 'bullets', x: X(contentX), y: X(150), w: X(contentW), h: X(150),
+      blocks.push({ type: 'bullets', x: X(contentX), y: X(contentY), w: X(contentW), h: X(contentH),
         items: slide.bullets.slice(0, story ? 3 : 4), font: 'sans', size: PT(16.5), weight: 400,
         color: p.sub, marker: 'dash', markerColor: p.spark, lineHeight: 1.4, gap: X(12) });
     }
-    const tk = takeawayBlock(slide, p, 335, 40); if (tk) blocks.push(tk);
+    const tk = takeawayBlock(slide, p, takeawayY, 40); if (tk) blocks.push(tk);
     const ft = footerBlock(slide, p); if (ft) blocks.push(ft);
     return fitToMargins({ canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks }, p.pad);
   }

@@ -55,6 +55,26 @@ def _hex_to_rgb(color: str) -> RGBColor:
     return RGBColor(int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16))
 
 
+def _shrink_on_overflow(text_frame) -> None:
+    """Ask the renderer to shrink text that still overflows its box.
+
+    Block heights here are estimated, not measured — there is no text
+    engine at the layer that lays them out. PowerPoint and LibreOffice both
+    honour normAutofit, so anything the estimate gets wrong scales down
+    inside its own box instead of running over the block beneath it.
+    """
+    from pptx.oxml.ns import qn
+
+    bodyPr = text_frame._txBody.find(qn("a:bodyPr"))
+    if bodyPr is None:
+        return
+    for tag in ("a:noAutofit", "a:spAutoFit", "a:normAutofit"):
+        existing = bodyPr.find(qn(tag))
+        if existing is not None:
+            bodyPr.remove(existing)
+    bodyPr.append(bodyPr.makeelement(qn("a:normAutofit"), {}))
+
+
 def _font_name(font_key: str | None, palette: dict | None = None) -> str:
     """The typeface for a block.
 
@@ -95,6 +115,7 @@ def _add_text(slide, x_in, y_in, w_in, h_in, *, text, font, size_pt, weight, ita
     tb = slide.shapes.add_textbox(Inches(x_in), Inches(y_in), Inches(w_in), Inches(h_in))
     tf = tb.text_frame
     tf.word_wrap = True
+    _shrink_on_overflow(tf)
     tf.margin_left = 0
     tf.margin_right = 0
     tf.margin_top = 0
@@ -119,6 +140,7 @@ def _add_bullets(slide, x_in, y_in, w_in, h_in, *, items, font, size_pt, weight,
     tb = slide.shapes.add_textbox(Inches(x_in), Inches(y_in), Inches(w_in), Inches(h_in))
     tf = tb.text_frame
     tf.word_wrap = True
+    _shrink_on_overflow(tf)
     tf.margin_left = 0
     tf.margin_right = 0
     tf.margin_top = 0
