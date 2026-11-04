@@ -65,7 +65,7 @@ from deckengine.boundary import (
 )
 from deckengine.ambiguity import detect as detect_questions, to_dict as q_to_dict
 from deckengine.org import list_orgs, load_org, to_dict as org_to_dict, OrgError
-from deckengine.preview import slide_png, available as preview_available
+from deckengine.preview import slide_png, native_png, available as preview_available
 from deckengine.template import (
     save_template, load_template, list_templates, delete_template,
     template_path, to_dict as tpl_to_dict, TemplateError,
@@ -116,13 +116,15 @@ class CritiqueReq(BaseModel):
 
 
 class PreviewReq(BaseModel):
-    spec: dict                      # ONE resolved SlideSpec (frontend shape)
+    spec: dict | None = None        # ONE resolved SlideSpec (engine-placed)
+    slide: dict | None = None       # ONE workspace slide (cast into the template)
     templateId: str | None = None
 
 
 class RenderReq(BaseModel):
-    slides: list[dict]
+    slides: list[dict]              # resolved SlideSpecs, or workspace slides
     templateId: str | None = None   # render onto this uploaded template
+    native: bool = False            # cast into the template's own layouts
 
 
 class PlotReq(BaseModel):
@@ -189,7 +191,15 @@ def api_preview_png(req: PreviewReq):
     image, so the preview and the file agree. 503 when LibreOffice is absent
     — the UI keeps its HTML preview rather than showing nothing.
     """
-    path = slide_png(req.spec, req.templateId)
+    # With a template, the slide is CAST into that template's own layouts, so
+    # its positions, type ramp and bullet styling are the template's. Without
+    # one, the engine's own placement is rendered.
+    if req.slide is not None and req.templateId:
+        path = native_png(req.slide, req.templateId)
+    elif req.spec is not None:
+        path = slide_png(req.spec, req.templateId)
+    else:
+        return JSONResponse({"error": "need a spec or a slide"}, status_code=400)
     if not path:
         reason = ("LibreOffice is not installed on the server"
                   if not preview_available() else "could not render this slide")
@@ -295,7 +305,12 @@ def api_critique(req: CritiqueReq):
 def api_render(req: RenderReq):
     fd, out = tempfile.mkstemp(prefix="deckengine-", suffix=".pptx")
     os.close(fd)
-    render_specs(req.slides, out, template_path=template_path(req.templateId))
+    src = template_path(req.templateId)
+    if req.native and src:
+        from deckengine.native import render_native
+        render_native(req.slides, out, src)
+    else:
+        render_specs(req.slides, out, template_path=src)
     return FileResponse(
         out, filename="deck.pptx",
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",

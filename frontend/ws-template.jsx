@@ -211,12 +211,20 @@ function ExactSlide({ slide, templateId, width, height, children }) {
     setState('rendering');
     // A keystroke should not queue a render; wait for the edit to settle.
     const timer = setTimeout(() => {
-      let spec;
-      try { spec = window.slideToSpec(slide); } catch (e) { setState('off'); return; }
+      // With a template, send the SLIDE: the engine casts it into that
+      // template's own layouts, so position, type and bullet styling are the
+      // template's rather than ours. Without one, send the engine's placement.
+      let payload;
+      if (templateId) {
+        payload = { slide, templateId };
+      } else {
+        try { payload = { spec: window.slideToSpec(slide) }; }
+        catch (e) { setState('off'); return; }
+      }
       fetch(API + '/api/preview_png', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ spec, templateId: templateId || null }),
+        body: JSON.stringify(payload),
       })
         .then(r => (r.ok ? r.blob() : Promise.reject(r.status)))
         .then(blob => {

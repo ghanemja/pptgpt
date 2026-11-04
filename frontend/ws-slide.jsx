@@ -188,7 +188,9 @@ function SlideCard({ slide }) {
   // the picture background, the footer rule — not just its colours.
   const base = {
     position: 'relative', width: SLIDE_W, height: SLIDE_H,
-    background: pal.bg, color: pal.ink,
+    // backgroundColor, not the `background` shorthand: the shorthand resets
+    // backgroundImage on every rerender, which React warns about.
+    backgroundColor: pal.bg, color: pal.ink,
     padding: pal.pad
       ? `${pal.pad.top}px ${pal.pad.right}px ${pal.pad.bottom}px ${pal.pad.left}px`
       : '44px 48px',

@@ -10,6 +10,20 @@ supplies the missing constraint.
 
 Read `README.md` for the full architecture diagram before making changes.
 
+## Templates: who owns geometry
+Without a template, `layout.py` owns geometry — the rule below applies as
+written. With an uploaded template, the TEMPLATE owns it: `deckengine/
+native.py` casts a slide into that template's own layouts and fills its
+placeholders, so position, size, type ramp, colour and bullet styling all
+inherit from the file. Approximating a template with engine-placed boxes was
+tried first and does not work: a real template's design IS its layouts.
+
+§0 is intact where it matters — the model and the UI still choose no
+geometry. Layout selection is a deterministic function of the slide's
+content and the template's layout inventory. `tests/test_native.py` asserts
+that a cast slide never moves a template placeholder and never writes a
+font, size or colour onto a run.
+
 ## The non-negotiable architectural rule
 **Design decisions live in the engine, never in the model or the UI.**
 - The model (`parse_to_ir`) only produces IR. It must not choose colors,
@@ -54,7 +68,7 @@ Read `README.md` for the full architecture diagram before making changes.
 - `server.py` — FastAPI, speaks the canvas contract. Offline.
 - `tests/test_layout.py`, `tests/test_ingest.py`, `tests/test_condense.py`,
   `tests/test_ambiguity.py`, `tests/test_org.py`, `tests/test_template.py`,
-  `tests/smoke_e2e.py` — invariant + endpoint tests.
+  `tests/test_native.py`, `tests/smoke_e2e.py` — invariant + endpoint tests.
 
 ## Conventions
 - Python 3.11+, dataclasses over dicts for internal types, type hints required.

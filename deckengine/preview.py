@@ -62,6 +62,21 @@ def _trim_cache() -> None:
             pass
 
 
+def native_png(slide: dict[str, Any], template_id: str,
+               *, force: bool = False) -> Optional[str]:
+    """Render ONE workspace slide cast into the template's own layouts."""
+    return _render(("native", slide, template_id), force=force,
+                   build=lambda out: _build_native(slide, template_id, out))
+
+
+def _build_native(slide: dict[str, Any], template_id: str, out_pptx: str) -> None:
+    from .native import render_native
+    src = template_path(template_id)
+    if not src:
+        raise ValueError("no such template")
+    render_native([slide], out_pptx, src)
+
+
 def slide_png(spec: dict[str, Any], template_id: Optional[str] = None,
               *, force: bool = False) -> Optional[str]:
     """Render ONE slide spec to a PNG exactly as it would export.
@@ -70,7 +85,19 @@ def slide_png(spec: dict[str, Any], template_id: Optional[str] = None,
     render fails — callers fall back to the HTML preview rather than showing
     a broken image.
     """
-    key = cache_key(spec, template_id)
+    return _render(("spec", spec, template_id), force=force, build=lambda out: _build_spec(spec, template_id, out))
+
+
+def _build_spec(spec: dict[str, Any], template_id: Optional[str], out_pptx: str) -> None:
+    from .spec_render import render_specs
+    render_specs([spec], out_pptx, template_path=template_id and template_path(template_id))
+
+
+def _render(key_parts, *, build, force: bool = False) -> Optional[str]:
+    """Build a one-slide .pptx and rasterise it, cached by content."""
+    key = hashlib.sha256(
+        json.dumps(key_parts, sort_keys=True, separators=(",", ":"), default=str).encode()
+    ).hexdigest()[:20]
     out_png = os.path.join(PREVIEW_DIR, f"{key}.png")
     if os.path.isfile(out_png) and not force:
         os.utime(out_png, None)          # keep hot entries from being trimmed
@@ -80,12 +107,10 @@ def slide_png(spec: dict[str, Any], template_id: Optional[str] = None,
     if not soffice:
         return None
 
-    from .spec_render import render_specs
-
     with tempfile.TemporaryDirectory() as work:
         staged = os.path.join(work, "slide.pptx")
         try:
-            render_specs([spec], staged, template_path=template_id and template_path(template_id))
+            build(staged)
         except Exception:
             return None
         try:
