@@ -294,7 +294,7 @@ function ThinkingSlide() {
 }
 
 /* ── working area ─────────────────────────────────────────── */
-function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, onAdd, pulseId, template }) {
+function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, onAdd, pulseId, template, pendingChart, onCancelChart }) {
   const [boxRef, box] = useBox();
   const active = deck.slides.find(s => s.id === deck.activeId);
   const idx = deck.slides.findIndex(s => s.id === deck.activeId);
@@ -327,7 +327,24 @@ function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, o
               {/* A blank slide renders as the template's empty master, which
                   reads as finished rather than as waiting for you. Say what
                   it wants instead. */}
-              {!loading && active && isBlankSlide(active) ? (
+              {/* A chart was asked for and the numbers are nowhere in
+                  context. Ask for them — the alternative is a model
+                  inventing data, which must never reach a slide. */}
+              {!loading && pendingChart ? (
+                <div className="blankslide" style={{ width: SLIDE_W * scale, height: SLIDE_H * scale }}>
+                  <div className="blankslide__num tnum">NEEDS NUMBERS</div>
+                  <div className="blankslide__h">Which numbers?</div>
+                  <p className="blankslide__p">
+                    Nothing in this deck or your brief has a series to chart, and I won{"'"}t
+                    make numbers up. Paste them as <b>label value</b>, separated by commas.
+                  </p>
+                  <div className="blankslide__chips">
+                    <button className="chip" onClick={() => onSample('Q1 32, Q2 38, Q3 42, Q4 45')}>Q1 32, Q2 38, Q3 42, Q4 45</button>
+                    <button className="chip" onClick={() => onSample('SMB 1.2M, Mid 2.1M, Ent 8.4M')}>SMB 1.2M, Mid 2.1M, Ent 8.4M</button>
+                    <button className="chip" onClick={onCancelChart}>Never mind</button>
+                  </div>
+                </div>
+              ) : !loading && active && isBlankSlide(active) ? (
                 <div className="blankslide" style={{ width: SLIDE_W * scale, height: SLIDE_H * scale }}>
                   <div className="blankslide__num tnum">{String(idx + 1).padStart(2, '0')}</div>
                   <div className="blankslide__h">Describe this slide</div>
@@ -406,6 +423,16 @@ function coachContent(stage, feature, active, deck) {
         { label: 'Number leads', accent: active && active.emphasis !== 'story', act: { type: 'emphasis', v: 'number' } },
         { label: 'Story leads', accent: active && active.emphasis === 'story', act: { type: 'emphasis', v: 'story' } },
         { label: 'Looks good', act: { type: 'skip' } },
+      ],
+    };
+  }
+  if (stage === 'needdata') {
+    return {
+      text: <>I can chart that — paste the numbers and I{"'"}ll build it. <b>Label value</b>, separated by commas.</>,
+      chips: [
+        { label: 'Q1 32, Q2 38, Q3 42, Q4 45', act: { type: 'send', text: 'Chart it: Q1 32, Q2 38, Q3 42, Q4 45' } },
+        { label: 'SMB 1.2, Mid 2.1, Ent 8.4', act: { type: 'send', text: 'Chart it: SMB 1.2, Mid 2.1, Ent 8.4' } },
+        { label: 'Never mind', act: { type: 'skip' } },
       ],
     };
   }
@@ -613,6 +640,8 @@ function App() {
   const [scope, setScope] = useState(saved && saved.scope ? saved.scope : {});
   const { org, orgs, offline: orgOffline } = useOrg(orgSlug);
   const [advDismissed, setAdvDismissed] = useState([]);
+  // A chart the user asked for that is waiting on its numbers.
+  const [pendingChart, setPendingChart] = useState(null);
   // The applied template: brand + constraints for this deck. Persisted with
   // the deck state so a reload keeps drawing onto the same master.
   const [template, setTemplate] = useState(saved && saved.template ? saved.template : null);
@@ -717,6 +746,46 @@ function App() {
     setDraft(''); const usedFiles = files; setFiles([]);
     setLoading(true); setCoachStage(null); setHistoryOpen(false);
 
+    // ── "chart this" is answered by the engine, not the model ──────
+    // If the prompt asks for a visual, the numbers either already exist
+    // somewhere the engine can see, or they do not. Found, it builds the
+    // chart from them. Not found, it ASKS — a model asked to chart numbers
+    // it does not have will invent them, and a slide of invented data is
+    // the worst thing this program could put in front of a room.
+    if (window.wantsChart && window.wantsChart(text) && tool !== 'refine') {
+      const found = window.findSeries({
+        prompt: text, slide: active, deck, scope: scopeAnswers, chat,
+      });
+      if (found) {
+        const slide = window.buildChartSlide({
+          prompt: text, rows: found.rows, kind: window.chartKind(text),
+          palette: template ? 'template' : deckPalette, audience,
+          id: isBlankSlide(active) ? active.id : undefined,
+        });
+        setDeck(prev => ({
+          ...prev,
+          slides: isBlankSlide(active)
+            ? prev.slides.map(sl => (sl.id === active.id ? slide : sl))
+            : [...prev.slides, slide],
+          activeId: slide.id,
+        }));
+        setLoading(false);
+        setCoachStage('next');
+        setPendingChart(null);
+        setDashNotify(true);
+        pushChat('assistant',
+          `Charted ${found.rows.length} points from ${found.where}. Tune the type, order or highlight below.`);
+        pulse(slide.id);
+        return;
+      }
+      // Nothing to chart: say so and ask, rather than generating prose.
+      setLoading(false);
+      setPendingChart({ prompt: text, kind: window.chartKind(text) });
+      setCoachStage('needdata');
+      pushChat('assistant', 'I can chart that — I just need the numbers.');
+      return;
+    }
+
     const { patch, touched } = window.parseStylePatch(text);
     const dcActive = active ? window.dynamicCats(text, active) : [];
     const isAdjust = !!active && (touched.length > 0 || dcActive.length > 0)
@@ -787,7 +856,7 @@ function App() {
       : tool === 'refine' ? 'Reworked it — your changes are itemized below.'
       : 'Drafted a slide. Adjust anything below.');
     pulse(newActiveId);
-  }, [draft, files, loading, feature, audience, active, deck, phase]);
+  }, [draft, files, loading, feature, audience, active, deck, phase, template, scopeAnswers, chat]);
 
   function applyControl(catId, ctrlId, value) {
     if (ctrlId === 'palette') {
@@ -825,6 +894,7 @@ function App() {
       if (active) pulse(active.id);
       setCoachStage('direction');
     } else if (act.type === 'skip') {
+      if (pendingChart) { setPendingChart(null); setCoachStage(hasSlides ? 'next' : null); return; }
       setCoachStage('direction');
     } else if (act.type === 'count') {
       setDeck(prev => {
@@ -1133,6 +1203,7 @@ function App() {
               onNext={() => stepSlide(1)}
               onAdd={addBlankSlide}
               pulseId={pulseId} template={template}
+              pendingChart={pendingChart} onCancelChart={() => setPendingChart(null)}
             />
           )}
         </div>
