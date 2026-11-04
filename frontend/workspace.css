@@ -393,6 +393,17 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 .exact__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill;
   opacity: 0; transition: opacity 200ms var(--ease); }
 .exact__img.is-on { opacity: 1; }
+/* A slide that has been added but not yet described. */
+.blankslide { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; text-align: center; padding: 24px 36px; background: var(--bg-2);
+  border: 2px dashed var(--border); }
+.blankslide__num { font-size: 11px; font-weight: 700; color: var(--mute); letter-spacing: .08em; }
+.blankslide__h { font-family: var(--font-display); font-size: 26px; font-weight: var(--display-weight);
+  letter-spacing: var(--display-tracking); color: var(--ink); }
+.blankslide__p { margin: 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.5; max-width: 380px; }
+.blankslide__chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 6px; }
+.blankslide__chips .chip { font-size: 12px; padding: 7px 12px; }
+
 /* Thumbnails of the real slide: a quiet panel until the render lands. */
 .exthumb { display: block; position: relative; overflow: hidden; background: var(--bg-2); }
 .exthumb img { display: block; width: 100%; height: 100%; object-fit: fill; }

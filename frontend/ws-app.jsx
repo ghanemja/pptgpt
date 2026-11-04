@@ -21,6 +21,17 @@ const THEMES = [
   { key:'vivid',  name:'Vivid',  desc:'Bold pop · electric indigo · grotesk',         dots:['#F7F5FE','#5B2DE0','#EF2F7D','#16111F'] },
 ];
 
+/* A slide the user has asked for but not yet described. Shared by the stage
+   (which must say so) and by generation (which fills it in place). */
+function isBlankSlide(s) {
+  if (!s) return false;
+  return !(s.title || '').trim()
+    && !(s.takeaway || '').trim()
+    && !(s.metric || '').trim()
+    && !(s.bullets || []).filter(b => String(b).trim()).length
+    && !s.chart && !s.plot;
+}
+
 /* ── scaled slide helpers ─────────────────────────────────── */
 function useBox() {
   const ref = useRef(null);
@@ -313,7 +324,24 @@ function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, o
             </button>
 
             <div className="stagecard__slide">
-              {loading && !active ? <ThinkingSlide /> : active && (
+              {/* A blank slide renders as the template's empty master, which
+                  reads as finished rather than as waiting for you. Say what
+                  it wants instead. */}
+              {!loading && active && isBlankSlide(active) ? (
+                <div className="blankslide" style={{ width: SLIDE_W * scale, height: SLIDE_H * scale }}>
+                  <div className="blankslide__num tnum">{String(idx + 1).padStart(2, '0')}</div>
+                  <div className="blankslide__h">Describe this slide</div>
+                  <p className="blankslide__p">
+                    Type what it should say below — a result, a takeaway, a messy list.
+                    It fills this slide in place.
+                  </p>
+                  <div className="blankslide__chips">
+                    {FEATURES[feature].samples.slice(0, 2).map(sample => (
+                      <button key={sample} className="chip" onClick={() => onSample(sample)}>{sample}</button>
+                    ))}
+                  </div>
+                </div>
+              ) : loading && !active ? <ThinkingSlide /> : active && (
                 <div className={`slide-frame ${pulseId === active.id ? 'is-updating' : ''}`} key={active.id + pulseId}
                      style={{ width: SLIDE_W * scale, height: SLIDE_H * scale }}>
                   {/* On a template, show the slide as it actually exports —
@@ -834,19 +862,8 @@ function App() {
     else { setCoachStage('next'); if (fromChip) pushChat('assistant', 'Back in Create. Add another slide, or export.'); }
   }
 
-  // "Add slide" used to only switch to the Create tool — which, standing in
-  // Deck with Create already active, did nothing at all. It now adds a real
-  // blank slide and selects it; the next generation fills that slide in
-  // place rather than appending a second one (see doSend).
-  function isBlankSlide(s) {
-    if (!s) return false;
-    return !(s.title || '').trim()
-      && !(s.takeaway || '').trim()
-      && !(s.metric || '').trim()
-      && !(s.bullets || []).filter(b => String(b).trim()).length
-      && !s.chart && !s.plot;
-  }
-
+  // "Add slide" adds a real blank slide and selects it; the next generation
+  // fills that slide in place rather than appending a second one (doSend).
   function addBlankSlide() {
     const id = uid();
     const palette = template ? 'template' : deckPalette;
@@ -862,7 +879,11 @@ function App() {
     setPhase('deck');
     gotoFeature('create', false, true);
     setCoachStage(null);
-    toast('Blank slide added — describe it below and it fills in place.');
+    // Put the cursor where the answer goes.
+    setTimeout(() => {
+      const ta = document.querySelector('.composer textarea');
+      if (ta) ta.focus();
+    }, 60);
     return id;
   }
 
