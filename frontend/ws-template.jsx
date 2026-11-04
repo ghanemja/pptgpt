@@ -209,6 +209,9 @@ function ExactSlide({ slide, templateId, width, height, children }) {
     let dead = false;
     let url = null;
     setState('rendering');
+    // The previous slide's render is not this slide: clear it so the loader
+    // shows rather than the wrong slide sitting there looking current.
+    setSrc(null);
     // A keystroke should not queue a render; wait for the edit to settle.
     const timer = setTimeout(() => {
       // With a template, send the SLIDE: the engine casts it into that
@@ -243,11 +246,23 @@ function ExactSlide({ slide, templateId, width, height, children }) {
     };
   }, [sig]);
 
+  // While the exact render is on its way, show a loader — not the HTML
+  // approximation. Flashing the template's bare master and then replacing it
+  // a second later reads as a bug, and the approximation is the thing we
+  // stopped trusting. The HTML preview is kept for the one case it is still
+  // the answer: no engine behind this build, so no exact render is coming.
+  const showHtml = state === 'off';
+
   return (
     <div className="exact" style={{ width, height }}>
-      <div className="exact__html" aria-hidden={state === 'ok'}>{children}</div>
+      {showHtml ? <div className="exact__html">{children}</div> : null}
       {src ? <img className={`exact__img ${state === 'ok' ? 'is-on' : ''}`} src={src} alt="" /> : null}
-      {state === 'rendering' ? <span className="exact__badge">rendering exact…</span> : null}
+      {state === 'rendering' || state === 'idle' ? (
+        <div className="exact__wait">
+          <span className="exact__spin" />
+          <span className="exact__waittxt">rendering slide</span>
+        </div>
+      ) : null}
       {state === 'ok' ? <span className="exact__badge is-ok">exact</span> : null}
     </div>
   );
