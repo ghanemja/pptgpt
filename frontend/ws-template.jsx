@@ -199,6 +199,85 @@ Object.assign(window, { TemplatePanel, paletteFromTemplate });
    cached). If the engine cannot render — no LibreOffice — the HTML preview
    simply stays, which is why `children` is always mounted.
    ============================================================ */
+/* One render per (slide, template), shared by everything that shows it.
+
+   The stage, the filmstrip and the deck card all want the same picture of
+   the same slide. Without this they would each POST for it; the server
+   would serve the same cached PNG three times and the browser would hold
+   three copies of it. Keyed by content, so an edit is a new entry and the
+   old one falls out when the cache trims. */
+const _exactUrls = new Map();     // sig -> blob url
+const _exactPending = new Map();  // sig -> promise
+const EXACT_URL_MAX = 60;
+
+function exactSignature(slide, templateId) {
+  return JSON.stringify([slide, templateId || null]);
+}
+
+function exactUrl(slide, templateId) {
+  const sig = exactSignature(slide, templateId);
+  if (_exactUrls.has(sig)) return Promise.resolve(_exactUrls.get(sig));
+  if (_exactPending.has(sig)) return _exactPending.get(sig);
+  if (!API || window.WS_NO_BACKEND) return Promise.resolve(null);
+
+  let payload;
+  if (templateId) {
+    payload = { slide, templateId };
+  } else {
+    if (!window.slideToSpec) return Promise.resolve(null);
+    try { payload = { spec: window.slideToSpec(slide) }; }
+    catch (e) { return Promise.resolve(null); }
+  }
+
+  const p = fetch(API + '/api/preview_png', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+    .then(r => (r.ok ? r.blob() : Promise.reject(r.status)))
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      if (_exactUrls.size >= EXACT_URL_MAX) {
+        const oldest = _exactUrls.keys().next().value;
+        URL.revokeObjectURL(_exactUrls.get(oldest));
+        _exactUrls.delete(oldest);
+      }
+      _exactUrls.set(sig, url);
+      return url;
+    })
+    .catch(() => null)
+    .finally(() => { _exactPending.delete(sig); });
+
+  _exactPending.set(sig, p);
+  return p;
+}
+
+/* A thumbnail of the real slide, with the same honesty as the stage: a
+   quiet placeholder while it renders, never the approximation. */
+function ExactThumb({ slide, templateId, width, height, children }) {
+  const [src, setSrc] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const sig = exactSignature(slide, templateId);
+
+  useEffect(() => {
+    let dead = false;
+    setSrc(_exactUrls.get(sig) || null);
+    setFailed(false);
+    exactUrl(slide, templateId).then(url => {
+      if (dead) return;
+      if (url) setSrc(url); else setFailed(true);
+    });
+    return () => { dead = true; };
+  }, [sig]);
+
+  if (failed) return children || null;
+  return (
+    <span className="exthumb" style={{ width, height }}>
+      {src ? <img src={src} alt="" /> : <span className="exthumb__wait" />}
+    </span>
+  );
+}
+
 function ExactSlide({ slide, templateId, width, height, children }) {
   const [src, setSrc] = useState(null);
   const [state, setState] = useState('idle');    // idle | rendering | ok | off
@@ -207,43 +286,24 @@ function ExactSlide({ slide, templateId, width, height, children }) {
   useEffect(() => {
     if (!API || window.WS_NO_BACKEND || !window.slideToSpec) { setState('off'); return; }
     let dead = false;
-    let url = null;
-    setState('rendering');
+    // Already rendered this exact slide? Show it without a flash of loader.
+    const cached = _exactUrls.get(exactSignature(slide, templateId));
+    if (cached) { setSrc(cached); setState('ok'); return; }
+
     // The previous slide's render is not this slide: clear it so the loader
     // shows rather than the wrong slide sitting there looking current.
     setSrc(null);
+    setState('rendering');
+
     // A keystroke should not queue a render; wait for the edit to settle.
     const timer = setTimeout(() => {
-      // With a template, send the SLIDE: the engine casts it into that
-      // template's own layouts, so position, type and bullet styling are the
-      // template's rather than ours. Without one, send the engine's placement.
-      let payload;
-      if (templateId) {
-        payload = { slide, templateId };
-      } else {
-        try { payload = { spec: window.slideToSpec(slide) }; }
-        catch (e) { setState('off'); return; }
-      }
-      fetch(API + '/api/preview_png', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-        .then(r => (r.ok ? r.blob() : Promise.reject(r.status)))
-        .then(blob => {
-          if (dead) return;
-          url = URL.createObjectURL(blob);
-          setSrc(url);
-          setState('ok');
-        })
-        .catch(() => { if (!dead) setState('off'); });
+      exactUrl(slide, templateId).then(url => {
+        if (dead) return;
+        if (url) { setSrc(url); setState('ok'); } else { setState('off'); }
+      });
     }, 450);
 
-    return () => {
-      dead = true;
-      clearTimeout(timer);
-      if (url) URL.revokeObjectURL(url);
-    };
+    return () => { dead = true; clearTimeout(timer); };
   }, [sig]);
 
   // While the exact render is on its way, show a loader — not the HTML
@@ -268,4 +328,4 @@ function ExactSlide({ slide, templateId, width, height, children }) {
   );
 }
 
-Object.assign(window, { ExactSlide });
+Object.assign(window, { ExactSlide, ExactThumb, exactUrl });

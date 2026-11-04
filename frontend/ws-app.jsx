@@ -53,19 +53,37 @@ function useBox() {
   return [ref, box];
 }
 
-function Thumb({ slide, w }) {
+/* A thumbnail shows the same picture the stage does. With a template that
+   means the exact render — the filmstrip showing the HTML approximation
+   while the stage showed the real slide was the same inconsistency, just
+   smaller. The render is shared, so a thumbnail costs nothing once the
+   stage has asked for it. */
+function Thumb({ slide, w, template }) {
   const scale = w / SLIDE_W;
-  return (
-    <div style={{ width: w, height: SLIDE_H * scale, overflow: 'hidden', position: 'relative' }}>
-      <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: SLIDE_W, height: SLIDE_H }}>
-        <SlideCard slide={slide} />
+  const h = SLIDE_H * scale;
+  const html = (
+    <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: SLIDE_W, height: SLIDE_H }}>
+      <SlideCard slide={slide} />
+    </div>
+  );
+  if (template && window.ExactThumb) {
+    return (
+      <div style={{ width: w, height: h, overflow: 'hidden', position: 'relative' }}>
+        <window.ExactThumb slide={slide} templateId={template.id} width={w} height={h}>
+          {html}
+        </window.ExactThumb>
       </div>
+    );
+  }
+  return (
+    <div style={{ width: w, height: h, overflow: 'hidden', position: 'relative' }}>
+      {html}
     </div>
   );
 }
 
 /* ── sidebar ──────────────────────────────────────────────── */
-function Sidebar({ collapsed, onCollapse, feature, onFeature, decks, deckId, onPickSlide, onSwitch, onNew, audience, phase, onPhase, phaseStatus }) {
+function Sidebar({ collapsed, onCollapse, feature, onFeature, decks, deckId, onPickSlide, onSwitch, onNew, audience, phase, onPhase, phaseStatus, template }) {
   return (
     <aside className="rail">
       <div className="rail__top">
@@ -100,7 +118,7 @@ function Sidebar({ collapsed, onCollapse, feature, onFeature, decks, deckId, onP
           {decks.map(d => (
             <button key={d.id} className={`deckcard ${d.id === deckId ? 'is-active' : ''}`} onClick={() => onSwitch(d.id)}>
               <span className="deckcard__thumb">{d.slides[0]
-                ? <Thumb slide={d.slides[0]} w={54} />
+                ? <Thumb slide={d.slides[0]} w={54} template={template} />
                 : <span className="deckcard__thumb-empty"><Ico name="new" size={14} /></span>}</span>
               <span className="deckcard__meta">
                 <span className="deckcard__name">{d.title || 'Untitled deck'}</span>
@@ -337,7 +355,7 @@ function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, o
           {deck.slides.map((s, i) => (
             <button key={s.id} className={`railthumb ${s.id === deck.activeId ? 'on' : ''}`} onClick={() => onPickSlide(s.id)}>
               <span className="railthumb__num">{String(i + 1).padStart(2, '0')}</span>
-              <span className="railthumb__thumb"><Thumb slide={s} w={104} /></span>
+              <span className="railthumb__thumb"><Thumb slide={s} w={104} template={template} /></span>
             </button>
           ))}
           <button className="railthumb railthumb--add" onClick={onAdd} title="Add a slide">
@@ -1017,7 +1035,7 @@ function App() {
         onPhase={goPhase}
         decks={decks} deckId={deckId} onPickSlide={id => setDeck(p => ({ ...p, activeId: id }))}
         onSwitch={switchDeck} onNew={newDeck} audience={audience}
-        phase={phase} phaseStatus={phaseStatus}
+        phase={phase} phaseStatus={phaseStatus} template={template}
       />
       <div className="main">
         <div className="topbar">
