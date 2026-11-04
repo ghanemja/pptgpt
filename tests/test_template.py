@@ -178,6 +178,35 @@ def test_delete_takes_the_cached_backdrop_with_it():
             assert not os.path.exists(png), "cached backdrop outlived its template"
 
 
+def test_slides_carry_no_empty_placeholders():
+    """An unfilled placeholder renders its prompt text — "Double-click to add
+    an Image" — in the middle of the deck. The engine fills none of them."""
+    from pptx import Presentation as _P
+    from deckengine.render import open_base, add_slide, _content_placeholders
+
+    with tempfile.TemporaryDirectory() as d:
+        with mock.patch.object(T, "TEMPLATES_DIR", d):
+            prof = T.save_template(open(SAMPLE, "rb").read(), "House.pptx")
+            out = os.path.join(d, "out.pptx")
+            render_deck([resolve(s, prof.theme) for s in DECK], out,
+                        template_path=T.template_path(prof.id))
+            for slide in _P(out).slides:
+                assert not _content_placeholders(slide.shapes), \
+                    "an empty content placeholder reached the deck"
+
+
+def test_blankest_layout_prefers_the_quietest_one():
+    """Real templates rarely ship a layout called Blank; picking by count of
+    CONTENT placeholders avoids landing on title+picture."""
+    from pptx import Presentation as _P
+    from deckengine.render import _blankest_layout, _content_placeholders
+
+    prs = _P(SAMPLE)
+    chosen = _blankest_layout(prs)
+    fewest = min(len(_content_placeholders(l.placeholders)) for l in prs.slide_layouts)
+    assert len(_content_placeholders(chosen.placeholders)) == fewest
+
+
 def test_delete_removes_it():
     with tempfile.TemporaryDirectory() as d:
         with mock.patch.object(T, "TEMPLATES_DIR", d):

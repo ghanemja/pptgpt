@@ -177,13 +177,21 @@ function SlideCard({ slide }) {
   const story = slide.emphasis === 'story';
   const k = ptToScale(slide.fontPt || '16 pt');
   const z = n => Math.round(n * k * 10) / 10;
-  const ff = FONTS[slide.font] || FONTS['Lato'];
+  // A template brings its own type. When one is applied its fonts win over
+  // the workspace's, so the preview reads in the template's voice.
+  const ffBody = pal.bodyFont ? `'${pal.bodyFont}', ${FONTS[slide.font] || FONTS['Lato']}`
+    : (FONTS[slide.font] || FONTS['Lato']);
+  const ffHead = pal.headerFont ? `'${pal.headerFont}', ${ffBody}` : ffBody;
+  const ff = ffBody;
   // A template palette carries a picture of its own master; paint it behind
   // the content so the preview shows what will actually export — the logo,
   // the picture background, the footer rule — not just its colours.
   const base = {
     position: 'relative', width: SLIDE_W, height: SLIDE_H,
-    background: pal.bg, color: pal.ink, padding: '44px 48px',
+    background: pal.bg, color: pal.ink,
+    padding: pal.pad
+      ? `${pal.pad.top}px ${pal.pad.right}px ${pal.pad.bottom}px ${pal.pad.left}px`
+      : '44px 48px',
     display: 'flex', flexDirection: 'column', overflow: 'hidden',
     fontFamily: ff,
     ...(pal.bgImage ? {
@@ -214,7 +222,7 @@ function SlideCard({ slide }) {
     return (
       <div style={{ ...base, justifyContent: 'center', padding: '54px 58px' }}>
         <div style={{ fontSize: z(13), fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: pal.spark, marginBottom: 18 }}>{slide.eyebrow}</div>
-        <h2 style={{ margin: 0, fontSize: z(46), fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.04, maxWidth: '92%' }}>{slide.title}</h2>
+        <h2 style={{ fontFamily: ffHead, margin: 0, fontSize: z(46), fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.04, maxWidth: '92%' }}>{slide.title}</h2>
         {slide.subtitle && <div style={{ marginTop: 18, fontSize: z(19), color: pal.sub, fontWeight: 500, maxWidth: '80%', lineHeight: 1.4 }}>{slide.subtitle}</div>}
         <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: z(12), color: pal.mute, fontWeight: 700, letterSpacing: '0.02em' }}>
           <span>{slide.footer || ''}</span><span>{slide.date || ''}</span>
@@ -227,7 +235,7 @@ function SlideCard({ slide }) {
     return (
       <div style={base}>
         {eyebrow}
-        <h3 style={{ margin: '14px 0 6px', fontSize: z(30), fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{slide.title}</h3>
+        <h3 style={{ fontFamily: ffHead, margin: '14px 0 6px', fontSize: z(30), fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{slide.title}</h3>
         <div style={{ fontSize: z(13), fontWeight: 700, color: pal.mute, marginBottom: 6 }}>{slide.chart.title}</div>
         <div style={{ flex: 1, minHeight: 0 }}><MiniBars data={slide.chart.data} pal={pal} w={SLIDE_W - 96} h={176} /></div>
         {takeaway}
@@ -239,7 +247,7 @@ function SlideCard({ slide }) {
     return (
       <div style={base}>
         {eyebrow}
-        <h3 style={{ margin: '14px 0 8px', fontSize: z(28), fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{slide.title}</h3>
+        <h3 style={{ fontFamily: ffHead, margin: '14px 0 8px', fontSize: z(28), fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{slide.title}</h3>
         {slide.plot.eq && <div style={{ fontSize: z(18), fontWeight: 700, color: pal.accent, marginBottom: 6 }}>{slide.plot.eq}</div>}
         <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center' }}><MiniPlot fn={slide.plot.fn} params={slide.plot.params} pal={pal} w={SLIDE_W - 96} h={170} /></div>
         {takeaway}
@@ -253,7 +261,7 @@ function SlideCard({ slide }) {
   return (
     <div style={base}>
       {eyebrow}
-      <h3 style={{ margin: '14px 0 0', fontSize: z(story ? 40 : 33), fontWeight: 900, letterSpacing: '-0.025em', lineHeight: 1.08, maxWidth: story ? '90%' : '100%' }}>{slide.title}</h3>
+      <h3 style={{ fontFamily: ffHead, margin: '14px 0 0', fontSize: z(story ? 40 : 33), fontWeight: 900, letterSpacing: '-0.025em', lineHeight: 1.08, maxWidth: story ? '90%' : '100%' }}>{slide.title}</h3>
       <div style={{ display: 'flex', gap: 34, marginTop: 20, flex: 1, minHeight: 0 }}>
         {hasMetric && (
           <div style={{ flex: 'none' }}>

@@ -323,9 +323,9 @@ def backdrop_available() -> bool:
 
 def _empty_deck_from(template_src: str, out_pptx: str) -> None:
     """One slide, no content, on the template's own master."""
-    from .render import open_base
+    from .render import open_base, add_slide
     prs, blank = open_base(template_src, 13.333, 7.5)
-    prs.slides.add_slide(blank)
+    add_slide(prs, blank)
     prs.save(out_pptx)
 
 

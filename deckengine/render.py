@@ -98,15 +98,57 @@ def open_base(template_path: str | None, w: float, h: float):
         prs.slide_width = Inches(w)
         prs.slide_height = Inches(h)
 
-    # Prefer a truly blank layout; fall back to the emptiest one available.
-    blank = None
+    return prs, _blankest_layout(prs)
+
+
+# Footer/date/slide-number placeholders are furniture: they carry the
+# template's own branding and should survive. Content placeholders are the
+# ones that render "Click to add title" / "Double-click to add an Image"
+# when left empty, and the engine never fills them — it places its own boxes.
+_FURNITURE_PH = {15, 16, 13}          # FOOTER, DATE, SLIDE_NUMBER
+
+
+def _content_placeholders(shapes) -> list:
+    out = []
+    for shape in shapes:
+        if not getattr(shape, "is_placeholder", False):
+            continue
+        try:
+            kind = int(shape.placeholder_format.type)
+        except (TypeError, ValueError):
+            kind = -1
+        if kind not in _FURNITURE_PH:
+            out.append(shape)
+    return out
+
+
+def _blankest_layout(prs):
+    """The layout that adds least of its own content furniture.
+
+    A real template often has no layout literally called "Blank" — the one
+    this project's own sample has. Counting CONTENT placeholders (not footers)
+    picks the quietest layout in any template, instead of landing on one whose
+    only two placeholders happen to be a title and a picture.
+    """
     for layout in prs.slide_layouts:
         if (layout.name or "").strip().lower() == "blank":
-            blank = layout
-            break
-    if blank is None:
-        blank = min(prs.slide_layouts, key=lambda l: len(l.placeholders._element))
-    return prs, blank
+            return layout
+    return min(prs.slide_layouts, key=lambda l: len(_content_placeholders(l.placeholders)))
+
+
+def add_slide(prs, layout):
+    """A slide on `layout` with its empty content placeholders removed.
+
+    python-pptx clones the layout's placeholders onto the new slide, and an
+    empty one renders its prompt text — "Double-click to add an Image" in the
+    middle of the deck. The engine fills none of them (it places its own
+    boxes, R0.2), so they are dropped; the layout's non-placeholder graphics
+    and the master underneath are untouched.
+    """
+    slide = prs.slides.add_slide(layout)
+    for shape in _content_placeholders(list(slide.shapes)):
+        shape._element.getparent().remove(shape._element)
+    return slide
 
 
 def render_deck(resolved_slides: list[ResolvedSlide], path: str,
@@ -114,7 +156,7 @@ def render_deck(resolved_slides: list[ResolvedSlide], path: str,
     prs, blank = open_base(template_path, CANVAS_W, CANVAS_H)
 
     for rs in resolved_slides:
-        slide = prs.slides.add_slide(blank)
+        slide = add_slide(prs, blank)
 
         # background fill — skipped under a template, whose master already
         # carries the background the brand expects.

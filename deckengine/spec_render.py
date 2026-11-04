@@ -55,7 +55,21 @@ def _hex_to_rgb(color: str) -> RGBColor:
     return RGBColor(int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16))
 
 
-def _font_name(font_key: str | None) -> str:
+def _font_name(font_key: str | None, palette: dict | None = None) -> str:
+    """The typeface for a block.
+
+    A template brings its own type, and a deck drawn onto that template
+    should speak in it. When the spec's palette names the template's faces,
+    they win; otherwise the workspace's own mapping applies. Still
+    judgment-free — the names are carried in, not chosen here.
+    """
+    pal = palette or {}
+    if font_key in (None, "sans"):
+        chosen = pal.get("fontFamily")
+        if chosen:
+            return str(chosen)
+    if font_key == "serif" and pal.get("headingFont"):
+        return str(pal["headingFont"])
     return {"serif": "Georgia", "mono": "Consolas"}.get(font_key or "sans", "Calibri")
 
 
@@ -76,6 +90,7 @@ def _add_filled_rect(slide, x_in, y_in, w_in, h_in, fill_color, radius_px: float
 
 
 def _add_text(slide, x_in, y_in, w_in, h_in, *, text, font, size_pt, weight, italic, color,
+              palette=None,
               align, valign, line_height, letter_spacing, transform):
     tb = slide.shapes.add_textbox(Inches(x_in), Inches(y_in), Inches(w_in), Inches(h_in))
     tf = tb.text_frame
@@ -90,7 +105,7 @@ def _add_text(slide, x_in, y_in, w_in, h_in, *, text, font, size_pt, weight, ita
     p.alignment = _ALIGN.get(align, PP_ALIGN.LEFT)
     run = p.add_run()
     run.text = text.upper() if transform == "uppercase" else text
-    run.font.name = _font_name(font)
+    run.font.name = _font_name(font, palette)
     run.font.size = Pt(size_pt)
     run.font.bold = weight is not None and weight >= 600
     run.font.italic = bool(italic)
@@ -99,6 +114,7 @@ def _add_text(slide, x_in, y_in, w_in, h_in, *, text, font, size_pt, weight, ita
 
 
 def _add_bullets(slide, x_in, y_in, w_in, h_in, *, items, font, size_pt, weight, italic, color,
+                 palette=None,
                  marker, marker_color, gap_px, line_height):
     tb = slide.shapes.add_textbox(Inches(x_in), Inches(y_in), Inches(w_in), Inches(h_in))
     tf = tb.text_frame
@@ -120,13 +136,13 @@ def _add_bullets(slide, x_in, y_in, w_in, h_in, *, items, font, size_pt, weight,
         if prefix:
             r1 = p.add_run()
             r1.text = prefix
-            r1.font.name = _font_name(font)
+            r1.font.name = _font_name(font, palette)
             r1.font.size = Pt(size_pt)
             r1.font.color.rgb = _hex_to_rgb(marker_color or color)
             r1.font.bold = weight is not None and weight >= 600
         r2 = p.add_run()
         r2.text = item
-        r2.font.name = _font_name(font)
+        r2.font.name = _font_name(font, palette)
         r2.font.size = Pt(size_pt)
         r2.font.color.rgb = _hex_to_rgb(color)
         r2.font.italic = bool(italic)
@@ -292,11 +308,11 @@ def render_specs(specs: list[dict], path: str, template_path: str | None = None)
     its background, logo and footer carry through. Still judgment-free: the
     boxes come in already resolved.
     """
-    from .render import open_base
+    from .render import open_base, add_slide
     prs, blank = open_base(template_path, CANVAS_W_IN, CANVAS_H_IN)
 
     for spec in specs:
-        slide = prs.slides.add_slide(blank)
+        slide = add_slide(prs, blank)
         canvas_w = spec.get("canvasW", 1280)
         canvas_h = spec.get("canvasH", 720)
         palette = spec.get("palette") or {}
@@ -324,7 +340,8 @@ def render_specs(specs: list[dict], path: str, template_path: str | None = None)
                                  radius_px=12, canvas_w_px=canvas_w)
                 _add_text(slide, x_in, y_in, w_in, h_in, text=b.get("text", ""),
                           font="sans", size_pt=b.get("size") or 11, weight=600, italic=False,
-                          color=b.get("color") or "#FFFFFF", align="center", valign="middle",
+                          color=b.get("color") or "#FFFFFF", palette=palette,
+                          align="center", valign="middle",
                           line_height=1.1, letter_spacing=0, transform="uppercase")
             elif t == "text":
                 _add_text(slide, x_in, y_in, w_in, h_in,
@@ -334,6 +351,7 @@ def render_specs(specs: list[dict], path: str, template_path: str | None = None)
                           weight=b.get("weight"),
                           italic=b.get("italic"),
                           color=b.get("color") or palette.get("ink") or "#000000",
+                          palette=palette,
                           align=b.get("align") or "left",
                           valign=b.get("valign") or "top",
                           line_height=b.get("lineHeight"),
@@ -347,6 +365,7 @@ def render_specs(specs: list[dict], path: str, template_path: str | None = None)
                              weight=b.get("weight"),
                              italic=b.get("italic"),
                              color=b.get("color") or palette.get("ink") or "#000000",
+                             palette=palette,
                              marker=b.get("marker") or "dot",
                              marker_color=b.get("markerColor"),
                              gap_px=b.get("gap"),

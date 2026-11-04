@@ -61,7 +61,7 @@
         text: slide.footer || '', font: 'sans', size: PT(12), weight: 700, color: p.mute });
       blocks.push({ type: 'text', x: X(500), y: X(370), w: X(180), h: X(16),
         text: slide.date || '', font: 'sans', size: PT(12), weight: 700, color: p.mute, align: 'right' });
-      return { canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute }, blocks };
+      return { canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks };
     }
 
     blocks.push(eyebrowBlock(slide, p, 44));
@@ -76,7 +76,7 @@
         labelColor: p.mute, gridColor: p.bg, axisColor: p.mute, showValueLabels: true });
       const tk = takeawayBlock(slide, p, 335, 40); if (tk) blocks.push(tk);
       const ft = footerBlock(slide, p); if (ft) blocks.push(ft);
-      return { canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute }, blocks };
+      return { canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks };
     }
 
     if (slide.kind === 'plot' && slide.plot) {
@@ -92,7 +92,7 @@
         axisColor: p.mute, curves: [{ fn: slide.plot.fn || 'damped', params, color: p.accent, width: 2.4 }] });
       const tk = takeawayBlock(slide, p, 335, 40); if (tk) blocks.push(tk);
       const ft = footerBlock(slide, p); if (ft) blocks.push(ft);
-      return { canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute }, blocks };
+      return { canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks };
     }
 
     // text slide
@@ -117,7 +117,7 @@
     }
     const tk = takeawayBlock(slide, p, 335, 40); if (tk) blocks.push(tk);
     const ft = footerBlock(slide, p); if (ft) blocks.push(ft);
-    return { canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute }, blocks };
+    return { canvasW: CANVAS_W, canvasH: CANVAS_H, palette: { bg: p.bg, ink: p.ink, accent: p.accent, muted: p.mute, fontFamily: p.bodyFont || null, headingFont: p.headerFont || null }, blocks };
   }
 
   Object.assign(window, { slideToSpec });

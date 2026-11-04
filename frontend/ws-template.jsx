@@ -40,14 +40,31 @@ function paletteFromTemplate(tpl) {
   const sampled = tpl.backdrop || null;
   const dark = sampled ? !!sampled.dark : !!t.dark;
   const bg = (sampled && hx(sampled.bg)) || hx(t.primary) || (dark ? '#12130F' : '#FFFFFF');
-  const ink = hx(dark ? t.fg_on_dark : t.fg_on_light) || (dark ? '#FAF7EF' : '#11120E');
-  const sub = hx(dark ? t.sub_on_dark : t.sub_on_light) || (dark ? '#CFC9B7' : '#3D3F38');
   const accent = hx(t.accent) || '#0E5B36';
+
+  // Text colour follows the background we actually render on. The theme's
+  // sub_on_dark is a brand tint (often a pale blue) that reads as washed-out
+  // body copy on someone else's master, so body text is the ink colour held
+  // back a little rather than a different hue.
+  const ink = dark ? '#FFFFFF' : '#11120E';
+  const sub = dark ? 'rgba(255,255,255,0.82)' : 'rgba(17,18,14,0.74)';
   return {
     key: 'template', label: tpl.name || 'Template', swatch: accent,
     bg, ink, sub, mute: sub, accent, spark: accent,
-    rule: dark ? 'rgba(255,255,255,0.14)' : '#ECEAE2',
+    rule: dark ? 'rgba(255,255,255,0.22)' : 'rgba(17,18,14,0.14)',
     bgImage: tpl.id ? `${API}/api/templates/${tpl.id}/backdrop.png` : null,
+    // The template's own type, used for the preview and carried into export.
+    headerFont: t.header_font || null,
+    bodyFont: t.body_font || null,
+    // The engine's working margins for this template, in preview pixels, so
+    // the preview keeps content clear of a logo band or an ornamental frame
+    // instead of running underneath it. 720px of preview = 13.333in.
+    pad: tpl.margins ? {
+      top: Math.round(tpl.margins.top * (720 / 13.333)),
+      right: Math.round(tpl.margins.right * (720 / 13.333)),
+      bottom: Math.round(tpl.margins.bottom * (720 / 13.333)),
+      left: Math.round(tpl.margins.left * (720 / 13.333)),
+    } : null,
   };
 }
 
