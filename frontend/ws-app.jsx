@@ -272,9 +272,12 @@ function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, o
   const atFirst = idx <= 0;
   const atLast = idx === deck.slides.length - 1;
 
-  const availW = Math.max(220, box.w - 2 * 44 - 2 * 16 - 40);
-  const availH = Math.max(150, box.h - 40 - 34);
-  const scale = Math.max(0.3, Math.min(availW / SLIDE_W, availH / SLIDE_H, 1.5));
+  // Arrows (2x36) + their gaps (2x10) + the view's own padding (2x12), and
+  // vertically the caption strip. Tight on purpose: this is the slide, and it
+  // should read at the size a .pptx editor shows one.
+  const availW = Math.max(220, box.w - 2 * 36 - 2 * 10 - 24);
+  const availH = Math.max(150, box.h - 24 - 30);
+  const scale = Math.max(0.3, Math.min(availW / SLIDE_W, availH / SLIDE_H, 2.2));
 
   const showInit = !loading && deck.slides.length === 0;
 
@@ -285,18 +288,6 @@ function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, o
   return (
     <div className="stage__scroll stage__scroll--card">
       <div className="stagecard">
-        <div className="stagecard__rail">
-          {deck.slides.map((s, i) => (
-            <button key={s.id} className={`railthumb ${s.id === deck.activeId ? 'on' : ''}`} onClick={() => onPickSlide(s.id)}>
-              <span className="railthumb__num">{String(i + 1).padStart(2, '0')}</span>
-              <span className="railthumb__thumb"><Thumb slide={s} w={104} /></span>
-            </button>
-          ))}
-          <button className="railthumb railthumb--add" onClick={onAdd} title="Add a slide">
-            <Ico name="new" size={18} /><span>Add slide</span>
-          </button>
-        </div>
-
         <div className="stagecard__view" ref={boxRef}>
           <div className="stagecard__stage">
             <button className="navarrow" onClick={onPrev} disabled={atFirst || loading} title="Previous slide">
@@ -331,6 +322,18 @@ function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, o
             </div>
           )}
         </div>
+        <div className="stagecard__rail">
+          {deck.slides.map((s, i) => (
+            <button key={s.id} className={`railthumb ${s.id === deck.activeId ? 'on' : ''}`} onClick={() => onPickSlide(s.id)}>
+              <span className="railthumb__num">{String(i + 1).padStart(2, '0')}</span>
+              <span className="railthumb__thumb"><Thumb slide={s} w={104} /></span>
+            </button>
+          ))}
+          <button className="railthumb railthumb--add" onClick={onAdd} title="Add a slide">
+            <Ico name="new" size={18} /><span>Add slide</span>
+          </button>
+        </div>
+
       </div>
     </div>
   );

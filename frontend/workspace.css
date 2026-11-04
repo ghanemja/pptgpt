@@ -452,18 +452,21 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 .stage__scroll--init { align-items: center; justify-content: center; overflow-y: auto; scrollbar-gutter: stable; padding: 26px 24px; }
 
 /* integrated stage card: vertical slide rail + viewer + arrows */
+/* The slide deserves the room: the stage runs tight to the panel edges so
+   the preview reads at roughly the size a .pptx editor shows one. */
+.stage__scroll--card { padding: 10px 12px; }
 .stagecard { flex: 1; min-height: 0; display: flex; background: none; overflow: hidden; }
-.stagecard__rail { width: 132px; flex: none; background: none; border: none; display: flex; flex-direction: column; gap: 9px; padding: 4px 14px 4px 2px; overflow-y: auto; scrollbar-width: thin; }
-.railthumb { position: relative; border: 2px solid transparent; border-radius: var(--r-sm); overflow: hidden; background: var(--card); box-shadow: var(--shadow-card); transition: border-color 140ms, transform 120ms; flex: none; }
+.stagecard__rail { width: 132px; flex: none; background: none; border: none; display: flex; flex-direction: column; gap: 9px; padding: 4px 2px 4px 14px; overflow-y: auto; scrollbar-width: thin; }
+.railthumb { position: relative; border: 2px solid transparent; border-radius: 0; overflow: hidden; background: var(--card); box-shadow: var(--shadow-card); transition: border-color 140ms, transform 120ms; flex: none; }
 .railthumb:hover { transform: translateY(-1px); }
 .railthumb.on { border-color: var(--accent); }
 .railthumb__num { position: absolute; top: 4px; left: 5px; z-index: 2; font-size: 9px; font-weight: 900; color: #fff; background: rgba(17,18,14,0.6); border-radius: 4px; padding: 1px 5px; }
 .railthumb__thumb { display: block; }
-.railthumb--add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; height: 62px; border: 2px dashed var(--border); background: var(--bg-3); color: var(--mute); font-size: 11px; font-weight: 700; box-shadow: none; }
+.railthumb--add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; height: 62px; border-radius: 0; border: 2px dashed var(--border); background: var(--bg-3); color: var(--mute); font-size: 11px; font-weight: 700; box-shadow: none; }
 .railthumb--add:hover { border-color: var(--accent); color: var(--accent); transform: none; }
 
-.stagecard__view { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 20px; }
-.stagecard__stage { display: flex; align-items: center; gap: 16px; }
+.stagecard__view { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 12px; }
+.stagecard__stage { display: flex; align-items: center; gap: 10px; }
 .stagecard__slide { display: flex; align-items: center; justify-content: center; }
 .navarrow { width: 44px; height: 44px; flex: none; border-radius: var(--r); border: var(--bw) solid var(--border); background: var(--card); color: var(--ink-2); display: grid; place-items: center; box-shadow: var(--shadow-card); transition: border-color 140ms, background 140ms, transform 120ms, color 140ms; }
 .navarrow:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
@@ -476,7 +479,10 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 
 .work { width: 100%; max-width: 900px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
 .slide-shell { width: 100%; display: flex; justify-content: center; }
-.slide-frame { border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-slide); border: 1px solid rgba(0,0,0,0.06); position: relative; }
+/* A slide is a 90-degree rectangle everywhere else it is ever shown — in
+   PowerPoint, in Keynote, in a projector. Rounding it here made the preview
+   read as a card rather than as the artefact being edited. */
+.slide-frame { border-radius: 0; overflow: hidden; box-shadow: var(--shadow-slide); border: 1px solid rgba(0,0,0,0.10); position: relative; }
 .slide-frame.is-updating { animation: slidepulse 620ms var(--ease); }
 @keyframes slidepulse { 0% { box-shadow: 0 0 0 0 var(--accent-soft), var(--shadow-slide); } 60% { box-shadow: 0 0 0 5px var(--accent-soft), var(--shadow-slide); } 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0), var(--shadow-slide); } }
 
