@@ -62,11 +62,13 @@ font, size or colour onto a run.
   sampled off that render rather than guessed from the theme. Optional
   dependency: without `soffice` the backdrop endpoint 503s and the UI falls
   back to the template's palette.
-- `deckengine/coach.py` — the critic. Named LENSES (ask, evidence, source,
+- `deckengine/coach.py` — the critic, per slide and per deck. Named LENSES (ask, evidence, source,
   comparison, density, title, hedge, jargon, ownership, handoff) find what
   is wrong with a slide by rule; a PERSONA in `coaches/*.json` decides which
-  lenses matter, how hard to push and in whose voice. Deterministic, so a
-  note is a property of the slide. Notes never carry geometry.
+  lenses matter, how hard to push and in whose voice. `review_deck` reads a
+  whole deck and tallies where it is weakest; `apply_overrides` tunes a
+  persona for one sitting without editing its file. Deterministic, so a note
+  is a property of the slide. Notes never carry geometry.
 - `deckengine/org.py` — per-organization profiles loaded from `orgs/*.json`:
   the scoping interview, narrative arc and house style rules. Convention,
   never geometry — the loader rejects a profile carrying coordinates.

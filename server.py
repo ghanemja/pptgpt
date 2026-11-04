@@ -67,7 +67,8 @@ from deckengine.ambiguity import detect as detect_questions, to_dict as q_to_dic
 from deckengine.org import list_orgs, load_org, to_dict as org_to_dict, OrgError
 from deckengine.preview import slide_png, native_png, available as preview_available
 from deckengine.coach import (
-    list_personas, load_persona, critique_slide, critique_deck, CoachError,
+    list_personas, load_persona, critique_slide, review_deck, LENSES as COACH_LENSES,
+    CoachError,
 )
 from deckengine.template import (
     save_template, load_template, list_templates, delete_template,
@@ -127,6 +128,7 @@ class CritiqueSlideReq(BaseModel):
 class CritiqueDeckReq(BaseModel):
     slides: list[dict] = []
     coach: str = "board-chair"
+    overrides: dict | None = None   # {strictness, lenses} tuned for this run
 
 
 class PreviewReq(BaseModel):
@@ -242,13 +244,21 @@ def api_critique_slide(req: CritiqueSlideReq):
     return critique_slide(req.slide, persona, context={"next": req.next})
 
 
+@app.get("/api/coach_lenses")
+def api_coach_lenses():
+    """Every lens a persona can be tuned with, for the review's own UI."""
+    return {"lenses": sorted(COACH_LENSES)}
+
+
 @app.post("/api/critique_deck")
 def api_critique_deck(req: CritiqueDeckReq):
+    """The whole deck, read by one persona, with deck-level counts."""
     try:
         persona = load_persona(req.coach)
+        return review_deck(req.slides, persona, req.overrides)
     except CoachError as e:
-        return JSONResponse({"error": str(e)}, status_code=404)
-    return {"results": critique_deck(req.slides, persona)}
+        status = 404 if "no coach" in str(e) or "bad coach" in str(e) else 400
+        return JSONResponse({"error": str(e)}, status_code=status)
 
 
 @app.get("/api/templates")

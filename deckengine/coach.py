@@ -314,14 +314,91 @@ def critique_slide(slide: dict[str, Any], persona: Persona,
     }
 
 
+def apply_overrides(persona: Persona, overrides: Optional[dict[str, Any]]) -> Persona:
+    """A persona tuned for one sitting, without editing its file.
+
+    The shipped personas are starting points. Someone preparing for a
+    specific room wants to say "this one, but harder, and I do not care
+    about jargon today" — so strictness and lens weights can be overridden
+    per run. The override is validated the same way the file is: an unknown
+    lens is an error rather than a silently ignored key.
+    """
+    if not overrides:
+        return persona
+
+    lenses = dict(persona.lenses)
+    for key, weight in (overrides.get("lenses") or {}).items():
+        if key not in LENSES:
+            raise CoachError(f"unknown lens {key!r}; known: {sorted(LENSES)}")
+        w = max(0, min(3, int(weight)))
+        if w == 0:
+            lenses.pop(key, None)
+        else:
+            lenses[key] = w
+    if not lenses:
+        raise CoachError("an override cannot switch every lens off")
+
+    strict = overrides.get("strictness") or persona.strictness
+    if strict not in STRICTNESS:
+        raise CoachError(f"strictness {strict!r} not in {sorted(STRICTNESS)}")
+
+    return Persona(slug=persona.slug, name=persona.name, tagline=persona.tagline,
+                   voice=persona.voice, lenses=lenses, strictness=strict)
+
+
 def critique_deck(slides: list[dict[str, Any]], persona: Persona) -> list[dict[str, Any]]:
     out = []
     for i, slide in enumerate(slides):
         ctx = {"index": i, "next": slides[i + 1] if i + 1 < len(slides) else None}
         result = critique_slide(slide, persona, context=ctx)
         result["slideId"] = slide.get("id")
+        result["index"] = i
         out.append(result)
     return out
+
+
+def review_deck(slides: list[dict[str, Any]], persona: Persona,
+                overrides: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """The whole deck read end to end, with the deck-level counts.
+
+    Per-slide notes answer "what is wrong here". A review also has to answer
+    "where is this deck weakest" — which is a property of the set, not of any
+    one slide, so the tally lives here rather than in the UI.
+    """
+    tuned = apply_overrides(persona, overrides)
+    results = critique_deck(slides, tuned)
+
+    by_severity = {BLOCKER: 0, PUSH: 0, NIT: 0}
+    by_lens: dict[str, int] = {}
+    for r in results:
+        for n in r["notes"]:
+            by_severity[n["severity"]] += 1
+            by_lens[n["lens"]] = by_lens.get(n["lens"], 0) + 1
+
+    worst = sorted(
+        results,
+        key=lambda r: (-sum(1 for n in r["notes"] if n["severity"] == BLOCKER),
+                       -len(r["notes"]), r["index"]),
+    )
+    weakest = [r["index"] for r in worst if r["notes"]][:3]
+
+    return {
+        "coach": {"slug": tuned.slug, "name": tuned.name,
+                  "opening": tuned.voice.opening, "signature": tuned.voice.signature,
+                  "strictness": tuned.strictness,
+                  "lenses": dict(sorted(tuned.lenses.items(), key=lambda kv: -kv[1]))},
+        "results": results,
+        "summary": {
+            "slides": len(results),
+            "clear": sum(1 for r in results if not r["notes"]),
+            "severities": by_severity,
+            "lenses": dict(sorted(by_lens.items(), key=lambda kv: -kv[1])),
+            "weakest": weakest,
+            "verdict": ("blocker" if by_severity[BLOCKER] else
+                        "push" if by_severity[PUSH] else
+                        "nit" if by_severity[NIT] else "clear"),
+        },
+    }
 
 
 def to_dict(p: Persona) -> dict[str, Any]:

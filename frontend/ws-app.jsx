@@ -708,6 +708,8 @@ function App() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyFilter, setHistoryFilter] = useState('all');
   const [coachOpen, setCoachOpen] = useState(false);
+  // Phase 05 is 'done' once the deck has been read by somebody.
+  const [reviewed, setReviewed] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [pulseId, setPulseId] = useState(null);
   const [dynCats, setDynCats] = useState([]);
@@ -1256,6 +1258,12 @@ function App() {
       locked: !hasSlides,
       why: 'No slides yet. Build the storyboard first, then fuse it here.',
     },
+    review: {
+      done: reviewed,
+      note: reviewed ? 'read' : null,
+      locked: !hasSlides,
+      why: 'Nothing to object to yet. Build the deck, then let someone tear at it.',
+    },
   };
 
   // Clicking a locked step does not silently refuse: if its input can be
@@ -1319,7 +1327,21 @@ function App() {
         </div>
 
         <div className="stage">
-          {phase === 'scope' ? (
+          {phase === 'review' ? (
+            hasSlides && window.ReviewPhase ? (
+              <window.ReviewPhase
+                deck={deck}
+                onOpenSlide={id => { setDeck(p => ({ ...p, activeId: id })); setPhase('deck'); }}
+                onReviewed={() => setReviewed(true)}
+              />
+            ) : (
+              <PhaseEmpty
+                title={<>Nothing to <em>object</em> to</>}
+                body="A review reads the whole deck as one argument. Build it first."
+                cta="Back to the deck" onCta={() => setPhase('deck')}
+              />
+            )
+          ) : phase === 'scope' ? (
             <ScopePhase
               org={org} orgs={orgs} orgSlug={orgSlug} onOrg={setOrgSlug} offline={orgOffline}
               answers={scopeAnswers} onAnswer={setScopeAnswer} onStart={startFromBrief}
@@ -1372,7 +1394,7 @@ function App() {
 
         {/* Scope is a form, not a conversation. Every other phase owns at
             least one tool that takes text, so the composer stays. */}
-        {phase === 'scope' ? null : <Composer
+        {phase === 'scope' || phase === 'review' ? null : <Composer
           feature={feature} draft={draft} setDraft={setDraft} files={files} setFiles={setFiles}
           audience={audience} setAudience={setAudience} onSend={() => doSend()} loading={loading}
           showPresets={false} onPreset={s => setDraft(s)}

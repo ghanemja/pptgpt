@@ -29,6 +29,7 @@ const PHASES = [
   { key: 'story',   name: 'Story',   icon: 'layout',  sub: 'title · 3 messages · bumper', tools: ['condense'] },
   { key: 'visuals', name: 'Visuals', icon: 'palette', sub: 'house style · graphics', tools: ['data'] },
   { key: 'deck',    name: 'Deck',    icon: 'createx', sub: 'fuse it · export', tools: ['create', 'refine'] },
+  { key: 'review',  name: 'Review',  icon: 'spark',   sub: 'who will object', tools: [] },
 ];
 
 /* Which phase a tool belongs to — the inverse of PHASES[].tools. */

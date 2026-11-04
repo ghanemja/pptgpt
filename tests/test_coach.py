@@ -149,6 +149,94 @@ def test_deck_critique_carries_slide_ids_and_handoffs():
     assert out[1]["verdict"] == "blocker"
 
 
+# ── deck-level review ───────────────────────────────────────────────
+
+# The strong slide goes LAST: in the middle it collects a handoff note,
+# because the slide after it does not follow from it. See the test below.
+DECK = [dict(WEAK, id="a"), dict(WEAK, id="b"), dict(STRONG, id="c")]
+
+
+def test_review_counts_the_whole_deck():
+    r = C.review_deck(DECK, C.load_persona("board-chair"))
+    s = r["summary"]
+    assert s["slides"] == 3
+    assert s["clear"] == 1, [x["notes"] for x in r["results"]]
+    assert s["severities"]["blocker"] >= 1
+    assert s["verdict"] == "blocker"
+    assert sum(s["severities"].values()) == sum(len(x["notes"]) for x in r["results"])
+
+
+def test_review_names_the_weakest_slides_worst_first():
+    r = C.review_deck(DECK, C.load_persona("board-chair"))
+    weakest = r["summary"]["weakest"]
+    assert 2 not in weakest, "the clear slide cannot be weakest"
+    assert weakest[0] in (0, 1)
+    assert len(weakest) <= 3
+
+
+def test_a_slide_can_be_clear_alone_and_flagged_in_sequence():
+    """A review reads the deck as one argument, not as a pile of slides.
+
+    The strong slide passes on its own; placed before a slide that does not
+    follow from it, the handoff lens has something to say. That is the
+    difference between the Coach and a review.
+    """
+    persona = C.load_persona("board-chair")
+    assert not C.critique_slide(STRONG, persona)["notes"]
+
+    middle = C.review_deck([dict(WEAK, id="a"), dict(STRONG, id="b"), dict(WEAK, id="c")], persona)
+    flagged = {n["lens"] for n in middle["results"][1]["notes"]}
+    assert flagged == {"handoff"}, flagged
+
+
+def test_results_carry_slide_identity():
+    r = C.review_deck(DECK, C.load_persona("friendly-editor"))
+    assert [x["slideId"] for x in r["results"]] == ["a", "b", "c"]
+    assert [x["index"] for x in r["results"]] == [0, 1, 2]
+
+
+def test_an_override_tunes_a_persona_without_editing_it():
+    base = C.load_persona("board-chair")
+    tuned = C.apply_overrides(base, {"strictness": "soft", "lenses": {"jargon": 0, "density": 3}})
+    assert "jargon" not in tuned.lenses
+    assert tuned.lenses["density"] == 3
+    assert tuned.strictness == "soft"
+    # the file on disk is untouched
+    assert C.load_persona("board-chair").lenses == base.lenses
+    assert "jargon" in C.load_persona("board-chair").lenses
+
+
+def test_switching_a_lens_off_removes_its_notes():
+    persona = C.load_persona("board-chair")
+    with_jargon = C.review_deck(DECK, persona)
+    without = C.review_deck(DECK, persona, {"lenses": {"jargon": 0}})
+    assert "jargon" in with_jargon["summary"]["lenses"]
+    assert "jargon" not in without["summary"]["lenses"]
+
+
+def test_strictness_override_changes_the_verdict_not_the_findings():
+    persona = C.load_persona("board-chair")
+    hard = C.review_deck(DECK, persona, {"strictness": "hard"})
+    soft = C.review_deck(DECK, persona, {"strictness": "soft"})
+    count = lambda r: sum(len(x["notes"]) for x in r["results"])
+    assert count(hard) == count(soft), "strictness must not invent or hide findings"
+    assert hard["summary"]["severities"]["blocker"] >= soft["summary"]["severities"]["blocker"]
+
+
+def test_a_bad_override_is_refused():
+    persona = C.load_persona("board-chair")
+    _expect_error(lambda: C.apply_overrides(persona, {"lenses": {"vibes": 2}}), "unknown lens")
+    _expect_error(lambda: C.apply_overrides(persona, {"strictness": "brutal"}), "strictness")
+    allzero = {k: 0 for k in persona.lenses}
+    _expect_error(lambda: C.apply_overrides(persona, {"lenses": allzero}), "every lens off")
+
+
+def test_an_empty_deck_reviews_clean():
+    r = C.review_deck([], C.load_persona("board-chair"))
+    assert r["summary"]["verdict"] == "clear"
+    assert r["summary"]["weakest"] == []
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed = 0
