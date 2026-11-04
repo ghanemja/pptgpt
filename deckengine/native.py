@@ -32,6 +32,8 @@ from typing import Any, Optional
 from pptx import Presentation
 from pptx.util import Emu
 
+from .template import profile_from_file, sample_backdrop
+
 # Placeholder type ids (MSO_PLACEHOLDER) we care about.
 PH_TITLE, PH_BODY, PH_CENTER_TITLE, PH_SUBTITLE = 1, 2, 3, 4
 PH_OBJECT, PH_PICTURE = 7, 18
@@ -229,7 +231,42 @@ def _body_lines(slide: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _visual_png(slide: dict[str, Any]) -> Optional[bytes]:
+def _chart_palette(profile) -> dict[str, str]:
+    """Chart colours taken from the template, not from the engine.
+
+    A chart drawn in the engine's own emerald on white sits on a brand
+    template looking like it was pasted in from somewhere else — which is
+    what it was. The bars take the template's accent, the plate takes the
+    background its master actually renders, and the labels take whatever
+    reads against that.
+    """
+    theme = getattr(profile, "theme", None)
+    accent = getattr(theme, "accent", None) or "1E2761"
+    sampled = sample_backdrop(profile.id) if getattr(profile, "id", "") else None
+    bg = (sampled or {}).get("bg") or getattr(theme, "primary", None) or "FFFFFF"
+    dark = (sampled or {}).get("dark")
+    if dark is None:
+        dark = bool(getattr(theme, "dark", False))
+    ink = "FFFFFF" if dark else "11120E"
+
+    # A brand accent is chosen to sit beside the background, not to be read
+    # against it: this template's accent1 is olive on an olive master, which
+    # draws bars you cannot see. Fall back to the text colour when the
+    # contrast is too thin to carry data.
+    from .template import _luma
+    if abs(_luma(accent) - _luma(bg)) < 0.22:
+        accent = ink
+
+    return {
+        "bg": f"#{bg}",
+        "primaryColor": f"#{accent}",
+        "labelColor": f"#{ink}",
+        "axisColor": f"#{ink}",
+        "gridColor": f"#{ink}",
+    }
+
+
+def _visual_png(slide: dict[str, Any], profile=None) -> Optional[bytes]:
     """The slide's visual as PNG bytes, if it has one.
 
     A chart or a plot is content, and a template usually has somewhere
@@ -238,15 +275,19 @@ def _visual_png(slide: dict[str, Any]) -> Optional[bytes]:
     """
     chart = slide.get("chart")
     if chart and chart.get("data"):
-        from .render import _render_chart_png
+        from .spec_render import _render_chart_png
         rows = [r for r in chart["data"] if r.get("label") is not None]
         if rows:
-            return _render_chart_png({
-                "type": "bar",
-                "categories": [str(r.get("label")) for r in rows],
-                "series": [{"name": chart.get("title") or "",
-                            "values": [r.get("value") or 0 for r in rows]}],
-            })
+            block = {
+                "w": 900, "h": 520,
+                "kind": "line" if (chart.get("kind") == "line") else "bar",
+                "data": [{"label": str(r.get("label")), "value": r.get("value") or 0}
+                         for r in rows],
+                "showValueLabels": True,
+            }
+            if profile is not None:
+                block.update(_chart_palette(profile))
+            return _render_chart_png(block)
     plot = slide.get("plot")
     if plot:
         from .spec_render import _render_plot_png
@@ -319,6 +360,10 @@ def render_native(slides: list[dict[str, Any]], path: str, template_path: str) -
     from .render import open_base
 
     prs, _ = open_base(template_path, 13.333, 7.5)
+    try:
+        profile = profile_from_file(template_path)
+    except Exception:
+        profile = None
 
     for slide in slides:
         role = classify(slide)
@@ -347,7 +392,7 @@ def render_native(slides: list[dict[str, Any]], path: str, template_path: str) -
 
         # The visual goes in the designed slot before the text claims it.
         if role == ROLE_PICTURE:
-            png = _visual_png(slide)
+            png = _visual_png(slide, profile)
             slots = [i for i in roles["pictures"] if i in by_idx] or \
                     [i for i in roles["bodies"] if i in by_idx]
             if png and slots:
