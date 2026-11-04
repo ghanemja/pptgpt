@@ -128,6 +128,56 @@ def test_bad_ids_never_touch_the_filesystem():
     assert T.template_path("abcdef123456") is None
 
 
+def test_backdrop_is_a_picture_of_the_master():
+    """The preview backdrop must show the master, not just its colours."""
+    if not T.backdrop_available():
+        print("SKIP  no LibreOffice on this host")
+        return
+    with tempfile.TemporaryDirectory() as d:
+        with mock.patch.object(T, "TEMPLATES_DIR", d):
+            prof = T.save_template(open(SAMPLE, "rb").read(), "House.pptx")
+            png = T.backdrop_png(prof.id)
+            assert png and os.path.isfile(png)
+
+            from PIL import Image
+            with Image.open(png) as im:
+                assert im.size[0] > 600 and im.size[1] > 300, f"tiny backdrop {im.size}"
+                assert abs(im.size[0] / im.size[1] - 16 / 9) < 0.02, "backdrop is not 16:9"
+
+            # Second call is served from cache, not re-rendered.
+            before = os.path.getmtime(png)
+            assert T.backdrop_png(prof.id) == png
+            assert os.path.getmtime(png) == before
+
+
+def test_background_is_sampled_from_the_render_not_the_theme():
+    """A navy brand colour on white paper must not yield white-on-white."""
+    if not T.backdrop_available():
+        print("SKIP  no LibreOffice on this host")
+        return
+    with tempfile.TemporaryDirectory() as d:
+        with mock.patch.object(T, "TEMPLATES_DIR", d):
+            prof = T.save_template(open(SAMPLE, "rb").read(), "House.pptx")
+            sampled = T.sample_backdrop(prof.id)
+            assert sampled and "bg" in sampled and "dark" in sampled
+            # This template renders on white, whatever its theme's dk2 says.
+            assert sampled["dark"] is False, sampled
+            d2 = T.to_dict(T.load_template(prof.id))
+            assert d2["theme"]["dark"] is sampled["dark"], "profile ignored the sample"
+
+
+def test_delete_takes_the_cached_backdrop_with_it():
+    if not T.backdrop_available():
+        print("SKIP  no LibreOffice on this host")
+        return
+    with tempfile.TemporaryDirectory() as d:
+        with mock.patch.object(T, "TEMPLATES_DIR", d):
+            prof = T.save_template(open(SAMPLE, "rb").read(), "House.pptx")
+            png = T.backdrop_png(prof.id)
+            T.delete_template(prof.id)
+            assert not os.path.exists(png), "cached backdrop outlived its template"
+
+
 def test_delete_removes_it():
     with tempfile.TemporaryDirectory() as d:
         with mock.patch.object(T, "TEMPLATES_DIR", d):

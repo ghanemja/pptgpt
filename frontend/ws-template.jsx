@@ -23,13 +23,23 @@ const API = window.WS_NO_BACKEND ? ''
   : ((window.BU_API_BASE || '').replace(/\/$/, '')
     || ((location.protocol === 'http:' || location.protocol === 'https:') ? location.origin : ''));
 
-/* A template's theme -> the palette shape the preview renders with.
-   Pure translation, no judgement: the colours are the template's. */
+/* A template's theme -> the palette shape the preview renders with, plus a
+   picture of its own master as the backdrop.
+
+   Colours alone were a preview that lied: the export carried the template's
+   logo, picture background and footer while the screen showed three flat
+   swatches. `bgImage` is a PNG of one empty slide on that master, rendered
+   server-side through LibreOffice — the real thing, not an approximation.
+   It is a picture, not geometry: no coordinate from it reaches layout. */
 function paletteFromTemplate(tpl) {
   const t = tpl.theme || {};
   const hx = v => (v && /^[0-9A-Fa-f]{6}$/.test(v) ? `#${v}` : null);
-  const dark = !!t.dark;
-  const bg = hx(t.primary) || (dark ? '#12130F' : '#FFFFFF');
+  // The rendered master is the truth about the background. A template can
+  // carry a navy brand colour on white paper, and trusting the theme there
+  // put white type on a white slide.
+  const sampled = tpl.backdrop || null;
+  const dark = sampled ? !!sampled.dark : !!t.dark;
+  const bg = (sampled && hx(sampled.bg)) || hx(t.primary) || (dark ? '#12130F' : '#FFFFFF');
   const ink = hx(dark ? t.fg_on_dark : t.fg_on_light) || (dark ? '#FAF7EF' : '#11120E');
   const sub = hx(dark ? t.sub_on_dark : t.sub_on_light) || (dark ? '#CFC9B7' : '#3D3F38');
   const accent = hx(t.accent) || '#0E5B36';
@@ -37,6 +47,7 @@ function paletteFromTemplate(tpl) {
     key: 'template', label: tpl.name || 'Template', swatch: accent,
     bg, ink, sub, mute: sub, accent, spark: accent,
     rule: dark ? 'rgba(255,255,255,0.14)' : '#ECEAE2',
+    bgImage: tpl.id ? `${API}/api/templates/${tpl.id}/backdrop.png` : null,
   };
 }
 

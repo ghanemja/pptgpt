@@ -25,6 +25,9 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 from dataclasses import dataclass, field, asdict
 from typing import Any, Optional
 
@@ -272,13 +275,145 @@ def list_templates() -> list[dict[str, Any]]:
 def delete_template(tid: str) -> bool:
     path = _path_for(tid)
     os.remove(path)
+    cached = os.path.join(TEMPLATES_DIR, f"{tid}.backdrop.png")
+    if os.path.isfile(cached):
+        try:
+            os.remove(cached)
+        except OSError:
+            pass
     return True
+
+
+# ---- backdrop rasterisation ------------------------------------------------
+#
+# A palette is not a template. Showing one as a few colours in the preview
+# while the export carries the master's logo, picture background and footer
+# is a preview that lies. So we render the template's own master to a PNG —
+# one empty slide through LibreOffice, which is the same engine PowerPoint
+# files round-trip through everywhere else — and show THAT behind the
+# engine-placed text.
+#
+# This is a picture of the template, not a source of layout: no coordinate
+# from it reaches layout.py (R0.1). It is the backdrop, exactly as the
+# template file is the backdrop at render time.
+
+SOFFICE_CANDIDATES = (
+    "soffice",
+    "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+    "/usr/bin/soffice",
+    "/usr/lib/libreoffice/program/soffice",
+)
+BACKDROP_TIMEOUT_S = 90
+
+
+def _soffice() -> Optional[str]:
+    """The LibreOffice binary, or None when this machine has none."""
+    found = shutil.which(SOFFICE_CANDIDATES[0])
+    if found:
+        return found
+    for path in SOFFICE_CANDIDATES[1:]:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return None
+
+
+def backdrop_available() -> bool:
+    return _soffice() is not None
+
+
+def _empty_deck_from(template_src: str, out_pptx: str) -> None:
+    """One slide, no content, on the template's own master."""
+    from .render import open_base
+    prs, blank = open_base(template_src, 13.333, 7.5)
+    prs.slides.add_slide(blank)
+    prs.save(out_pptx)
+
+
+def backdrop_png(tid: str, *, force: bool = False) -> Optional[str]:
+    """Path to a PNG of the template's master, or None if we cannot make one.
+
+    Cached beside the template and keyed by it, so the cost is paid once per
+    upload rather than per preview.
+    """
+    src = _path_for(tid)
+    out_png = os.path.join(TEMPLATES_DIR, f"{tid}.backdrop.png")
+    if os.path.isfile(out_png) and not force:
+        return out_png
+
+    soffice = _soffice()
+    if not soffice:
+        return None
+
+    with tempfile.TemporaryDirectory() as work:
+        staged = os.path.join(work, "backdrop.pptx")
+        try:
+            _empty_deck_from(src, staged)
+        except Exception:
+            return None
+        try:
+            subprocess.run(
+                [soffice, "--headless", "--norestore",
+                 "-env:UserInstallation=file://" + os.path.join(work, "lo-profile"),
+                 "--convert-to", "png:impress_png_Export", "--outdir", work, staged],
+                check=True, timeout=BACKDROP_TIMEOUT_S,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except (subprocess.SubprocessError, OSError):
+            return None
+
+        produced = os.path.join(work, "backdrop.png")
+        if not os.path.isfile(produced):
+            return None
+        os.makedirs(TEMPLATES_DIR, exist_ok=True)
+        shutil.copyfile(produced, out_png)
+    return out_png
+
+
+def sample_backdrop(tid: str) -> Optional[dict[str, Any]]:
+    """The master's REAL background colour, read off the rendered backdrop.
+
+    The theme's dk1/dk2 says what the brand's dark colour is, not what the
+    slide's background actually looks like: a template can use a navy accent
+    on white paper. Inferring "this is a dark template" from the theme put
+    white type on a white master. The rasterised master is the ground truth,
+    so the background is sampled from the middle band of it — away from the
+    logo strips at the edges — and the text colour follows from that.
+    """
+    png = backdrop_png(tid)
+    if not png:
+        return None
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+    try:
+        with Image.open(png) as im:
+            im = im.convert("RGB")
+            w, h = im.size
+            band = im.crop((int(w * 0.15), int(h * 0.25), int(w * 0.85), int(h * 0.75)))
+            counts = band.getcolors(band.size[0] * band.size[1]) or []
+    except Exception:
+        return None
+    if not counts:
+        return None
+
+    _, (r, g, b) = max(counts, key=lambda c: c[0])
+    hex_rgb = f"{r:02X}{g:02X}{b:02X}"
+    return {"bg": hex_rgb, "dark": _luma(hex_rgb) < 0.5}
 
 
 def to_dict(p: TemplateProfile) -> dict[str, Any]:
     d = asdict(p)
     d.pop("source", None)          # a filesystem path is not the UI's business
     d["margins"] = p.working_margins()
+    d["hasBackdrop"] = bool(p.id) and os.path.isfile(
+        os.path.join(TEMPLATES_DIR, f"{p.id}.backdrop.png"))
+    if d["hasBackdrop"]:
+        sampled = sample_backdrop(p.id)
+        if sampled:
+            # The rendered master wins over the theme's idea of itself.
+            d["backdrop"] = sampled
+            d["theme"]["dark"] = sampled["dark"]
     return d
 
 

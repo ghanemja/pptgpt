@@ -873,12 +873,29 @@ function App() {
   // paint — which rendered those slides against a palette that did not exist
   // yet.
   if (template && window.paletteFromTemplate) {
-    if (!PALETTES.template || PALETTES.template.label !== (template.name || 'Template')) {
-      PALETTES.template = window.paletteFromTemplate(template);
-    }
+    PALETTES.template = window.paletteFromTemplate(template);
   } else if (PALETTES.template) {
     delete PALETTES.template;
   }
+
+  // A template profile is persisted with the deck, so a stored one can be
+  // older than the engine that reads it — missing the sampled background, or
+  // naming a template since deleted. Re-fetch it once on load and take the
+  // server's answer; drop it if the template is gone.
+  useEffect(() => {
+    if (!template || !template.id || window.WS_NO_BACKEND) return;
+    const origin = (window.BU_API_BASE || '').replace(/\/$/, '') || location.origin;
+    let dead = false;
+    fetch(`${origin}/api/templates/${template.id}`)
+      .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then(fresh => { if (!dead && fresh && fresh.id) setTemplate(fresh); })
+      .catch(status => {
+        if (dead) return;
+        if (status === 404) { removeTemplate(); toast('That template is no longer on the server.'); }
+      });
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template && template.id]);
 
   function applyTemplate(tpl) {
     if (!tpl || !tpl.id) return;

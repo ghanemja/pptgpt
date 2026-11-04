@@ -178,11 +178,20 @@ function SlideCard({ slide }) {
   const k = ptToScale(slide.fontPt || '16 pt');
   const z = n => Math.round(n * k * 10) / 10;
   const ff = FONTS[slide.font] || FONTS['Lato'];
+  // A template palette carries a picture of its own master; paint it behind
+  // the content so the preview shows what will actually export — the logo,
+  // the picture background, the footer rule — not just its colours.
   const base = {
     position: 'relative', width: SLIDE_W, height: SLIDE_H,
     background: pal.bg, color: pal.ink, padding: '44px 48px',
     display: 'flex', flexDirection: 'column', overflow: 'hidden',
     fontFamily: ff,
+    ...(pal.bgImage ? {
+      backgroundImage: `url("${pal.bgImage}")`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+    } : {}),
   };
   const eyebrow = (
     <div style={{ fontSize: z(13), fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: pal.mute, display: 'flex', alignItems: 'center', gap: 9 }}>

@@ -68,6 +68,7 @@ from deckengine.org import list_orgs, load_org, to_dict as org_to_dict, OrgError
 from deckengine.template import (
     save_template, load_template, list_templates, delete_template,
     template_path, to_dict as tpl_to_dict, TemplateError,
+    backdrop_png, backdrop_available,
 )
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -187,9 +188,33 @@ async def api_template_upload(file: UploadFile = File(...)):
     """
     try:
         data = await file.read()
-        return tpl_to_dict(save_template(data, file.filename or "template.pptx"))
+        prof = save_template(data, file.filename or "template.pptx")
+        # Rasterise now: it takes a few seconds, and doing it here means the
+        # preview never has to wait for it later.
+        backdrop_png(prof.id)
+        return tpl_to_dict(prof)
     except TemplateError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@app.get("/api/templates/{tid}/backdrop.png")
+def api_template_backdrop(tid: str):
+    """A PNG of the template's own master — the real backdrop, not a colour.
+
+    Rendered once per template through LibreOffice and cached. Without
+    LibreOffice on the host there is no backdrop, and the UI falls back to
+    the template's palette rather than pretending.
+    """
+    try:
+        path = backdrop_png(tid)
+    except TemplateError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
+    if not path:
+        reason = ("LibreOffice is not installed on the server"
+                  if not backdrop_available() else "could not render this template")
+        return JSONResponse({"error": reason}, status_code=503)
+    return FileResponse(path, media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/api/templates/{tid}")

@@ -37,6 +37,11 @@ Read `README.md` for the full architecture diagram before making changes.
   (margins, bands the master already occupies). Never a content box: the
   template supplies brand and backdrop, `layout.py` still resolves geometry.
   `render.open_base()` opens the template file as the presentation base.
+  The preview backdrop is a PNG of the master rendered through LibreOffice
+  (`backdrop_png`), cached per template; the real background colour is then
+  sampled off that render rather than guessed from the theme. Optional
+  dependency: without `soffice` the backdrop endpoint 503s and the UI falls
+  back to the template's palette.
 - `deckengine/org.py` — per-organization profiles loaded from `orgs/*.json`:
   the scoping interview, narrative arc and house style rules. Convention,
   never geometry — the loader rejects a profile carrying coordinates.
