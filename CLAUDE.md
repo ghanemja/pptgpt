@@ -18,6 +18,12 @@ placeholders, so position, size, type ramp, colour and bullet styling all
 inherit from the file. Approximating a template with engine-placed boxes was
 tried first and does not work: a real template's design IS its layouts.
 
+A slide is classified by what it carries — cover, section break, statement,
+two-column, picture, bullets — and matched to the layout whose roles fit,
+so a template's full range gets used rather than one title-and-bullets
+layout. Charts and plots render to PNG and land in the template's picture
+slot, letterboxed rather than cropped.
+
 §0 is intact where it matters — the model and the UI still choose no
 geometry. Layout selection is a deterministic function of the slide's
 content and the template's layout inventory. `tests/test_native.py` asserts

@@ -26,6 +26,7 @@ nothing changes — `layout.py` resolves as before.
 
 from __future__ import annotations
 
+import os
 from typing import Any, Optional
 
 from pptx import Presentation
@@ -64,6 +65,105 @@ def layout_roles(layout) -> dict[str, Any]:
         elif kind in PH_FURNITURE:
             roles["furniture"].append(ph.placeholder_format.idx)
     return roles
+
+
+# ---- roles -----------------------------------------------------------------
+#
+# A template carries more than one kind of slide: an opener, a section break,
+# a two-column comparison, a picture slide. Casting everything as
+# title-plus-bullets used one layout and left the rest of the template unused.
+# A slide's role is read off what it CARRIES — deterministically, here, not by
+# the model and not by the UI.
+
+ROLE_COVER = "cover"            # the opener: big title, maybe a subtitle
+ROLE_SECTION = "section"        # a break between acts: a title and nothing else
+ROLE_STATEMENT = "statement"    # one line that is the whole slide
+ROLE_PICTURE = "picture"        # carries an image or a rendered chart
+ROLE_TWO = "two"                # enough points to read as two columns
+ROLE_BULLETS = "bullets"        # the ordinary case
+
+# Layout names are the template author's own labels. Matching them is a hint,
+# never the decision — structure is checked first and a name only breaks ties.
+_NAME_HINTS = {
+    ROLE_COVER: ("title slide", "cover", "opening", "opener"),
+    ROLE_SECTION: ("section", "divider", "chapter", "part", "break"),
+    ROLE_STATEMENT: ("statement", "quote", "big", "title only"),
+    ROLE_PICTURE: ("picture", "image", "photo", "media"),
+    ROLE_TWO: ("two content", "two-content", "comparison", "compare", "split"),
+    ROLE_BULLETS: ("title + content", "title and content", "content", "bullets"),
+}
+
+TWO_COLUMN_MIN_POINTS = 4
+
+
+def classify(slide: dict[str, Any]) -> str:
+    """Which kind of slide this is, from its content alone."""
+    kind = (slide.get("kind") or "text").lower()
+    points = [b for b in (slide.get("bullets") or []) if str(b).strip()]
+    has_title = bool((slide.get("title") or "").strip())
+    has_takeaway = bool((slide.get("takeaway") or "").strip())
+
+    if kind == "cover":
+        return ROLE_COVER
+    if kind in ("chart", "plot") or slide.get("image") or slide.get("images"):
+        return ROLE_PICTURE
+    if not points and not slide.get("metric"):
+        # A title alone is a section break; a title plus one line is a
+        # statement slide. Neither wants a bullet list.
+        return ROLE_STATEMENT if (has_title and has_takeaway) else ROLE_SECTION
+    if len(points) >= TWO_COLUMN_MIN_POINTS:
+        return ROLE_TWO
+    return ROLE_BULLETS
+
+
+def _wants(role: str, slide: dict[str, Any]) -> dict[str, Any]:
+    """What this role needs from a layout."""
+    points = [b for b in (slide.get("bullets") or []) if str(b).strip()]
+    has_takeaway = bool((slide.get("takeaway") or "").strip())
+    return {
+        ROLE_COVER:     {"title": True, "bodies": 0, "subtitle": True, "picture": False},
+        ROLE_SECTION:   {"title": True, "bodies": 0, "subtitle": False, "picture": False},
+        ROLE_STATEMENT: {"title": True, "bodies": 0, "subtitle": has_takeaway, "picture": False},
+        ROLE_PICTURE:   {"title": True, "bodies": 1 if points else 0,
+                         "subtitle": False, "picture": True},
+        ROLE_TWO:       {"title": True, "bodies": 2, "subtitle": False, "picture": False},
+        ROLE_BULLETS:   {"title": True, "bodies": 1, "subtitle": has_takeaway, "picture": False},
+    }[role]
+
+
+def score_layout(layout, want: dict[str, Any], role: str, index: int) -> float:
+    """Lower is better. Structure dominates; the layout's name breaks ties."""
+    roles = layout_roles(layout)
+    have_bodies = len(roles["bodies"])
+    have_pics = len(roles["pictures"])
+
+    missing = 0
+    if want["title"] and roles["title"] is None:
+        missing += 1
+    missing += max(0, want["bodies"] - have_bodies)
+    if want["picture"] and not have_pics:
+        missing += 1
+
+    spare = max(0, have_bodies - want["bodies"])
+    spare += max(0, have_pics - (1 if want["picture"] else 0))
+    if roles["subtitle"] is not None and not want["subtitle"]:
+        spare += 1
+    if want["subtitle"] and roles["subtitle"] is None:
+        spare += 1          # usable, but the takeaway has to ride in the body
+
+    name = (layout.name or "").strip().lower()
+    hinted = any(h in name for h in _NAME_HINTS.get(role, ()))
+    return missing * 100 + spare * 10 + (0 if hinted else 1) + index * 0.001
+
+
+def pick_layout_for(prs, slide: dict[str, Any], role: Optional[str] = None):
+    """The layout this slide should be cast into. Deterministic."""
+    role = role or classify(slide)
+    want = _wants(role, slide)
+    return min(
+        (l for l in prs.slide_layouts),
+        key=lambda l: score_layout(l, want, role, list(prs.slide_layouts).index(l)),
+    )
 
 
 def pick_layout(prs, *, want_title: bool, want_body: bool, want_subtitle: bool):
@@ -129,44 +229,145 @@ def _body_lines(slide: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _visual_png(slide: dict[str, Any]) -> Optional[bytes]:
+    """The slide's visual as PNG bytes, if it has one.
+
+    A chart or a plot is content, and a template usually has somewhere
+    designed to put a picture. Rendering it here lets the cast slide use
+    that slot instead of dropping the visual on the floor.
+    """
+    chart = slide.get("chart")
+    if chart and chart.get("data"):
+        from .render import _render_chart_png
+        rows = [r for r in chart["data"] if r.get("label") is not None]
+        if rows:
+            return _render_chart_png({
+                "type": "bar",
+                "categories": [str(r.get("label")) for r in rows],
+                "series": [{"name": chart.get("title") or "",
+                            "values": [r.get("value") or 0 for r in rows]}],
+            })
+    plot = slide.get("plot")
+    if plot:
+        from .spec_render import _render_plot_png
+        return _render_plot_png({"plot": plot, "fn": plot.get("fn"),
+                                 "params": plot.get("params") or {}})
+    return None
+
+
+def _place_picture(sl, ph, png: bytes) -> bool:
+    """Put an image where the template says images go.
+
+    A PICTURE placeholder takes one directly and keeps the template's crop
+    and frame. Any other slot is replaced by a picture at its own bounds, so
+    the image still lands where the design put it.
+    """
+    import tempfile as _tempfile
+
+    with _tempfile.NamedTemporaryFile(suffix=".png", delete=False) as fh:
+        fh.write(png)
+        tmp = fh.name
+    try:
+        if _ph_type(ph) == PH_PICTURE:
+            frame = (ph.left, ph.top, ph.width, ph.height)
+            pic = ph.insert_picture(tmp)
+            # insert_picture fills the frame and CROPS the overflow, which is
+            # right for a photo and wrong for a chart — it eats the axis. Clear
+            # the crop and letterbox inside the frame the template drew.
+            pic.crop_left = pic.crop_right = pic.crop_top = pic.crop_bottom = 0
+            _fit_inside(pic, *frame)
+            return True
+        left, top, width, height = ph.left, ph.top, ph.width, ph.height
+        _drop(ph)
+        pic = sl.shapes.add_picture(tmp, left, top)
+        _fit_inside(pic, left, top, width, height)
+        return True
+    except Exception:
+        return False
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+
+def _fit_inside(pic, left: int, top: int, width: int, height: int) -> None:
+    """Scale a picture to fit a frame whole, centred, aspect preserved."""
+    native_w, native_h = pic.image.size
+    if not native_w or not native_h or not width or not height:
+        return
+    k = min(width / native_w, height / native_h)
+    pic.width = int(native_w * k)
+    pic.height = int(native_h * k)
+    pic.left = int(left + (width - pic.width) / 2)
+    pic.top = int(top + (height - pic.height) / 2)
+
+
+def _split(points: list[str]) -> tuple[list[str], list[str]]:
+    """Halve a list for a two-column layout, heavier column first."""
+    half = (len(points) + 1) // 2
+    return points[:half], points[half:]
+
+
 def render_native(slides: list[dict[str, Any]], path: str, template_path: str) -> str:
-    """Render workspace slides into the template's own layouts."""
+    """Render workspace slides into the template's own layouts.
+
+    Each slide is classified, matched to the layout that fits that role, and
+    its content filled into that layout's placeholders. Only text and images
+    are written; everything about how they look is the template's.
+    """
     from .render import open_base
 
     prs, _ = open_base(template_path, 13.333, 7.5)
 
     for slide in slides:
-        title = (slide.get("title") or "").strip()
-        body = _body_lines(slide)
-        takeaway = (slide.get("takeaway") or "").strip()
-
-        layout = pick_layout(prs, want_title=bool(title), want_body=bool(body),
-                             want_subtitle=bool(takeaway))
+        role = classify(slide)
+        layout = pick_layout_for(prs, slide, role)
         sl = prs.slides.add_slide(layout)
         roles = layout_roles(layout)
-
-        used: set[int] = set()
         by_idx = {ph.placeholder_format.idx: ph for ph in sl.placeholders}
+        used: set[int] = set()
+
+        title = (slide.get("title") or "").strip()
+        takeaway = (slide.get("takeaway") or "").strip()
+        subtitle = (slide.get("subtitle") or "").strip()
+        points = _body_lines(slide)
 
         if title and roles["title"] in by_idx:
             _fill(by_idx[roles["title"]], [title])
             used.add(roles["title"])
 
-        # The takeaway goes in the subtitle when the layout has one; otherwise
-        # it rides at the end of the body rather than being dropped.
-        body_lines = list(body)
-        if takeaway and roles["subtitle"] in by_idx:
-            _fill(by_idx[roles["subtitle"]], [takeaway])
+        # A cover's deck-level line is its subtitle; every other role uses the
+        # takeaway there, because that is the line the slide is making.
+        second = subtitle if role == ROLE_COVER and subtitle else takeaway
+        if second and roles["subtitle"] in by_idx:
+            _fill(by_idx[roles["subtitle"]], [second])
             used.add(roles["subtitle"])
-        elif takeaway:
-            body_lines.append(takeaway)
+            second = ""
 
-        if body_lines:
-            for idx in roles["bodies"]:
-                if idx in by_idx:
-                    _fill(by_idx[idx], body_lines)
-                    used.add(idx)
-                    break
+        # The visual goes in the designed slot before the text claims it.
+        if role == ROLE_PICTURE:
+            png = _visual_png(slide)
+            slots = [i for i in roles["pictures"] if i in by_idx] or \
+                    [i for i in roles["bodies"] if i in by_idx]
+            if png and slots:
+                if _place_picture(sl, by_idx[slots[0]], png):
+                    used.add(slots[0])
+
+        bodies = [i for i in roles["bodies"] if i in by_idx and i not in used]
+        lines = list(points)
+        if second:
+            lines.append(second)        # no subtitle slot: it rides in the body
+
+        if lines and bodies:
+            if role == ROLE_TWO and len(bodies) >= 2:
+                left, right = _split(lines)
+                _fill(by_idx[bodies[0]], left)
+                _fill(by_idx[bodies[1]], right)
+                used.update({bodies[0], bodies[1]})
+            else:
+                _fill(by_idx[bodies[0]], lines)
+                used.add(bodies[0])
 
         # Anything the slide did not fill would render its prompt text.
         for ph in list(sl.placeholders):

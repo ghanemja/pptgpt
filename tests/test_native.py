@@ -17,7 +17,9 @@ from pptx import Presentation
 from pptx.util import Emu
 
 from deckengine.native import (
-    PH_FURNITURE, layout_roles, pick_layout, render_native, _ph_type,
+    PH_FURNITURE, PH_PICTURE, ROLE_BULLETS, ROLE_COVER, ROLE_PICTURE,
+    ROLE_SECTION, ROLE_STATEMENT, ROLE_TWO, classify, layout_roles,
+    pick_layout, pick_layout_for, render_native, _ph_type,
 )
 
 SAMPLE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -104,6 +106,73 @@ def test_a_slide_with_no_body_does_not_demand_one():
     roles = layout_roles(chosen)
     assert roles["title"] is not None
     assert not roles["pictures"], "picked a layout with an unfillable picture slot"
+
+
+def test_a_slide_is_classified_by_what_it_carries():
+    assert classify({"kind": "cover", "title": "Deck"}) == ROLE_COVER
+    assert classify({"title": "Part two"}) == ROLE_SECTION
+    assert classify({"title": "The ask", "takeaway": "Approve it."}) == ROLE_STATEMENT
+    assert classify({"title": "Why", "bullets": ["a", "b"]}) == ROLE_BULLETS
+    assert classify({"title": "Compare", "bullets": list("abcde")}) == ROLE_TWO
+    assert classify({"kind": "chart", "title": "Revenue"}) == ROLE_PICTURE
+    assert classify({"kind": "plot", "title": "Decay"}) == ROLE_PICTURE
+
+
+def test_each_role_gets_a_layout_that_fits_it():
+    prs = Presentation(SAMPLE)
+    for slide, need in [
+        ({"title": "Compare", "bullets": list("abcdef")}, "two_bodies"),
+        ({"kind": "chart", "title": "Revenue",
+          "chart": {"data": [{"label": "a", "value": 1}]}}, "picture"),
+        ({"title": "Why", "bullets": ["a"]}, "one_body"),
+    ]:
+        roles = layout_roles(pick_layout_for(prs, slide))
+        if need == "two_bodies":
+            assert len(roles["bodies"]) >= 2, roles
+        elif need == "picture":
+            assert roles["pictures"] or roles["bodies"], roles
+        else:
+            assert roles["bodies"], roles
+
+
+def test_two_column_splits_the_points_across_both_bodies():
+    points = ["one", "two", "three", "four", "five", "six"]
+    prs = _render(slides=[{"title": "Compare", "bullets": points}])
+    filled = [sh.text_frame.text for sh in prs.slides[0].shapes
+              if sh.has_text_frame and sh.text_frame.text.strip()]
+    body_text = [t for t in filled if t != "Compare"]
+    assert len(body_text) == 2, f"expected two columns, got {len(body_text)}"
+    joined = "\n".join(body_text)
+    for p in points:
+        assert p in joined, f"{p} was dropped"
+    assert body_text[0] != body_text[1], "both columns got the same points"
+
+
+def test_a_chart_lands_in_the_template_picture_slot_uncropped():
+    prs = _render(slides=[{"kind": "chart", "title": "Revenue",
+                           "chart": {"title": "$M",
+                                     "data": [{"label": "Q1", "value": 3},
+                                              {"label": "Q2", "value": 5}]}}])
+    pics = [sh for sh in prs.slides[0].shapes if sh.shape_type == 13 or hasattr(sh, "crop_left")]
+    assert pics, "the chart never reached the slide"
+    pic = pics[0]
+    # A cropped picture loses its axis; the fit must letterbox instead.
+    assert all(abs(getattr(pic, f"crop_{side}", 0)) < 1e-6
+               for side in ("left", "right", "top", "bottom")), "chart was cropped"
+    # Aspect preserved within a hair of the source image.
+    iw, ih = pic.image.size
+    assert abs((pic.width / pic.height) - (iw / ih)) < 0.02, "chart was stretched"
+
+
+def test_roles_do_not_leave_unfilled_slots_behind():
+    for slide in [{"kind": "cover", "title": "Deck", "subtitle": "sub"},
+                  {"title": "Part two"},
+                  {"title": "Compare", "bullets": list("abcdef")}]:
+        prs = _render(slides=[slide])
+        for shape in prs.slides[0].shapes:
+            if _ph_type(shape) in PH_FURNITURE or not shape.has_text_frame:
+                continue
+            assert shape.text_frame.text.strip(), f"empty slot survived for {slide}"
 
 
 if __name__ == "__main__":
