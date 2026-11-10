@@ -253,6 +253,17 @@ def test_template_does_not_cue_three_bullets():
             # the rule sits outside the JSON example, so it cannot be copied into a bullet
             assert p.index(workspace_gen._BULLET_RULE) > p.index(m.group(0))
 
+def test_standup_tone_does_not_ask_for_invented_owners():
+    # "phrased with owners in mind" made the model invent names (Sarah, David)
+    # on briefs that named nobody. Authors come from the input or a placeholder.
+    tone = workspace_gen._tone("standup")
+    assert "owners in mind" not in tone
+    assert "only when" in tone and "[author]" in tone and "owner" not in tone
+    for f in ("create", "condense", "refine"):
+        p = workspace_gen._build_prompt(f, "Outage on Tuesday", "standup",
+                                        _CURRENT if f == "refine" else None, [])
+        assert tone in p, f"standup tone missing from the {f} prompt"
+
 if __name__ == "__main__":
     import inspect
     mod = sys.modules[__name__]
