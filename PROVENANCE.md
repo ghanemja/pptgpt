@@ -71,3 +71,19 @@ local, usable by a non-expert) — not methodological novelty.
   "invent a specific person" rule is deliberately not used, since on a slide
   an invented specific is a fabricated fact. Measured with
   `scripts/eval_voice.py`.
+
+## Diagram engine (`diagram.py`)
+
+- **Closest prior art (§6):** Layered graph drawing — Sugiyama, Tagawa & Toda,
+  "Methods for Visual Understanding of Hierarchical System Structures"
+  (1981): cycle removal, layer assignment, crossing reduction by barycenter,
+  coordinate assignment. Graphviz `dot` (Gansner et al., 1993) and ELK
+  Layered are the standard implementations. Tidy trees after Reingold &
+  Tilford (1981). Orthogonal connector routing as in every flowchart tool.
+  Swimlane, timeline, 2x2 and funnel forms are long-standing business-diagram
+  conventions (e.g. PowerPoint SmartArt).
+- **What DeckEngine does differently (engineering only):** a small,
+  deterministic, pure-Python subset sized for one slide, with invariants that
+  are tested (no overlap, no connector through a box, labels fit) and output
+  drawn as native editable PowerPoint shapes. No novelty claimed.
+

@@ -36,7 +36,7 @@
      engine builds it. Named vaguely — "add a chart" — it offers the kinds
      that fit the data rather than guessing silently. */
 
-  const FLOW_WORDS = /\b(flow ?chart|flow|process|workflow|pipeline|journey|sequence|steps|stages|funnel|lifecycle)\b/i;
+  const FLOW_WORDS = /\b(flow ?chart|flow|process|workflow|pipeline|journey|sequence|steps|stages|funnel|lifecycle|diagram|flywheel|timeline|org ?chart|swim ?lanes?|2x2|quadrants?|decision tree)\b/i;
   const STEP_SPLIT = /\s*(?:→|->|=>|➔|then|next|followed by|;)\s*|\s*\n\s*/i;
 
   /* Steps read out of an ask: "A → B → C", "1. A 2. B", or bullet lines. */
@@ -288,7 +288,23 @@
     };
   }
 
-  function buildFlowSlide({ prompt, steps, kind, palette, audience, id, title }) {
+  /* Text → diagram content, read by the engine (deckengine/diagram.py):
+     branches, loops, lanes, dates and hierarchy, not just a list of steps.
+     Resolves null when the server is unreachable or reads nothing. */
+  function extractDiagram(text) {
+    const api = (window.BU_API_BASE || '').replace(/\/$/, '')
+      || ((location.protocol === 'http:' || location.protocol === 'https:') ? location.origin : '');
+    if (!api) return Promise.resolve(null);
+    return fetch(api + '/api/diagram/extract', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ text, model: !!window.WS_MODEL_DIAGRAMS }),
+    }).then(r => (r.ok ? r.json() : null)).then(j => (j && j.diagram) || null).catch(() => null);
+  }
+
+  const DIAGRAM_EYEBROW = { flow: 'Process', swimlane: 'Who does what', hierarchy: 'Structure',
+    cycle: 'Cycle', timeline: 'Timeline', matrix: 'Trade-offs', funnel: 'Funnel' };
+
+  function buildFlowSlide({ prompt, steps, kind, palette, audience, id, title, diagram }) {
     const asked = String(prompt || '').split('\n')[0]
       .replace(/^(show|make|add|draw|give|include|build|create|put)\b\s*/i, '')
       .replace(/^\s*(me|a|an|the)\b\s*/i, '')
@@ -300,15 +316,16 @@
       kind: 'diagram',
       palette: palette || 'warm',
       emphasis: audience === 'conf' ? 'story' : 'number',
-      eyebrow: 'Process',
+      eyebrow: DIAGRAM_EYEBROW[(diagram && diagram.kind) || kind] || 'Process',
       title: headline.charAt(0).toUpperCase() + headline.slice(1),
-      diagram: { kind: kind || 'flow', steps: steps.slice(0, 7) },
+      // Content only — the engine lays it out (deckengine/diagram.py).
+      diagram: diagram || { kind: kind || 'flow', steps: (steps || []).slice(0, 7) },
       takeaway: '',
     };
   }
 
   Object.assign(window, {
     wantsChart, chartKind, extractSeries, findSeries, contextSources, buildChartSlide, unitOf,
-    visualIntent, extractSteps, chartOptionsFor, buildFlowSlide,
+    visualIntent, extractSteps, chartOptionsFor, buildFlowSlide, extractDiagram,
   });
 })();

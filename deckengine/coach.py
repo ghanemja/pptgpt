@@ -26,6 +26,7 @@ import os
 import re
 from dataclasses import dataclass, field, asdict
 from typing import Any, Optional
+from .diagram import labels as diagram_labels
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COACHES_DIR = os.path.join(ROOT, "coaches")
@@ -89,7 +90,7 @@ def _text_of(slide: dict[str, Any]) -> str:
     chart = slide.get("chart") or {}
     parts.append(chart.get("title"))
     parts.extend(str(r.get("label", "")) for r in (chart.get("data") or []))
-    parts.extend(slide.get("diagram", {}).get("steps") or [])
+    parts.extend(diagram_labels(slide.get("diagram")))
     return " ".join(str(p) for p in parts if p)
 
 
@@ -118,9 +119,9 @@ def _fields(slide: dict[str, Any]):
                           + [str(r.get("label", "")) for r in (chart.get("data") or [])])
     if chart_text.strip():
         yield {"field": "chart"}, chart_text
-    steps = (slide.get("diagram") or {}).get("steps") or []
+    steps = diagram_labels(slide.get("diagram"))
     if steps:
-        yield {"field": "diagram"}, " ".join(str(s) for s in steps)
+        yield {"field": "diagram"}, " ".join(steps)
     yield from one("takeaway")
 
 

@@ -123,6 +123,21 @@ font, size or colour onto a run.
   `spec_render` onto the template master, rasterised by LibreOffice and
   cached by content hash. The HTML preview can only draw with fonts the
   viewer has installed, so it is the fallback, not the source of truth.
+- `deckengine/diagram.py` — diagrams as CONTENT laid out by the engine:
+  flow (layered, with decisions, loops and skips routed outside the boxes),
+  swimlane, hierarchy, cycle, timeline, matrix (2x2), funnel. Content is
+  `{kind, nodes:[{id,label,sub?,group?,role?}], edges:[{from,to,label?}]}` —
+  `from_dict` refuses any geometry or colour. `resolve(content, box_in)` →
+  `ResolvedDiagram` (boxes, the engine's own line breaks, one font size,
+  connector points); `palette()` picks colour roles. One layout feeds all
+  three consumers: `render.add_diagram` (native, editable PowerPoint shapes
+  and connectors — never a picture), `native.py` (inside the template's
+  picture slot) and the preview (`/api/diagram/layout` →
+  `boundary.diagram_to_px`, drawn verbatim by `MiniDiagram`). `extract(text)`
+  reads arrows, decisions, lanes, dates, indented lists and kind words with
+  no model; `extract_with_model` lets the model read implied structure but
+  keeps only labels grounded in the text. `scripts/diagram_gallery.py`
+  renders every kind for a look.
 - `deckengine/boundary.py` — adds `#` and converts inches→pixels at the JSON
   edge. The ONLY place that translation happens.
 - `frontend/` — every page and asset, flat, one copy each. `server.py`
@@ -132,7 +147,7 @@ font, size or colour onto a run.
 - `tests/test_layout.py`, `tests/test_ingest.py`, `tests/test_condense.py`,
   `tests/test_ambiguity.py`, `tests/test_org.py`, `tests/test_template.py`,
   `tests/test_native.py`, `tests/test_coach.py`, `tests/test_scorecard.py`,
-  `tests/test_charts.py`, `tests/test_kit.py`,
+  `tests/test_charts.py`, `tests/test_kit.py`, `tests/test_diagram.py`,
   `tests/smoke_e2e.py` — invariant + endpoint tests.
 
 ## Conventions
@@ -183,8 +198,8 @@ Remaining priorities:
 
 ## Known limitations to preserve awareness of
 - Directions currently differ only by color (same geometry by design).
-- No image/chart rendering yet (plan: icon + shape composition before any
-  diffusion).
+- Diagram text is measured with an average glyph width, not real font
+  metrics; it is deliberately conservative, so boxes can look roomy.
 - Renders assume Georgia/Calibri are installed; no font embedding.
 
 ## Planned features (specced; not yet implemented)

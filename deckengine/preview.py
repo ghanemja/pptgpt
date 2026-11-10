@@ -35,6 +35,10 @@ RENDER_TIMEOUT_S = 90
 # cache of superseded drafts.
 MAX_CACHED = 400
 
+# Part of every cache key. Bump it when the renderers change what a slide
+# looks like, or the cache keeps serving pictures of the old drawing.
+RENDER_VERSION = 2   # 2: diagrams drawn as native shapes by deckengine/diagram.py
+
 
 def available() -> bool:
     return _soffice() is not None
@@ -108,7 +112,8 @@ def _build_spec(spec: dict[str, Any], template_id: Optional[str], out_pptx: str,
 def _render(key_parts, *, build, force: bool = False) -> Optional[str]:
     """Build a one-slide .pptx and rasterise it, cached by content."""
     key = hashlib.sha256(
-        json.dumps(key_parts, sort_keys=True, separators=(",", ":"), default=str).encode()
+        json.dumps([RENDER_VERSION, key_parts], sort_keys=True, separators=(",", ":"),
+                   default=str).encode()
     ).hexdigest()[:20]
     out_png = os.path.join(PREVIEW_DIR, f"{key}.png")
     if os.path.isfile(out_png) and not force:

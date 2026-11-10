@@ -41,7 +41,7 @@ import io
 import tempfile
 from typing import Any
 
-from fastapi import FastAPI, Response, UploadFile, File, Form, Request
+from fastapi import FastAPI, HTTPException, Response, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response as FResponse
 from fastapi.staticfiles import StaticFiles
@@ -153,6 +153,19 @@ class RenderReq(BaseModel):
     templateId: str | None = None   # render onto this uploaded template
     native: bool = False            # cast into the template's own layouts
     org: str | None = None          # the company: layout preferences + assets
+
+
+class DiagramLayoutReq(BaseModel):
+    diagram: dict                   # content only: kind, nodes, edges (no geometry)
+    w: float                        # the box, in the caller's pixels
+    h: float
+    slideW: float = 720             # how many of those pixels span the 13.333in slide
+    colors: dict | None = None      # the slide's {bg, accent, ink, highlight}; roles come back
+
+
+class DiagramExtractReq(BaseModel):
+    text: str
+    model: bool = False             # let the model read implied structure (grounded)
 
 
 class KitCreateReq(BaseModel):
@@ -657,6 +670,46 @@ def api_render(req: RenderReq):
         out, filename="deck.pptx",
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
     )
+
+
+@app.post("/api/diagram/layout")
+def api_diagram_layout(req: DiagramLayoutReq):
+    """Diagram content + a box → the engine's geometry, in the caller's px.
+
+    The preview draws this verbatim; the export lays the same content out in
+    the same box in inches, so the two agree."""
+    from deckengine import diagram as D
+    from deckengine.boundary import diagram_to_px
+    ppi = req.slideW / 13.333
+    try:
+        rd = D.resolve(req.diagram, (0.0, 0.0, req.w / ppi, req.h / ppi))
+    except D.DiagramError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    c = req.colors or {}
+    pal = D.palette(c.get("bg") or "#FFFFFF", c.get("accent") or "#1E2761",
+                    c.get("ink") or "#11120E", c.get("highlight"))
+    return diagram_to_px(rd, ppi, palette=pal)
+
+
+@app.post("/api/diagram/extract")
+def api_diagram_extract(req: DiagramExtractReq):
+    """Text → diagram content. Deterministic reading first; with `model`,
+    the model may add structure the prose implies, but only labels grounded
+    in the text survive."""
+    from deckengine import diagram as D
+    content = None
+    if req.model:
+        from deckengine import narrative
+        if narrative.available():
+            content = D.extract_with_model(req.text, narrative.call)
+    if content is None:
+        content = D.extract(req.text)
+    if content is None:
+        return {"diagram": None}
+    try:
+        return {"diagram": D.to_dict(D.from_dict(content))}
+    except D.DiagramError as e:
+        return {"diagram": None, "error": str(e)}
 
 
 @app.post("/api/plot")

@@ -200,3 +200,34 @@ def design_deck_directions(deck: Deck, palettes: dict[str, Theme] | None = None)
             "slides": slides,
         })
     return out
+
+
+# ── diagrams ──────────────────────────────────────────────────────────────
+
+
+def diagram_to_px(rd, px_per_in: float, origin_in: tuple[float, float] = (0.0, 0.0),
+                  palette: dict | None = None) -> dict:
+    """A ResolvedDiagram (inches) as pixels for the preview. The UI draws
+    exactly this — boxes, the engine's own line breaks, connector points."""
+    ox, oy = origin_in
+    X = lambda v: round((v - ox) * px_per_in, 2)
+    Y = lambda v: round((v - oy) * px_per_in, 2)
+    S = lambda v: round(v * px_per_in, 2)
+    font_px = round(rd.font_pt / 72.0 * px_per_in, 2)
+    return {
+        "kind": rd.kind,
+        "fontPx": font_px,
+        "nodes": [{"id": n.id, "x": X(n.x), "y": Y(n.y), "w": S(n.w), "h": S(n.h),
+                   "shape": n.shape, "fill": n.fill, "lines": n.lines, "subLines": n.sub_lines,
+                   "points": [[X(a), Y(b)] for a, b in n.points]} for n in rd.nodes],
+        "edges": [{"src": e.src, "dst": e.dst, "arrow": e.arrow, "label": e.label,
+                   "points": [[X(a), Y(b)] for a, b in e.points],
+                   "labelBox": ([X(e.label_box[0]), Y(e.label_box[1]), S(e.label_box[2]), S(e.label_box[3])]
+                                if e.label_box else None)} for e in rd.edges],
+        "texts": [{"text": t.text, "x": X(t.x), "y": Y(t.y), "w": S(t.w), "h": S(t.h),
+                   "align": t.align, "role": t.role, "scale": t.scale} for t in rd.texts],
+        "bands": [{"label": b.label, "x": X(b.x), "y": Y(b.y), "w": S(b.w), "h": S(b.h)} for b in rd.bands],
+        "guides": [[[X(a), Y(b)] for a, b in g] for g in rd.guides],
+        "warnings": list(rd.warnings),
+        "palette": {k: _hash(v) for k, v in (palette or {}).items()},
+    }

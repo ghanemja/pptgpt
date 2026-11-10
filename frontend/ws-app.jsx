@@ -786,6 +786,18 @@ function App() {
       // A process is not a bar chart. "Flow chart" asks about sequence;
       // answering with magnitude was wrong and sure of itself.
       if (intent.family === 'diagram') {
+        // The engine reads structure the steps list cannot carry: a decision
+        // that branches, a loop back, lanes, dates, a reporting line.
+        const read = window.extractDiagram ? await window.extractDiagram(text) : null;
+        if (read && read.nodes && read.nodes.length >= 2) {
+          setLoading(false);
+          placeVisual(window.buildFlowSlide({
+            prompt: text, diagram: read,
+            palette: template ? 'template' : deckPalette, audience,
+            id: isBlankSlide(active) ? active.id : undefined,
+          }), `Drew a ${read.kind} of ${read.nodes.length} boxes.`);
+          return;
+        }
         const steps = (intent.steps && intent.steps.length)
           ? intent.steps
           : (active && (active.bullets || []).filter(Boolean).length >= 2

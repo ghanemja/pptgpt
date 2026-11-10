@@ -311,21 +311,65 @@ def _visual_png(slide: dict[str, Any], profile=None, asset_resolver=None) -> Opt
             if profile is not None:
                 block.update(_chart_palette(profile))
             return _render_chart_png(block)
-    diagram = slide.get("diagram")
-    if diagram and diagram.get("steps"):
-        from .spec_render import _render_diagram_png
-        block = {"w": 900, "h": 420, "kind": diagram.get("kind") or "flow",
-                 "steps": diagram.get("steps") or []}
-        if profile is not None:
-            block.update(_chart_palette(profile))
-        return _render_diagram_png(block)
-
     plot = slide.get("plot")
     if plot:
         from .spec_render import _render_plot_png
         return _render_plot_png({"plot": plot, "fn": plot.get("fn"),
                                  "params": plot.get("params") or {}})
     return None
+
+
+def _draw_diagram_in_slot(sl, slide: dict[str, Any], roles: dict[str, Any],
+                          by_idx: dict, profile) -> bool:
+    """Lay a diagram out inside the template's picture (or body) slot."""
+    content = slide.get("diagram")
+    if not content or slide.get("chart") or slide.get("image"):
+        return False
+    slots = [i for i in roles["pictures"] if i in by_idx] or \
+            [i for i in roles["bodies"] if i in by_idx]
+    if not slots:
+        return False
+    ph = by_idx[slots[-1] if roles["pictures"] else slots[0]]
+    from . import diagram as D
+    from .render import add_diagram
+    emu = 914400.0
+    box = (ph.left / emu, ph.top / emu, ph.width / emu, ph.height / emu)
+    try:
+        rd = D.resolve(content, box)
+    except D.DiagramError:
+        return False
+    add_diagram(sl, rd, _diagram_palette(sl, profile))   # typeface left unset: the theme's own
+    return True
+
+
+def _master_bg(sl) -> Optional[str]:
+    """The master's background colour when it is a plain solid fill."""
+    try:
+        from pptx.enum.dml import MSO_FILL
+        fill = sl.slide_layout.slide_master.background.fill
+        if fill.type == MSO_FILL.SOLID:
+            return str(fill.fore_color.rgb)
+    except Exception:
+        pass
+    return None
+
+
+def _diagram_palette(sl, profile) -> dict[str, str]:
+    """Diagram colour roles from the template: boxes in its accent, the hero
+    in its dark brand colour, text and lines chosen against the background
+    the slide REALLY has. Unlike a chart, a diagram is drawn straight onto
+    the slide with no plate of its own, so guessing the background from the
+    theme (which names a dark colour that the master may never paint) would
+    put white boxes on a white slide."""
+    from . import diagram as D
+    from .template import _luma
+    theme = getattr(profile, "theme", None)
+    sampled = sample_backdrop(profile.id) if getattr(profile, "id", "") else None
+    bg = (sampled or {}).get("bg") or _master_bg(sl) or "FFFFFF"
+    ink = "11120E" if _luma(bg) > 0.5 else "FFFFFF"
+    accent = getattr(theme, "accent", None) or "1E2761"
+    hero = getattr(theme, "primary", None)
+    return D.palette(bg, accent, ink, hero)
 
 
 def _place_picture(sl, ph, png: bytes) -> bool:
@@ -395,7 +439,11 @@ def render_native(slides: list[dict[str, Any]], path: str, template_path: str,
 
     prs, _ = open_base(template_path, 13.333, 7.5)
     try:
-        profile = profile_from_file(template_path)
+        # Stored templates are named "<id>__<name>"; the id finds the
+        # master's rendered backdrop, so colours are judged against the
+        # background the slide really shows.
+        stem = os.path.splitext(os.path.basename(template_path))[0]
+        profile = profile_from_file(template_path, tid=stem.split("__")[0] if "__" in stem else "")
     except Exception:
         profile = None
 
@@ -424,8 +472,14 @@ def render_native(slides: list[dict[str, Any]], path: str, template_path: str,
             used.add(roles["subtitle"])
             second = ""
 
+        # A diagram is drawn as native shapes inside the template's visual
+        # slot: the template decides WHERE (the slot's own bounds), the
+        # diagram engine decides the boxes and lines inside it. The slot
+        # placeholder itself is left unused and dropped below.
+        if role == ROLE_PICTURE and _draw_diagram_in_slot(sl, slide, roles, by_idx, profile):
+            pass
         # The visual goes in the designed slot before the text claims it.
-        if role == ROLE_PICTURE:
+        elif role == ROLE_PICTURE:
             png = _visual_png(slide, profile, asset_resolver)
             slots = [i for i in roles["pictures"] if i in by_idx] or \
                     [i for i in roles["bodies"] if i in by_idx]

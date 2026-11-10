@@ -250,10 +250,113 @@ function MiniChart({ chart, pal, w, h }) {
   );
 }
 
-/* A process or a funnel in the preview. The server draws the same shapes
-   for the export; this is the instant view. */
+/* A diagram in the preview: the ENGINE's layout (deckengine/diagram.py via
+   /api/diagram/layout), drawn verbatim — the same boxes, line breaks and
+   connector routes the .pptx export gets. Nothing here decides geometry or
+   colour; it only draws what came back. */
+const DIAGRAM_LAYOUTS = new Map();
+function diagramApi() {
+  return (window.BU_API_BASE || '').replace(/\/$/, '')
+    || ((location.protocol === 'http:' || location.protocol === 'https:') ? location.origin : '');
+}
+function useDiagramLayout(diagram, w, h, colors) {
+  const key = JSON.stringify([diagram, Math.round(w), Math.round(h), colors]);
+  const [res, setRes] = React.useState(() => DIAGRAM_LAYOUTS.get(key) || null);
+  React.useEffect(() => {
+    if (DIAGRAM_LAYOUTS.has(key)) { setRes(DIAGRAM_LAYOUTS.get(key)); return; }
+    const api = diagramApi();
+    if (!api) { setRes({ offline: true }); return; }
+    let live = true;
+    fetch(api + '/api/diagram/layout', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ diagram, w, h, slideW: SLIDE_W, colors }),
+    })
+      .then(r => r.json().then(j => (r.ok ? j : { error: j.detail || 'layout failed' })))
+      .then(j => { DIAGRAM_LAYOUTS.set(key, j); if (live) setRes(j); })
+      .catch(() => { if (live) setRes({ offline: true }); });
+    return () => { live = false; };
+  }, [key]);
+  return res;
+}
+
+function DiagramText({ lines, subLines, cx, cy, fontPx, color }) {
+  const lh = fontPx * 1.18, slh = fontPx * 0.8 * 1.18;
+  const total = lines.length * lh + subLines.length * slh;
+  let y = cy - total / 2;
+  const out = [];
+  lines.forEach((ln, i) => { y += lh; out.push(
+    <text key={'l' + i} x={cx} y={y - lh * 0.28} textAnchor="middle" fontSize={fontPx} fontWeight="800" fill={color}>{ln}</text>); });
+  subLines.forEach((ln, i) => { y += slh; out.push(
+    <text key={'s' + i} x={cx} y={y - slh * 0.28} textAnchor="middle" fontSize={fontPx * 0.8} fill={color} opacity="0.85">{ln}</text>); });
+  return out;
+}
+
 function MiniDiagram({ diagram, pal, w, h }) {
-  const steps = ((diagram && diagram.steps) || []).filter(Boolean).slice(0, 7);
+  const colors = { bg: pal.bg, accent: pal.accent, ink: pal.ink, highlight: pal.spark };
+  const res = useDiagramLayout(diagram, w, h, colors);
+  const mid = React.useId ? React.useId().replace(/[^a-zA-Z0-9]/g, '') : 'd';
+  if (!res) return <svg width={w} height={h} />;
+  if (res.offline) return <MiniDiagramOffline diagram={diagram} pal={pal} w={w} h={h} />;
+  if (res.error) {
+    return (
+      <svg width={w} height={h}><text x={w / 2} y={h / 2} textAnchor="middle" fontSize="13" fill={pal.mute}>{res.error}</text></svg>
+    );
+  }
+  const P = res.palette || {};
+  const pts = a => a.map(p => p.join(',')).join(' ');
+  const fp = res.fontPx;
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+      <defs>
+        <marker id={'ah' + mid} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill={P.line} />
+        </marker>
+      </defs>
+      {(res.bands || []).map((b, i) => (
+        <rect key={'b' + i} x={b.x} y={b.y} width={b.w} height={b.h} fill={P.band} stroke={P.band_line} strokeWidth="0.75" />
+      ))}
+      {(res.guides || []).map((g, i) => (
+        <polyline key={'g' + i} points={pts(g)} fill="none" stroke={P.line} strokeWidth="1.5" markerEnd={`url(#ah${mid})`} />
+      ))}
+      {(res.edges || []).map((e, i) => (
+        <polyline key={'e' + i} points={pts(e.points)} fill="none" stroke={P.line} strokeWidth="1.4"
+          markerEnd={e.arrow ? `url(#ah${mid})` : undefined} />
+      ))}
+      {(res.nodes || []).map(n => {
+        const fill = P[n.fill] || P.step, on = P['on_' + n.fill] || P.on_step;
+        const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+        let shape;
+        if (n.shape === 'diamond') shape = <polygon points={`${cx},${n.y} ${n.x + n.w},${cy} ${cx},${n.y + n.h} ${n.x},${cy}`} fill={fill} />;
+        else if (n.shape === 'dot') shape = <circle cx={cx} cy={cy} r={n.w / 2} fill={fill} />;
+        else if ((n.shape === 'poly' || n.shape === 'hexagon') && n.points && n.points.length) shape = <polygon points={pts(n.points)} fill={fill} />;
+        else shape = <rect x={n.x} y={n.y} width={n.w} height={n.h} rx={Math.min(6, n.h / 4)} fill={fill} />;
+        return (
+          <g key={n.id} data-node={n.id}>
+            {shape}
+            <DiagramText lines={n.lines || []} subLines={n.subLines || []} cx={cx} cy={cy} fontPx={fp} color={on} />
+          </g>
+        );
+      })}
+      {(res.edges || []).filter(e => e.label && e.labelBox).map((e, i) => (
+        <text key={'el' + i} x={e.labelBox[0] + e.labelBox[2] / 2} y={e.labelBox[1] + e.labelBox[3] * 0.78}
+          textAnchor="middle" fontSize={fp * 0.8} fill={P.text_muted}>{e.label}</text>
+      ))}
+      {(res.texts || []).map((t, i) => (
+        <text key={'t' + i} x={t.align === 'left' ? t.x : t.align === 'right' ? t.x + t.w : t.x + t.w / 2}
+          y={t.y + t.h / 2 + fp * t.scale * 0.35}
+          textAnchor={t.align === 'left' ? 'start' : t.align === 'right' ? 'end' : 'middle'}
+          fontSize={fp * t.scale} fontWeight={t.role === 'ink' ? 800 : 500}
+          fill={t.role === 'ink' ? P.text : P.text_muted}>{t.text}</text>
+      ))}
+    </svg>
+  );
+}
+
+/* Offline only (static build, no server): the old row-of-boxes sketch, so a
+   diagram slide is not blank. Never used when the engine can be reached. */
+function MiniDiagramOffline({ diagram, pal, w, h }) {
+  const steps = ((diagram && (diagram.steps || (diagram.nodes || []).map(n => n.label))) || [])
+    .filter(Boolean).slice(0, 7);
   const kind = (diagram && diagram.kind) || 'flow';
   if (!steps.length) return null;
   const n = steps.length;

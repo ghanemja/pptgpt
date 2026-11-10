@@ -209,3 +209,109 @@ def render_deck(resolved_slides: list[ResolvedSlide], path: str,
 
     prs.save(path)
     return path
+
+
+# ── diagrams ──────────────────────────────────────────────────────────────
+#
+# A ResolvedDiagram (deckengine/diagram.py) drawn as native PowerPoint shapes:
+# boxes you can click and retype, connectors as lines with arrowheads. Every
+# position, size, line break, font size and colour role was decided upstream;
+# this only draws them.
+
+
+def _emu(v_in: float) -> int:
+    return int(round(v_in * 914400))
+
+
+def _polyline(slide, pts, color: str, width_pt: float, arrow: bool, closed: bool = False, fill: str | None = None):
+    from pptx.oxml.ns import qn
+    from lxml import etree
+    (x0, y0), rest = pts[0], pts[1:]
+    fb = slide.shapes.build_freeform(_emu(x0), _emu(y0), scale=1.0)
+    fb.add_line_segments([(_emu(x), _emu(y)) for x, y in rest], close=closed)
+    shp = fb.convert_to_shape()
+    if fill:
+        shp.fill.solid()
+        shp.fill.fore_color.rgb = _rgb(fill)
+        shp.line.fill.background()
+    else:
+        shp.fill.background()
+        shp.line.color.rgb = _rgb(color)
+        shp.line.width = Pt(width_pt)
+        if arrow:
+            ln = shp.line._get_or_add_ln()
+            etree.SubElement(ln, qn("a:tailEnd"), type="triangle", w="med", len="med")
+    shp.shadow.inherit = False
+    return shp
+
+
+def _write_lines(shp, lines: list[str], sub_lines: list[str], size_pt: float, color: str,
+                 font: str | None, bold: bool = True, align: str = "center") -> None:
+    from .diagram import PAD_X_IN, PAD_Y_IN
+    tf = shp.text_frame
+    # The engine already broke the lines (measured against the box); letting
+    # PowerPoint re-wrap would break them again inside a diamond's inset.
+    tf.word_wrap = False
+    tf.margin_left = tf.margin_right = Inches(PAD_X_IN)
+    tf.margin_top = tf.margin_bottom = Inches(PAD_Y_IN)
+    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    first = True
+    for text, size, b in [(t, size_pt, bold) for t in lines] + [(t, size_pt * 0.8, False) for t in sub_lines]:
+        para = tf.paragraphs[0] if first else tf.add_paragraph()
+        first = False
+        para.alignment = _ALIGN.get(align, PP_ALIGN.CENTER)
+        run = para.add_run()
+        run.text = text
+        run.font.size = Pt(round(size * 2) / 2)
+        run.font.bold = b
+        run.font.color.rgb = _rgb(color)
+        if font:
+            run.font.name = font
+
+
+def add_diagram(slide, rd, pal: dict[str, str], font: str | None = None) -> None:
+    """Draw a ResolvedDiagram onto a python-pptx slide. Judgment-free."""
+    from pptx.enum.shapes import MSO_SHAPE
+
+    for b in rd.bands:
+        r = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(b.x), Inches(b.y), Inches(b.w), Inches(b.h))
+        r.fill.solid()
+        r.fill.fore_color.rgb = _rgb(pal["band"])
+        r.line.color.rgb = _rgb(pal["band_line"])
+        r.line.width = Pt(0.5)
+        r.shadow.inherit = False
+    for g in rd.guides:
+        _polyline(slide, g, pal["line"], 1.5, arrow=True)
+    for e in rd.edges:
+        if len(e.points) >= 2:
+            _polyline(slide, e.points, pal["line"], 1.25, arrow=e.arrow)
+    for n in rd.nodes:
+        fill = pal.get(n.fill, pal["step"])
+        on = pal.get(f"on_{n.fill}", pal["on_step"])
+        if n.shape in ("poly", "hexagon") and n.points:
+            shp = _polyline(slide, n.points, fill, 0, arrow=False, closed=True, fill=fill)
+        else:
+            kind = {"diamond": MSO_SHAPE.DIAMOND, "dot": MSO_SHAPE.OVAL,
+                    "pill": MSO_SHAPE.ROUNDED_RECTANGLE}.get(n.shape, MSO_SHAPE.ROUNDED_RECTANGLE)
+            shp = slide.shapes.add_shape(kind, Inches(n.x), Inches(n.y), Inches(n.w), Inches(n.h))
+            if n.shape == "rect":
+                shp.adjustments[0] = min(0.5, 0.08 / max(0.01, min(n.w, n.h)))
+            shp.fill.solid()
+            shp.fill.fore_color.rgb = _rgb(fill)
+            shp.line.fill.background()
+            shp.shadow.inherit = False
+        if n.lines or n.sub_lines:
+            _write_lines(shp, n.lines, n.sub_lines, rd.font_pt, on, font)
+    for e in rd.edges:
+        if e.label and e.label_box:
+            x, y, w, h = e.label_box
+            tb = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
+            _write_lines(tb, [e.label], [], rd.font_pt * 0.8, pal["text_muted"], font, bold=False)
+            tb.text_frame.margin_left = tb.text_frame.margin_right = 0
+            tb.text_frame.margin_top = tb.text_frame.margin_bottom = 0
+    for t in rd.texts:
+        tb = slide.shapes.add_textbox(Inches(t.x), Inches(t.y), Inches(t.w), Inches(t.h))
+        _write_lines(tb, [t.text], [], rd.font_pt * t.scale,
+                     pal["text"] if t.role == "ink" else pal["text_muted"], font,
+                     bold=t.role == "ink", align=t.align)
+        tb.text_frame.margin_left = tb.text_frame.margin_right = 0

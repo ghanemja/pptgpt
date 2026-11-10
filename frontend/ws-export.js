@@ -153,7 +153,7 @@
         text: slide.title || '', font: 'sans', size: PT(dh.size), weight: 900, color: p.ink, lineHeight: 1.1 });
       const dy = 70 + dh.height + 10;
       blocks.push({ type: 'diagram', x: X(48), y: X(dy), w: X(624), h: X(Math.max(110, 320 - dy)),
-        kind: slide.diagram.kind || 'flow', steps: slide.diagram.steps || [],
+        diagram: slide.diagram, kind: slide.diagram.kind || 'flow', steps: slide.diagram.steps || [],
         bg: p.bg, primaryColor: p.accent, highlightColor: p.spark, labelColor: p.mute });
       const dtk = takeawayBlock(slide, p, 335, 40); if (dtk) blocks.push(dtk);
       const dft = footerBlock(slide, p); if (dft) blocks.push(dft);
