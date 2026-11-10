@@ -63,34 +63,46 @@ def _trim_cache() -> None:
 
 
 def native_png(slide: dict[str, Any], template_id: str,
-               *, force: bool = False) -> Optional[str]:
-    """Render ONE workspace slide cast into the template's own layouts."""
-    return _render(("native", slide, template_id), force=force,
-                   build=lambda out: _build_native(slide, template_id, out))
+               *, org: Optional[str] = None, force: bool = False) -> Optional[str]:
+    """Render ONE workspace slide cast into the template's own layouts.
+
+    `org` brings the company's learned layout preferences and its asset
+    library; it is part of the cache key because it changes the render.
+    """
+    return _render(("native", slide, template_id, org or ""), force=force,
+                   build=lambda out: _build_native(slide, template_id, out, org))
 
 
-def _build_native(slide: dict[str, Any], template_id: str, out_pptx: str) -> None:
+def _build_native(slide: dict[str, Any], template_id: str, out_pptx: str,
+                  org: Optional[str] = None) -> None:
+    from .kit import preferred_layouts, resolver_for
     from .native import render_native
     src = template_path(template_id)
     if not src:
         raise ValueError("no such template")
-    render_native([slide], out_pptx, src)
+    render_native([slide], out_pptx, src,
+                  preferred_layouts=preferred_layouts(org),
+                  asset_resolver=resolver_for(org))
 
 
 def slide_png(spec: dict[str, Any], template_id: Optional[str] = None,
-              *, force: bool = False) -> Optional[str]:
+              *, org: Optional[str] = None, force: bool = False) -> Optional[str]:
     """Render ONE slide spec to a PNG exactly as it would export.
 
     Returns the cached path, or None when LibreOffice is unavailable or the
     render fails — callers fall back to the HTML preview rather than showing
     a broken image.
     """
-    return _render(("spec", spec, template_id), force=force, build=lambda out: _build_spec(spec, template_id, out))
+    return _render(("spec", spec, template_id, org or ""), force=force,
+                   build=lambda out: _build_spec(spec, template_id, out, org))
 
 
-def _build_spec(spec: dict[str, Any], template_id: Optional[str], out_pptx: str) -> None:
+def _build_spec(spec: dict[str, Any], template_id: Optional[str], out_pptx: str,
+                org: Optional[str] = None) -> None:
+    from .kit import resolver_for
     from .spec_render import render_specs
-    render_specs([spec], out_pptx, template_path=template_id and template_path(template_id))
+    render_specs([spec], out_pptx, template_path=template_id and template_path(template_id),
+                 asset_resolver=resolver_for(org))
 
 
 def _render(key_parts, *, build, force: bool = False) -> Optional[str]:

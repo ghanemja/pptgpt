@@ -96,7 +96,9 @@ def test_list_orgs_skips_a_broken_file():
             fh.write("{not json")
         with open(os.path.join(d, "geometric.json"), "w") as fh:
             json.dump({"name": "Nope", "style": {"x": 1}}, fh)
-        with mock.patch("deckengine.org.ORGS_DIR", d):
+        # Isolate from any real company kits on this machine.
+        with mock.patch("deckengine.org.ORGS_DIR", d), \
+             mock.patch("deckengine.org.KITS_DIR", os.path.join(d, "no-kits")):
             got = [o["slug"] for o in list_orgs()]
     assert got == ["good"], got
 

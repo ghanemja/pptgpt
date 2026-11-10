@@ -133,8 +133,15 @@ def _wants(role: str, slide: dict[str, Any]) -> dict[str, Any]:
     }[role]
 
 
-def score_layout(layout, want: dict[str, Any], role: str, index: int) -> float:
-    """Lower is better. Structure dominates; the layout's name breaks ties."""
+def score_layout(layout, want: dict[str, Any], role: str, index: int,
+                 preferred: tuple[str, ...] = ()) -> float:
+    """Lower is better. Structure dominates; usage, then the name, break ties.
+
+    `preferred` is the layouts a company's own decks use most (learned from
+    its examples). Real usage is better evidence than a layout's label, so it
+    outweighs the name hint — but it is capped well below one structural
+    point, so a favourite layout can never win a slide it does not fit.
+    """
     roles = layout_roles(layout)
     have_bodies = len(roles["bodies"])
     have_pics = len(roles["pictures"])
@@ -155,17 +162,21 @@ def score_layout(layout, want: dict[str, Any], role: str, index: int) -> float:
 
     name = (layout.name or "").strip().lower()
     hinted = any(h in name for h in _NAME_HINTS.get(role, ()))
-    return missing * 100 + spare * 10 + (0 if hinted else 1) + index * 0.001
+    used = 0.0
+    if preferred:
+        names = [p.strip().lower() for p in preferred]
+        if name in names:
+            used = 1.5 * (1 - names.index(name) / max(len(names), 1))
+    return missing * 100 + spare * 10 + (0 if hinted else 1) - used + index * 0.001
 
 
-def pick_layout_for(prs, slide: dict[str, Any], role: Optional[str] = None):
+def pick_layout_for(prs, slide: dict[str, Any], role: Optional[str] = None,
+                    preferred: tuple[str, ...] = ()):
     """The layout this slide should be cast into. Deterministic."""
     role = role or classify(slide)
     want = _wants(role, slide)
-    return min(
-        (l for l in prs.slide_layouts),
-        key=lambda l: score_layout(l, want, role, list(prs.slide_layouts).index(l)),
-    )
+    layouts = list(prs.slide_layouts)
+    return min(layouts, key=lambda l: score_layout(l, want, role, layouts.index(l), preferred))
 
 
 def pick_layout(prs, *, want_title: bool, want_body: bool, want_subtitle: bool):
@@ -267,13 +278,20 @@ def _chart_palette(profile) -> dict[str, str]:
     }
 
 
-def _visual_png(slide: dict[str, Any], profile=None) -> Optional[bytes]:
+def _visual_png(slide: dict[str, Any], profile=None, asset_resolver=None) -> Optional[bytes]:
     """The slide's visual as PNG bytes, if it has one.
 
     A chart or a plot is content, and a template usually has somewhere
     designed to put a picture. Rendering it here lets the cast slide use
-    that slot instead of dropping the visual on the floor.
+    that slot instead of dropping the visual on the floor. An image chosen
+    from the company's asset library comes first: someone picked it.
     """
+    image = slide.get("image")
+    if image and asset_resolver is not None:
+        png = asset_resolver(image)
+        if png:
+            return png
+
     chart = slide.get("chart")
     if chart and chart.get("data"):
         from .spec_render import _render_chart_png
@@ -364,7 +382,9 @@ def _split(points: list[str]) -> tuple[list[str], list[str]]:
     return points[:half], points[half:]
 
 
-def render_native(slides: list[dict[str, Any]], path: str, template_path: str) -> str:
+def render_native(slides: list[dict[str, Any]], path: str, template_path: str,
+                  preferred_layouts: tuple[str, ...] = (),
+                  asset_resolver=None) -> str:
     """Render workspace slides into the template's own layouts.
 
     Each slide is classified, matched to the layout that fits that role, and
@@ -381,7 +401,7 @@ def render_native(slides: list[dict[str, Any]], path: str, template_path: str) -
 
     for slide in slides:
         role = classify(slide)
-        layout = pick_layout_for(prs, slide, role)
+        layout = pick_layout_for(prs, slide, role, tuple(preferred_layouts))
         sl = prs.slides.add_slide(layout)
         roles = layout_roles(layout)
         by_idx = {ph.placeholder_format.idx: ph for ph in sl.placeholders}
@@ -406,7 +426,7 @@ def render_native(slides: list[dict[str, Any]], path: str, template_path: str) -
 
         # The visual goes in the designed slot before the text claims it.
         if role == ROLE_PICTURE:
-            png = _visual_png(slide, profile)
+            png = _visual_png(slide, profile, asset_resolver)
             slots = [i for i in roles["pictures"] if i in by_idx] or \
                     [i for i in roles["bodies"] if i in by_idx]
             if png and slots:

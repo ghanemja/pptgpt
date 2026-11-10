@@ -1,0 +1,91 @@
+{
+  "generated_at": "2026-11-09T22:58:51",
+  "generated_epoch": 1794283131.7634418,
+  "decks": 1,
+  "slides": 6,
+  "files": [
+    "q3-board-review.pptx"
+  ],
+  "failed": [],
+  "layouts": [
+    {
+      "name": "Blank",
+      "share": 1.0,
+      "count": 6
+    }
+  ],
+  "density": {
+    "points_per_slide": {
+      "n": 3,
+      "median": 3,
+      "p75": 3.5,
+      "max": 4
+    },
+    "words_per_point": {
+      "n": 8,
+      "median": 9.5,
+      "p75": 10.0,
+      "max": 11
+    },
+    "slides_per_deck": {
+      "n": 1,
+      "median": 6,
+      "p75": 6.0,
+      "max": 6
+    }
+  },
+  "titles": {
+    "words": {
+      "n": 6,
+      "median": 4.5,
+      "p75": 5.75,
+      "max": 6
+    },
+    "argue_share": 0.5
+  },
+  "visuals": {
+    "chart_share": 0.0,
+    "picture_share": 0.0,
+    "table_share": 0.0,
+    "text_only_share": 1.0
+  },
+  "type": {
+    "fonts": [
+      {
+        "name": "Calibri",
+        "runs": 20
+      },
+      {
+        "name": "Georgia",
+        "runs": 16
+      }
+    ],
+    "title_pt": {
+      "n": 6,
+      "median": 40.0,
+      "p75": 40.0,
+      "max": 64.0
+    },
+    "body_pt": {
+      "n": 30,
+      "median": 21.0,
+      "p75": 34.0,
+      "max": 60.0
+    }
+  },
+  "norms": {
+    "max_points": 4,
+    "max_words_per_point": 10,
+    "title_words": 4,
+    "titles_argue": true,
+    "preferred_layouts": [
+      "Blank"
+    ]
+  },
+  "suggested_rules": [
+    "At most 4 points per slide.",
+    "Keep each point under 10 words.",
+    "Titles state a claim, not a topic.",
+    "Text-led slides are the norm; save visuals for the evidence."
+  ]
+}

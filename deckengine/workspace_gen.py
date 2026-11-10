@@ -47,9 +47,13 @@ def _file_note(file_names: list[str] | None) -> str:
 
 
 def _build_prompt(feature: str, prompt: str, audience: Optional[str],
-                   current: Optional[dict], file_names: list[str] | None) -> str:
+                   current: Optional[dict], file_names: list[str] | None,
+                   house: str = "") -> str:
     tone = _tone(audience)
-    note = _file_note(file_names)
+    # The company's conventions ride along with the file note, so every
+    # feature's prompt carries them without each one being rewritten.
+    note = _file_note(file_names) + (
+        f"\n\nFollow this company's house style:\n{house}" if house else "")
     text = prompt or ""
 
     if feature == "condense":
@@ -161,13 +165,14 @@ def generate_slide(
     current: Optional[dict] = None,
     palette: Optional[str] = None,
     file_names: list[str] | None = None,
+    house: str = "",
 ) -> Optional[dict] | Optional[list]:
     """Generate one slide (dict) or, for `condense`, a list of slides.
     Returns None on any failure — callers must degrade gracefully."""
     if not narrative.available():
         return None
 
-    user_prompt = _build_prompt(feature, prompt, audience, current, file_names)
+    user_prompt = _build_prompt(feature, prompt, audience, current, file_names, house)
     try:
         raw = narrative.call(user_prompt, _WORKSPACE_SYSTEM)
     except Exception as e:

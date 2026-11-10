@@ -162,9 +162,20 @@ def parse_org(raw: dict[str, Any], slug: str) -> OrgProfile:
                       style=style, examples=examples)
 
 
+KITS_DIR = os.path.join(ROOT, "kits")
+
+
 def _path(slug: str) -> str:
+    """Where a profile lives. A company kit wins over a built-in profile.
+
+    Built-ins under `orgs/` ship with the project; a kit under `kits/<slug>/`
+    is a company's own, so when both exist the company's is the one meant.
+    """
     if not _SLUG_RE.match(slug or ""):
         raise OrgError(f"bad org slug {slug!r}")
+    kit_profile = os.path.join(KITS_DIR, slug, "profile.json")
+    if os.path.isfile(kit_profile):
+        return kit_profile
     return os.path.join(ORGS_DIR, f"{slug}.json")
 
 
@@ -176,20 +187,41 @@ def load_org(slug: str = "default") -> OrgProfile:
         return parse_org(json.load(fh), slug)
 
 
-def list_orgs() -> list[dict[str, str]]:
-    """Every readable profile, as `{slug, name, tagline}`. Bad files are skipped."""
-    out: list[dict[str, str]] = []
-    if not os.path.isdir(ORGS_DIR):
-        return out
-    for fname in sorted(os.listdir(ORGS_DIR)):
-        if not fname.endswith(".json"):
-            continue
-        slug = fname[: -len(".json")]
-        try:
-            p = load_org(slug)
-        except (OrgError, json.JSONDecodeError, OSError):
-            continue
-        out.append({"slug": p.slug, "name": p.name, "tagline": p.tagline})
+def list_orgs() -> list[dict[str, Any]]:
+    """Every readable profile — company kits first, then built-ins.
+
+    Each entry is `{slug, name, tagline, kit}`. Unreadable files are
+    skipped rather than failing the list, so one broken kit cannot hide the
+    others.
+    """
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    if os.path.isdir(KITS_DIR):
+        for slug in sorted(os.listdir(KITS_DIR)):
+            if slug.startswith("_") or not _SLUG_RE.match(slug):
+                continue
+            if not os.path.isfile(os.path.join(KITS_DIR, slug, "profile.json")):
+                continue
+            try:
+                p = load_org(slug)
+            except (OrgError, json.JSONDecodeError, OSError):
+                continue
+            out.append({"slug": p.slug, "name": p.name, "tagline": p.tagline, "kit": True})
+            seen.add(slug)
+
+    if os.path.isdir(ORGS_DIR):
+        for fname in sorted(os.listdir(ORGS_DIR)):
+            if not fname.endswith(".json"):
+                continue
+            slug = fname[: -len(".json")]
+            if slug in seen:
+                continue
+            try:
+                p = load_org(slug)
+            except (OrgError, json.JSONDecodeError, OSError):
+                continue
+            out.append({"slug": p.slug, "name": p.name, "tagline": p.tagline, "kit": False})
     return out
 
 

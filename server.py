@@ -44,7 +44,7 @@ import io
 import tempfile
 from typing import Any
 
-from fastapi import FastAPI, Response, UploadFile, File
+from fastapi import FastAPI, Response, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response as FResponse
 from fastapi.staticfiles import StaticFiles
@@ -66,6 +66,9 @@ from deckengine.boundary import (
 from deckengine.ambiguity import detect as detect_questions, to_dict as q_to_dict
 from deckengine.org import list_orgs, load_org, to_dict as org_to_dict, OrgError
 from deckengine.preview import slide_png, native_png, available as preview_available
+from deckengine import kit as kitmod
+from deckengine.kit import KitError
+from deckengine.kit_ingest import learn as kit_learn, norms as kit_norms
 from deckengine.coach import (
     list_personas, load_persona, critique_slide, review_deck, LENSES as COACH_LENSES,
     CoachError,
@@ -123,24 +126,47 @@ class CritiqueSlideReq(BaseModel):
     slide: dict
     coach: str = "board-chair"
     next: dict | None = None        # the following slide, for the handoff lens
+    org: str | None = None          # judge by this company's learned norms
 
 
 class CritiqueDeckReq(BaseModel):
     slides: list[dict] = []
     coach: str = "board-chair"
     overrides: dict | None = None   # {strictness, lenses} tuned for this run
+    org: str | None = None          # judge by this company's learned norms
 
 
 class PreviewReq(BaseModel):
     spec: dict | None = None        # ONE resolved SlideSpec (engine-placed)
     slide: dict | None = None       # ONE workspace slide (cast into the template)
     templateId: str | None = None
+    org: str | None = None          # the company: layout preferences + assets
 
 
 class RenderReq(BaseModel):
     slides: list[dict]              # resolved SlideSpecs, or workspace slides
     templateId: str | None = None   # render onto this uploaded template
     native: bool = False            # cast into the template's own layouts
+    org: str | None = None          # the company: layout preferences + assets
+
+
+class KitCreateReq(BaseModel):
+    name: str
+    description: str = ""
+
+
+class KitImportReq(BaseModel):
+    path: str
+    mode: str = "copy"              # copy | link
+    part: str | None = None         # examples | assets | template | ... | None = auto
+
+
+class KitVoiceReq(BaseModel):
+    text: str
+
+
+class KitRulesReq(BaseModel):
+    add: list[str] = []
 
 
 class PlotReq(BaseModel):
@@ -193,6 +219,7 @@ class WorkspaceGenReq(BaseModel):
     current: dict | None = None
     palette: str | None = None
     fileNames: list[str] = []
+    org: str | None = None          # write in this company's house style
 
 
 # ---- API routes ----------------------------------------------------------
@@ -211,9 +238,9 @@ def api_preview_png(req: PreviewReq):
     # its positions, type ramp and bullet styling are the template's. Without
     # one, the engine's own placement is rendered.
     if req.slide is not None and req.templateId:
-        path = native_png(req.slide, req.templateId)
+        path = native_png(req.slide, req.templateId, org=req.org)
     elif req.spec is not None:
-        path = slide_png(req.spec, req.templateId)
+        path = slide_png(req.spec, req.templateId, org=req.org)
     else:
         return JSONResponse({"error": "need a spec or a slide"}, status_code=400)
     if not path:
@@ -222,6 +249,184 @@ def api_preview_png(req: PreviewReq):
         return JSONResponse({"error": reason}, status_code=503)
     return FileResponse(path, media_type="image/png",
                         headers={"Cache-Control": "public, max-age=600"})
+
+
+# ---- company kits ----------------------------------------------------------
+#
+# A kit is a folder under kits/<slug>/. Everything below reads or writes that
+# folder and nothing else, so uploading here, pointing at a folder, and
+# dragging files in by hand all end up identical. See kits/README.md.
+
+def _kit_norms(org: str | None):
+    if not org:
+        return None
+    try:
+        return kit_norms(org)
+    except Exception:
+        return None
+
+
+def _local_only(request: Request):
+    """Refuse a request that did not come from this machine.
+
+    Reading an arbitrary folder, or opening one in the file manager, is
+    exactly right for someone running pptgpt on their own laptop and exactly
+    wrong for anyone reaching this server over a network. Those two routes
+    answer only to localhost, whatever the auth settings say.
+    """
+    host = (request.client.host if request.client else "") or ""
+    if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
+        return JSONResponse({"error": "only available on this machine (localhost)"},
+                            status_code=403)
+    return None
+
+
+def _kit_error(e: Exception):
+    msg = str(e)
+    status = 404 if msg.startswith("no kit") else 400
+    return JSONResponse({"error": msg}, status_code=status)
+
+
+@app.get("/api/kits")
+def api_kits():
+    """Every company kit on this machine."""
+    return {"kits": kitmod.list_kits(), "root": kitmod.KITS_DIR}
+
+
+@app.post("/api/kits")
+def api_kit_create(req: KitCreateReq):
+    """A new kit: the folder structure plus starter files to edit."""
+    try:
+        slug = kitmod.create_kit(req.name, req.description)
+        return kitmod.scan(slug)
+    except KitError as e:
+        return _kit_error(e)
+
+
+@app.get("/api/kits/{slug}")
+def api_kit(slug: str):
+    """The kit's state, re-read from disk every time — so a file dropped in
+    by hand shows up the next time the screen is opened."""
+    try:
+        return kitmod.scan(slug)
+    except KitError as e:
+        return _kit_error(e)
+
+
+@app.post("/api/kits/{slug}/upload")
+async def api_kit_upload(slug: str, files: list[UploadFile] = File(...),
+                         part: str | None = Form(None)):
+    """Files from the browser, sorted into the kit by type (or by `part`)."""
+    try:
+        payload = [(f.filename or "file", await f.read()) for f in files]
+        report = kitmod.add_files(slug, payload, part or None)
+        return {**report, "kit": kitmod.scan(slug)}
+    except KitError as e:
+        return _kit_error(e)
+
+
+@app.post("/api/kits/{slug}/import")
+def api_kit_import(slug: str, req: KitImportReq, request: Request):
+    """Bring in a folder on this machine — copied in, or linked in place."""
+    refused = _local_only(request)
+    if refused:
+        return refused
+    try:
+        report = kitmod.import_path(slug, req.path, mode=req.mode, part=req.part)
+        return {**report, "kit": kitmod.scan(slug)}
+    except KitError as e:
+        return _kit_error(e)
+
+
+@app.post("/api/kits/{slug}/reveal")
+def api_kit_reveal(slug: str, request: Request):
+    """Open the kit's folder in Finder / Explorer, for dragging files in."""
+    refused = _local_only(request)
+    if refused:
+        return refused
+    try:
+        path = kitmod.kit_dir(slug)
+        if not os.path.isdir(path):
+            raise KitError(f"no kit {slug!r}")
+    except KitError as e:
+        return _kit_error(e)
+    import subprocess
+    import sys as _sys
+    opener = ("open" if _sys.platform == "darwin" else
+              "explorer" if _sys.platform.startswith("win") else "xdg-open")
+    try:
+        subprocess.Popen([opener, path])
+        return {"opened": path}
+    except OSError as e:
+        return JSONResponse({"error": f"could not open the folder: {e}", "path": path},
+                            status_code=500)
+
+
+@app.post("/api/kits/{slug}/learn")
+def api_kit_learn(slug: str):
+    """Read the example decks and write what they teach to learned.json."""
+    try:
+        if not kitmod.example_files(slug):
+            return JSONResponse({"error": "add some example decks first"}, status_code=400)
+        result = kit_learn(slug)
+        return {"learned": result, "kit": kitmod.scan(slug)}
+    except KitError as e:
+        return _kit_error(e)
+
+
+@app.put("/api/kits/{slug}/voice")
+def api_kit_voice(slug: str, req: KitVoiceReq):
+    try:
+        kitmod.set_voice(slug, req.text)
+        return kitmod.scan(slug)
+    except KitError as e:
+        return _kit_error(e)
+
+
+@app.post("/api/kits/{slug}/rules")
+def api_kit_rules(slug: str, req: KitRulesReq):
+    """Add house rules to the kit's profile — typically the ones learning
+    suggested, after a person has decided they are true."""
+    import json as _json
+    try:
+        path = os.path.join(kitmod.kit_dir(slug), "profile.json")
+        if not os.path.isfile(path):
+            raise KitError("this kit has no profile.json")
+        with open(path, "r", encoding="utf-8") as fh:
+            prof = _json.load(fh)
+        rules = prof.setdefault("style", {}).setdefault("rules", [])
+        for r in req.add:
+            r = str(r).strip()
+            if r and r not in rules:
+                rules.append(r)
+        with open(path, "w", encoding="utf-8") as fh:
+            _json.dump(prof, fh, indent=2)
+            fh.write("\n")
+        return kitmod.scan(slug)
+    except KitError as e:
+        return _kit_error(e)
+
+
+@app.get("/api/kits/{slug}/assets")
+def api_kit_assets(slug: str, q: str = "", limit: int = 48):
+    try:
+        return {"assets": kitmod.search_assets(slug, q, limit=max(1, min(limit, 200)))}
+    except KitError as e:
+        return _kit_error(e)
+
+
+@app.get("/api/kits/{slug}/asset")
+def api_kit_asset(slug: str, file: str):
+    """One asset file, for the library's thumbnails and the slide preview."""
+    try:
+        path = kitmod.asset_path(slug, file)
+    except KitError as e:
+        return _kit_error(e)
+    media = {".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg",
+             ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp"}
+    return FileResponse(path, media_type=media.get(os.path.splitext(path)[1].lower(),
+                                                   "application/octet-stream"),
+                        headers={"Cache-Control": "public, max-age=300"})
 
 
 @app.get("/api/coaches")
@@ -241,7 +446,8 @@ def api_critique_slide(req: CritiqueSlideReq):
         persona = load_persona(req.coach)
     except CoachError as e:
         return JSONResponse({"error": str(e)}, status_code=404)
-    return critique_slide(req.slide, persona, context={"next": req.next})
+    norms = _kit_norms(req.org)
+    return critique_slide(req.slide, persona, context={"next": req.next, "norms": norms})
 
 
 @app.get("/api/coach_lenses")
@@ -255,7 +461,7 @@ def api_critique_deck(req: CritiqueDeckReq):
     """The whole deck, read by one persona, with deck-level counts."""
     try:
         persona = load_persona(req.coach)
-        return review_deck(req.slides, persona, req.overrides)
+        return review_deck(req.slides, persona, req.overrides, _kit_norms(req.org))
     except CoachError as e:
         status = 404 if "no coach" in str(e) or "bad coach" in str(e) else 400
         return JSONResponse({"error": str(e)}, status_code=status)
@@ -359,11 +565,14 @@ def api_render(req: RenderReq):
     fd, out = tempfile.mkstemp(prefix="deckengine-", suffix=".pptx")
     os.close(fd)
     src = template_path(req.templateId)
+    resolver = kitmod.resolver_for(req.org)
     if req.native and src:
         from deckengine.native import render_native
-        render_native(req.slides, out, src)
+        render_native(req.slides, out, src,
+                      preferred_layouts=kitmod.preferred_layouts(req.org),
+                      asset_resolver=resolver)
     else:
-        render_specs(req.slides, out, template_path=src)
+        render_specs(req.slides, out, template_path=src, asset_resolver=resolver)
     return FileResponse(
         out, filename="deck.pptx",
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -576,6 +785,7 @@ def api_workspace_generate(req: WorkspaceGenReq):
     result = workspace_gen.generate_slide(
         feature=req.feature, prompt=req.prompt, audience=req.audience,
         current=req.current, palette=req.palette, file_names=req.fileNames,
+        house=kitmod.house_brief(req.org),
     )
     if result is None:
         return {"available": False, "reason": "Model call failed; check server logs.", **info}

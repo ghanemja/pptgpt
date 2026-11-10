@@ -1,0 +1,86 @@
+{
+  "name": "Example Co",
+  "tagline": "A worked example. Copy this folder and replace each file with your own.",
+  "scope_questions": [
+    {
+      "id": "audience",
+      "prompt": "Who is in the room?",
+      "kind": "choice",
+      "options": [
+        "Exec",
+        "Customer",
+        "Conference",
+        "Standup"
+      ],
+      "why": "Sets the tone the engine writes in \u2014 numbers-forward vs narrative-first.",
+      "required": true
+    },
+    {
+      "id": "decision",
+      "prompt": "What should they decide, do, or believe when you finish?",
+      "kind": "text",
+      "placeholder": "Approve the enterprise hire plan",
+      "why": "A deck with no ask is a status update. This becomes the closing bumper.",
+      "required": true
+    },
+    {
+      "id": "stakes",
+      "prompt": "What happens if they say no?",
+      "kind": "text",
+      "placeholder": "We lose the Q1 window and the pipeline ages out",
+      "why": "Stakes are what make the middle of the deck matter."
+    },
+    {
+      "id": "evidence",
+      "prompt": "What is your strongest piece of evidence?",
+      "kind": "text",
+      "placeholder": "Net retention 118% in the segment we want to expand",
+      "why": "The engine leads with this; everything else supports it."
+    },
+    {
+      "id": "objection",
+      "prompt": "What will they push back on hardest?",
+      "kind": "text",
+      "placeholder": "That the churn drop is seasonal, not structural",
+      "why": "An unanswered objection sinks the deck in the room, not in the draft."
+    },
+    {
+      "id": "time",
+      "prompt": "How long do you have?",
+      "kind": "choice",
+      "options": [
+        "5 min",
+        "15 min",
+        "30 min",
+        "Read-ahead, no meeting"
+      ],
+      "why": "Caps the deck length before the engine writes a slide you will cut."
+    }
+  ],
+  "narrative": {
+    "guide": "Situation \u2192 Complication \u2192 Question \u2192 Answer",
+    "beats": [
+      "Situation",
+      "Complication",
+      "Question",
+      "Answer",
+      "Ask"
+    ],
+    "bumper_rule": "Every slide ends in one sentence that sets up the next.",
+    "messages_per_slide": 3
+  },
+  "style": {
+    "theme": "bolt",
+    "palette": "warm",
+    "rules": [
+      "Lead with the conclusion; the title is the claim.",
+      "Every number carries a unit, a comparison and a date.",
+      "One idea per slide."
+    ],
+    "banned": [
+      "stock photography of handshakes",
+      "3-D charts"
+    ]
+  },
+  "examples": []
+}

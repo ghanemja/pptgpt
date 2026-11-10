@@ -141,13 +141,32 @@ def lens_comparison(slide, ctx):
 
 
 def lens_density(slide, ctx):
+    """Too much on one slide — judged by the company's own decks when known.
+
+    With a kit that has learned from its examples, the threshold is the
+    upper quartile of what that company's good decks actually carry, and the
+    note says so. "Denser than your own decks" is an argument a team takes;
+    "more than four bullets" is ours, and invites a debate about ours.
+    """
+    norms = (ctx or {}).get("norms") or {}
+    limit = norms.get("max_points") or 4
+    word_limit = norms.get("max_words_per_point")
     bullets = [b for b in (slide.get("bullets") or []) if str(b).strip()]
-    if len(bullets) > 4:
-        return _note("density", PUSH,
-                     f"{len(bullets)} points on one slide. The room will read, not listen.",
-                     "Which two could go in the appendix or the next slide?")
-    longest = max((len(str(b)) for b in bullets), default=0)
-    if longest > 140:
+
+    if len(bullets) > limit:
+        why = (f"Your own decks usually carry {limit} or fewer."
+               if norms.get("max_points") else "The room will read, not listen.")
+        return _note("density", PUSH, f"{len(bullets)} points on one slide. {why}",
+                     "Which could go in the appendix or the next slide?")
+
+    if word_limit:
+        long = [b for b in bullets if len(str(b).split()) > word_limit]
+        if long:
+            return _note("density", NIT,
+                         f"{len(long)} point(s) run past {word_limit} words, "
+                         "longer than your decks usually allow.",
+                         f"Can it be said in {word_limit} words or fewer?")
+    elif max((len(str(b)) for b in bullets), default=0) > 140:
         return _note("density", NIT,
                      "At least one point is a paragraph.",
                      "Can that be said in under fifteen words?")
@@ -346,10 +365,12 @@ def apply_overrides(persona: Persona, overrides: Optional[dict[str, Any]]) -> Pe
                    voice=persona.voice, lenses=lenses, strictness=strict)
 
 
-def critique_deck(slides: list[dict[str, Any]], persona: Persona) -> list[dict[str, Any]]:
+def critique_deck(slides: list[dict[str, Any]], persona: Persona,
+                  norms: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
     out = []
     for i, slide in enumerate(slides):
-        ctx = {"index": i, "next": slides[i + 1] if i + 1 < len(slides) else None}
+        ctx = {"index": i, "next": slides[i + 1] if i + 1 < len(slides) else None,
+               "norms": norms}
         result = critique_slide(slide, persona, context=ctx)
         result["slideId"] = slide.get("id")
         result["index"] = i
@@ -358,7 +379,8 @@ def critique_deck(slides: list[dict[str, Any]], persona: Persona) -> list[dict[s
 
 
 def review_deck(slides: list[dict[str, Any]], persona: Persona,
-                overrides: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+                overrides: Optional[dict[str, Any]] = None,
+                norms: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """The whole deck read end to end, with the deck-level counts.
 
     Per-slide notes answer "what is wrong here". A review also has to answer
@@ -366,7 +388,7 @@ def review_deck(slides: list[dict[str, Any]], persona: Persona,
     one slide, so the tally lives here rather than in the UI.
     """
     tuned = apply_overrides(persona, overrides)
-    results = critique_deck(slides, tuned)
+    results = critique_deck(slides, tuned, norms)
 
     by_severity = {BLOCKER: 0, PUSH: 0, NIT: 0}
     by_lens: dict[str, int] = {}

@@ -479,7 +479,8 @@ def _render_chart_png(block: dict) -> bytes | None:
 
 # ---- main entry ----------------------------------------------------------
 
-def render_specs(specs: list[dict], path: str, template_path: str | None = None) -> str:
+def render_specs(specs: list[dict], path: str, template_path: str | None = None,
+                 asset_resolver=None) -> str:
     """Render a list of SlideSpec dicts (frontend shape) to a `.pptx` at `path`.
 
     With `template_path`, the deck is drawn onto that template's master so
@@ -561,6 +562,15 @@ def render_specs(specs: list[dict], path: str, template_path: str | None = None)
                               font="mono", size_pt=12, weight=400, italic=False,
                               color="#FFFFFF", align="center", valign="middle",
                               line_height=1.2, letter_spacing=0, transform=None)
+            elif t == "image":
+                # An image from the company library. The resolver turns the
+                # reference into PNG bytes; the box is fixed by the spec, so
+                # the picture is letterboxed inside it rather than stretched.
+                png = asset_resolver(b.get("image") or {}) if asset_resolver else None
+                if png:
+                    from .native import _fit_inside
+                    pic = slide.shapes.add_picture(io.BytesIO(png), Inches(x_in), Inches(y_in))
+                    _fit_inside(pic, Inches(x_in), Inches(y_in), Inches(w_in), Inches(h_in))
             elif t == "diagram":
                 png = _render_diagram_png(b)
                 if png:

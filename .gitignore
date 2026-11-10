@@ -37,3 +37,11 @@ uploads/
 
 # Local Netlify folder
 .netlify
+
+# Company kits hold a company's own decks, templates and images. They live on
+# the machine that uses them and are never committed — except the worked
+# example and the setup guide, which ship with the project.
+kits/*
+!kits/README.md
+!kits/example-co/
+kits/*/.cache/
