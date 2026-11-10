@@ -255,10 +255,10 @@ def test_template_does_not_cue_three_bullets():
 
 def test_standup_tone_does_not_ask_for_invented_owners():
     # "phrased with owners in mind" made the model invent names (Sarah, David)
-    # on briefs that named nobody. Owners come from the input or a placeholder.
+    # on briefs that named nobody. Authors come from the input or a placeholder.
     tone = workspace_gen._tone("standup")
     assert "owners in mind" not in tone
-    assert "only when" in tone and "[owner]" in tone
+    assert "only when" in tone and "[author]" in tone and "owner" not in tone
     for f in ("create", "condense", "refine"):
         p = workspace_gen._build_prompt(f, "Outage on Tuesday", "standup",
                                         _CURRENT if f == "refine" else None, [])

@@ -41,8 +41,8 @@ _AUDIENCE_TONE = {
     "customer": "narrative-first, warmer, a little more visual, ends with a single ask",
     "conf": "one idea, big typography, takeaway-first, minimal supporting text",
     "standup": (
-        "dense and practical, action items stated plainly; name an owner only when "
-        "the input, the user or the source material names one, otherwise write [owner]"
+        "dense and practical, action items stated plainly; name an author only when "
+        "the input, the user or the source material names one, otherwise write [author]"
     ),
 }
 
