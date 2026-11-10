@@ -261,16 +261,16 @@ function loadPdfJs() {
   if (_pdfJsPromise) return _pdfJsPromise;
   _pdfJsPromise = new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'https://unpkg.com/pdfjs-dist@3.11.174/legacy/build/pdf.min.js';
+    s.src = 'vendor/pdfjs-dist-3.11.174/pdf.min.js';
     s.onload = () => {
       const lib = window.pdfjsLib;
       if (!lib) return reject(new Error('pdf.js loaded but pdfjsLib is missing'));
       if (lib.GlobalWorkerOptions && !lib.GlobalWorkerOptions.workerSrc) {
-        lib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js';
+        lib.GlobalWorkerOptions.workerSrc = 'vendor/pdfjs-dist-3.11.174/pdf.worker.min.js';
       }
       resolve(lib);
     };
-    s.onerror = () => reject(new Error('Could not load pdf.js from CDN.'));
+    s.onerror = () => reject(new Error('Could not load pdf.js (frontend/vendor/).'));
     document.head.appendChild(s);
   });
   return _pdfJsPromise;
@@ -282,9 +282,9 @@ function loadJSZip() {
   if (_jsZipPromise) return _jsZipPromise;
   _jsZipPromise = new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js';
+    s.src = 'vendor/jszip-3.10.1/jszip.min.js';
     s.onload = () => window.JSZip ? resolve(window.JSZip) : reject(new Error('JSZip missing'));
-    s.onerror = () => reject(new Error('Could not load JSZip from CDN.'));
+    s.onerror = () => reject(new Error('Could not load JSZip (frontend/vendor/).'));
     document.head.appendChild(s);
   });
   return _jsZipPromise;

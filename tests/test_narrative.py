@@ -201,17 +201,68 @@ def test_empty_outline_returns_none():
 
 
 
-def _backend_in_subprocess(env):
+def _run_in_subprocess(env, expr):
     """narrative reads its env at import, so check a config in a fresh process."""
     import json, subprocess
     code = ("import json; from deckengine import narrative as n; "
-            "print(json.dumps([n._BACKEND, n.backend_info()]))")
+            f"print(json.dumps({expr}))")
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     clean = {k: v for k, v in os.environ.items()
-             if not k.startswith(("OPENAI_", "LOCAL_LLM_", "DECKENGINE_NARRATIVE_"))}
+             if not k.startswith(("OPENAI_", "LOCAL_LLM_", "DECKENGINE_NARRATIVE_",
+                                  "ANTHROPIC_", "OLLAMA_"))}
     out = subprocess.check_output([sys.executable, "-c", code], cwd=root,
                                   env={**clean, **env}, text=True)
     return json.loads(out.strip().splitlines()[-1])
+
+
+def _backend_in_subprocess(env):
+    return _run_in_subprocess(env, "[n._BACKEND, n.backend_info()]")
+
+
+# Port 9 (discard) refuses connections, so "is Ollama up?" is a fast, firm no
+# whatever is running on this machine.
+_NO_OLLAMA = {"OLLAMA_HOST": "http://127.0.0.1:9"}
+_KEY = {"ANTHROPIC_API_KEY": "sk-ant-test-not-a-real-key"}
+
+
+def _chain(env):
+    return _run_in_subprocess({**_NO_OLLAMA, **env}, "n._backend_chain()")
+
+
+def test_default_backend_is_local_ollama_even_with_a_key():
+    # Nothing named: the default is the local model, not the cloud, even when
+    # an Anthropic key happens to be in the environment.
+    backend, info = _backend_in_subprocess({**_NO_OLLAMA, **_KEY})
+    assert backend == "ollama" and info["backend"] == "ollama"
+
+
+def test_ollama_down_never_falls_back_to_anthropic():
+    # The silent cloud fallback this guards against: Ollama down + a key set
+    # used to send the deck to api.anthropic.com without anyone choosing it.
+    assert _chain({"DECKENGINE_NARRATIVE_BACKEND": "ollama", **_KEY}) == ["ollama"]
+    assert _chain(_KEY) == ["ollama"]
+
+
+def test_openai_compatible_never_falls_back_to_anthropic():
+    chain = _chain({"DECKENGINE_NARRATIVE_BACKEND": "openai",
+                    "OPENAI_BASE_URL": "http://127.0.0.1:1234/v1", **_KEY})
+    assert chain == ["gemma"], chain
+
+
+def test_anthropic_only_when_named():
+    assert _chain({"DECKENGINE_NARRATIVE_BACKEND": "anthropic", **_KEY}) == ["anthropic"]
+    for name in ("ollama", "openai", "gemma", ""):
+        assert "anthropic" not in _chain({"DECKENGINE_NARRATIVE_BACKEND": name, **_KEY}), name
+
+
+def test_no_remote_backend_is_ever_a_fallback():
+    # Whatever is named, every backend after the first is local Ollama.
+    for name in ("ollama", "openai", "anthropic"):
+        chain = _run_in_subprocess(
+            {"DECKENGINE_NARRATIVE_BACKEND": name, **_KEY,
+             "OPENAI_BASE_URL": "http://127.0.0.1:1234/v1"},
+            "n._backend_chain()")
+        assert all(b == "ollama" for b in chain[1:]), (name, chain)
 
 
 def test_openai_is_an_alias_for_the_compatible_backend():

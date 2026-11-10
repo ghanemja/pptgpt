@@ -35,6 +35,7 @@ const ASSETS = [
   ["mockBackend.js", "mockBackend.js"],
   ["previewRenderer.jsx", "previewRenderer.jsx"],
   ["samples", "samples"],
+  ["vendor", "vendor"],
 
   // unified workspace
   ["workspace.css", "workspace.css"],

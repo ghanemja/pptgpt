@@ -4,6 +4,13 @@ pptgpt runs entirely on your own computer: a small Python server, a local
 model through Ollama, and LibreOffice for exact slide previews. No account, no
 cloud service, and your company's files never leave the machine.
 
+**Once installed, pptgpt makes no network calls while it runs, except to
+Ollama on 127.0.0.1.** The browser libraries and fonts ship in
+`frontend/vendor/`, the semantic model is downloaded once in step 2, and no
+cloud model is ever used unless you name one in `.env` (see
+[Use your own model](#use-your-own-model)). Downloads happen only during
+setup: `pip install`, `scripts/fetch_models.py` and `ollama pull`.
+
 Time: about 20 minutes, most of it downloads.
 
 | You need | Why | Required? |
@@ -57,12 +64,23 @@ py -3 -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
 ```
 
+Then download the semantic model, once (about 90 MB, into `models/`):
+
+```bash
+.venv/bin/python scripts/fetch_models.py
+```
+
+It ends with `OK: loads offline from models/all-MiniLM-L6-v2`. pptgpt loads
+it from that folder and never downloads it while running. On a machine with
+no internet, run this on one that has it and copy the `models/` folder over.
+
 Notes:
 
 - `sentence-transformers` pulls in PyTorch (~700 MB). It improves the
   storyboard's narrative analysis; if the install is too heavy or blocked,
-  remove that line from `requirements.txt` — pptgpt falls back to a simpler
-  word-overlap method and says so once at start-up.
+  remove that line from `requirements.txt` and skip `fetch_models.py` —
+  pptgpt falls back to a simpler word-overlap method and says so once in
+  the terminal.
 - `anthropic` is only used if you choose the Anthropic API instead of Ollama.
   It is harmless to install either way.
 
@@ -226,10 +244,12 @@ The older names `DECKENGINE_NARRATIVE_BACKEND=gemma` with `LOCAL_LLM_BASE`,
 
 ### When the model fails
 
-If a call fails (key revoked, endpoint down, timeout), the server tries one
-other model before giving up: with Ollama or an OpenAI-compatible endpoint,
-Anthropic, if an `ANTHROPIC_API_KEY` is set; with Anthropic, Ollama, if it is
-running. If nothing answers, the browser falls back to a simple built-in
+If a call fails (key revoked, endpoint down, timeout), the server tries
+Ollama on this machine, if it is running and was not already the one that
+failed. It never falls back to a cloud model: Anthropic or an
+OpenAI-compatible endpoint is only used when `DECKENGINE_NARRATIVE_BACKEND`
+names it, so an `ANTHROPIC_API_KEY` sitting in your environment does nothing
+on its own. If nothing answers, the browser falls back to a simple built-in
 writer, and slides come out generic. The terminal shows
 `[narrative] … backend failed` when that happens; re-run
 `.venv/bin/python scripts/check_model.py` to see why.
@@ -279,4 +299,5 @@ Every line should end in `N/N passed`. The JavaScript test needs Node 18+.
 | "Port 8000 is in use" | `PORT=8010 scripts/start.sh` |
 | No "exact" badge on previews | LibreOffice not installed or not on PATH |
 | Corporate proxy blocks `pip install` | `pip install --proxy http://proxy:port -r requirements.txt`, or ask IT for a package mirror |
+| `[semantics] model unavailable, falling back to lexical` | The semantic model is not in `models/`. Run `.venv/bin/python scripts/fetch_models.py` once (optional; everything works without it) |
 | Corporate proxy blocks `ollama pull` | Set `HTTPS_PROXY` before starting Ollama, or ask IT to copy the model into `~/.ollama/models` |

@@ -87,3 +87,30 @@ local, usable by a non-expert) — not methodological novelty.
   are tested (no overlap, no connector through a box, labels fit) and output
   drawn as native editable PowerPoint shapes. No novelty claimed.
 
+## Vendored browser libraries and fonts (`frontend/vendor/`)
+
+Committed so the app runs with no internet access. Fetched by
+`scripts/vendor_frontend.py`, which takes each library from both unpkg and
+jsDelivr and refuses unless the bytes match; every file's SHA-384 is in
+`frontend/vendor/MANIFEST.json` (`--check` re-verifies). Not modified.
+
+- **React / ReactDOM 18.3.1** (production builds) — MIT, Meta Platforms.
+- **@babel/standalone 7.29.0** — MIT, the Babel contributors.
+- **pdf.js (`pdfjs-dist`) 3.11.174**, legacy build + worker — Apache-2.0,
+  Mozilla.
+- **JSZip 3.10.1** — MIT or GPLv3 (dual), Stuart Knightley et al.; used here
+  under MIT.
+- **Fonts** — IBM Plex Sans, IBM Plex Mono, IBM Plex Serif (IBM), Lato
+  (Łukasz Dziedzic), Newsreader (Production Type), Space Grotesk (Florian
+  Karsten) and Manrope (Mikhail Sharanda): all under the **SIL Open Font
+  License 1.1**. The woff2 files are Google Fonts' latin and latin-ext
+  subsets, unmodified; `fonts/fonts.css` is Google's CSS with the URLs made
+  local. The OFL allows bundling and redistribution with software; the fonts
+  may not be sold on their own.
+
+## Semantic model (`models/`, not committed)
+
+- **all-MiniLM-L6-v2** (sentence-transformers, Apache-2.0), downloaded once at
+  a pinned revision by `scripts/fetch_models.py` and loaded from disk with
+  `local_files_only`. Its model card (`README.md`, with the licence) is
+  saved alongside the weights.

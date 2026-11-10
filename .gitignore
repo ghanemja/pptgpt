@@ -51,3 +51,6 @@ kits/*/.cache/
 # Reviewers people tuned and saved in the Review phase. Personal; the shipped
 # personas in coaches/*.json are what the project ships.
 coaches/saved/
+
+# The semantic model, fetched once by scripts/fetch_models.py. ~90 MB.
+models/
