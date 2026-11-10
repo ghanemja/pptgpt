@@ -34,6 +34,12 @@ fi
 HOST="127.0.0.1"
 PORT="${PORT:-8000}"
 
+# No network at runtime. The semantic model loads from models/ (put there once
+# by scripts/fetch_models.py); these stop the Hugging Face libraries from ever
+# trying the model hub. Forced, not defaulted.
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+
 export DECKENGINE_NARRATIVE_BACKEND="${DECKENGINE_NARRATIVE_BACKEND:-ollama}"
 export OLLAMA_MODEL="${OLLAMA_MODEL:-gemma3:4b}"
 export OLLAMA_HOST="${OLLAMA_HOST:-http://127.0.0.1:11434}"
@@ -65,7 +71,15 @@ if [ "${SKIP_MODEL_CHECK:-0}" != "1" ]; then
     || fail "The model is not set up (above). Fix .env (see .env.example / SETUP.md), or start anyway with SKIP_MODEL_CHECK=1"
 fi
 
-# 4. LibreOffice (optional: exact previews, template backdrops, SVG icons).
+# 4. The semantic model (optional: storyboard and thread map read meaning,
+#    not just shared words). Fetched once; never downloaded from here.
+if [ -f "$ROOT/models/all-MiniLM-L6-v2/modules.json" ]; then
+  ok "Semantic model (models/all-MiniLM-L6-v2)"
+else
+  warn "No semantic model — the storyboard uses word overlap. Run once: .venv/bin/python scripts/fetch_models.py"
+fi
+
+# 5. LibreOffice (optional: exact previews, template backdrops, SVG icons).
 if command -v soffice >/dev/null 2>&1 \
    || [ -x /Applications/LibreOffice.app/Contents/MacOS/soffice ] \
    || [ -x /usr/bin/soffice ] || [ -x /usr/lib/libreoffice/program/soffice ]; then
@@ -74,7 +88,7 @@ else
   warn "LibreOffice not found — no exact previews, and SVG icons will not export. See SETUP.md."
 fi
 
-# 5. Port free?
+# 6. Port free?
 if "$PY" - "$HOST" "$PORT" <<'EOF' 2>/dev/null; then :; else fail "Port $PORT is in use. Try: PORT=8010 scripts/start.sh"; fi
 import socket, sys
 s = socket.socket()

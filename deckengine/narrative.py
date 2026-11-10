@@ -73,14 +73,16 @@ def _outline_hash(outline: list[dict], audience: str | None, mode: str | None) -
 
 # ---- model swap point ---------------------------------------------------
 #
-# Two production backends are wired here, selectable by env var:
+# Three backends are wired here, selectable by env var. Only a backend the
+# env var NAMES ever sees deck text; nothing falls back to a cloud API.
 #
-#   DECKENGINE_NARRATIVE_BACKEND=anthropic   (default)
-#     Calls api.anthropic.com via the `anthropic` SDK.
+#   DECKENGINE_NARRATIVE_BACKEND=anthropic
+#     Calls api.anthropic.com via the `anthropic` SDK. Sends deck text off
+#     this machine, so it is used only when named here explicitly.
 #     Requires ANTHROPIC_API_KEY.
 #     Configurable via DECKENGINE_NARRATIVE_MODEL (default claude-sonnet-4-6).
 #
-#   DECKENGINE_NARRATIVE_BACKEND=ollama
+#   DECKENGINE_NARRATIVE_BACKEND=ollama   (default)
 #     Calls a local Ollama server (default http://127.0.0.1:11434 — the
 #     address Ollama binds. "localhost" can resolve to ::1 first, and where
 #     nothing answers there the 1.5s reachability probe times out.)
@@ -95,7 +97,7 @@ def _outline_hash(outline: list[dict], audience: str | None, mode: str | None) -
 # Both share the same prompt, the same JSON-extraction logic, and the same
 # anti-fabrication validator. The swap is one env var.
 
-_BACKEND     = os.environ.get("DECKENGINE_NARRATIVE_BACKEND", "anthropic").strip().lower()
+_BACKEND     = (os.environ.get("DECKENGINE_NARRATIVE_BACKEND", "") or "ollama").strip().lower()
 # "openai" is the honest name for the OpenAI-compatible backend: it speaks
 # /v1/chat/completions to ANY such endpoint (OpenAI, LM Studio, vLLM, a
 # company gateway, a hosted Gemma). "gemma" is its original name and still
@@ -254,19 +256,16 @@ def _llm_call_gemma(prompt: str, system: str = "") -> str:
 
 
 def _backend_chain() -> list[str]:
-    """Pick the order to try backends. Primary first, then any other backend
-    that *looks* configured. This means a configured fallback never silently
-    activates — but if you set both, we'll try the other one before giving up."""
+    """The backends to try, in order: the one DECKENGINE_NARRATIVE_BACKEND
+    names, then local Ollama if it is running.
+
+    A remote backend (Anthropic, an OpenAI-compatible endpoint) is never a
+    fallback. Reaching for one because the local model was down would send
+    deck text off the machine without anyone having chosen that. Falling back
+    the other way — from a named remote backend to Ollama on this machine —
+    keeps the text local, so it stays."""
     chain = [_BACKEND]
-    if _BACKEND == "gemma":
-        # gemma is self-contained; only fall back to anthropic if a key exists.
-        other = "anthropic" if _API_KEY else None
-    else:
-        other = "anthropic" if _BACKEND == "ollama" else "ollama"
-    # only add 'other' if its prerequisites look set
-    if other == "anthropic" and _API_KEY:
-        chain.append("anthropic")
-    elif other == "ollama":
+    if _BACKEND != "ollama":
         # cheap ping
         try:
             import urllib.request
@@ -276,12 +275,7 @@ def _backend_chain() -> list[str]:
                     chain.append("ollama")
         except Exception:
             pass
-    # dedupe while preserving order
-    seen, out = set(), []
-    for b in chain:
-        if b not in seen:
-            seen.add(b); out.append(b)
-    return out
+    return chain
 
 
 # The backend that actually answered the last call. /api/narrative reads this
@@ -304,8 +298,10 @@ def _llm_call_default(prompt: str, system: str = "") -> str:
                 text = _llm_call_ollama(prompt, system)
             elif b == "gemma":
                 text = _llm_call_gemma(prompt, system)
-            else:
+            elif b == "anthropic":
                 text = _llm_call_anthropic(prompt, system)
+            else:
+                raise ValueError(f"unknown DECKENGINE_NARRATIVE_BACKEND={b!r}")
             if text and text.strip():
                 _last_used = b
                 return text

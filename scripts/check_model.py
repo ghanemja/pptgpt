@@ -114,7 +114,7 @@ def check_openai_compatible() -> bool:
 
 
 def main() -> int:
-    backend = os.environ.get("DECKENGINE_NARRATIVE_BACKEND", "anthropic").strip().lower()
+    backend = (os.environ.get("DECKENGINE_NARRATIVE_BACKEND", "") or "ollama").strip().lower()
     if backend == "ollama":
         # Ollama missing is a warning, not a stop: it is the default, and the
         # built-in writer still produces slides without it.

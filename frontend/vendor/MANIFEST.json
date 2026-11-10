@@ -1,0 +1,487 @@
+{
+  "generated_by": "scripts/vendor_frontend.py",
+  "verify": "python scripts/vendor_frontend.py --check",
+  "files": [
+    {
+      "file": "react-18.3.1/react.production.min.js",
+      "package": "react",
+      "version": "18.3.1",
+      "path": "umd/react.production.min.js",
+      "license": "MIT",
+      "sources": [
+        "https://unpkg.com/react@18.3.1/umd/react.production.min.js",
+        "https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"
+      ],
+      "bytes": 10751,
+      "sha384": "sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z"
+    },
+    {
+      "file": "react-dom-18.3.1/react-dom.production.min.js",
+      "package": "react-dom",
+      "version": "18.3.1",
+      "path": "umd/react-dom.production.min.js",
+      "license": "MIT",
+      "sources": [
+        "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js",
+        "https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"
+      ],
+      "bytes": 131835,
+      "sha384": "sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1"
+    },
+    {
+      "file": "babel-standalone-7.29.0/babel.min.js",
+      "package": "@babel/standalone",
+      "version": "7.29.0",
+      "path": "babel.min.js",
+      "license": "MIT",
+      "sources": [
+        "https://unpkg.com/@babel/standalone@7.29.0/babel.min.js",
+        "https://cdn.jsdelivr.net/npm/@babel/standalone@7.29.0/babel.min.js"
+      ],
+      "bytes": 3137752,
+      "sha384": "sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y"
+    },
+    {
+      "file": "pdfjs-dist-3.11.174/pdf.min.js",
+      "package": "pdfjs-dist",
+      "version": "3.11.174",
+      "path": "legacy/build/pdf.min.js",
+      "license": "Apache-2.0",
+      "sources": [
+        "https://unpkg.com/pdfjs-dist@3.11.174/legacy/build/pdf.min.js",
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.min.js"
+      ],
+      "bytes": 377116,
+      "sha384": "sha384-OemFRmhjDZwhIKuUld0HJozkF2YErsgDaCL41trxGQZt4/WgnopJQqQl2DvDZ07Z"
+    },
+    {
+      "file": "pdfjs-dist-3.11.174/pdf.worker.min.js",
+      "package": "pdfjs-dist",
+      "version": "3.11.174",
+      "path": "legacy/build/pdf.worker.min.js",
+      "license": "Apache-2.0",
+      "sources": [
+        "https://unpkg.com/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js",
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js"
+      ],
+      "bytes": 1133660,
+      "sha384": "sha384-sS8B4COeBqzQV9DaPpp5cbpF+xz2jPcFbN3L8FL3/dx0RMC6WLUwTUOFm0iFb1lw"
+    },
+    {
+      "file": "jszip-3.10.1/jszip.min.js",
+      "package": "jszip",
+      "version": "3.10.1",
+      "path": "dist/jszip.min.js",
+      "license": "MIT OR GPL-3.0",
+      "sources": [
+        "https://unpkg.com/jszip@3.10.1/dist/jszip.min.js",
+        "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
+      ],
+      "bytes": 97630,
+      "sha384": "sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG"
+    },
+    {
+      "file": "fonts/ibm-plex-mono-normal-400-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F63fjptAgt5VM-kVkqdyU8n1iEq129k.woff2",
+      "family": "IBM Plex Mono",
+      "style": "normal",
+      "weight": "400",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 13348,
+      "sha384": "sha384-EOszNGWSBTw8HLRn4tnx2gp0LGQMnY19FTqxR5j6wrTNdPoi1Sa+tfXiFMxSvnAx"
+    },
+    {
+      "file": "fonts/ibm-plex-mono-normal-400-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F63fjptAgt5VM-kVkqdyU8n1i8q1w.woff2",
+      "family": "IBM Plex Mono",
+      "style": "normal",
+      "weight": "400",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 14708,
+      "sha384": "sha384-oFQAuS7n3CFHgvwGpuoFV1kPR39MQLTlQIL+UnoEvMkkFZsrFNOZy/f7x+DofQNH"
+    },
+    {
+      "file": "fonts/ibm-plex-mono-normal-500-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F6qfjptAgt5VM-kVkqdyU8n3twJwl5FgtIU.woff2",
+      "family": "IBM Plex Mono",
+      "style": "normal",
+      "weight": "500",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 13432,
+      "sha384": "sha384-T/qFfmOeGmzD9vBdN1AA0ZVc8aBghH5cq9MHqsbiosKWXcWDeUjd56WCCocejnU4"
+    },
+    {
+      "file": "fonts/ibm-plex-mono-normal-500-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F6qfjptAgt5VM-kVkqdyU8n3twJwlBFgg.woff2",
+      "family": "IBM Plex Mono",
+      "style": "normal",
+      "weight": "500",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 14888,
+      "sha384": "sha384-Kw6LIdWT9s2TL76UbmD8dGxybSU6p0ogD2mOoYEcQkhnbbsTR0cK2Is2pVym8+QI"
+    },
+    {
+      "file": "fonts/ibm-plex-mono-normal-600-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F6qfjptAgt5VM-kVkqdyU8n3vAOwl5FgtIU.woff2",
+      "family": "IBM Plex Mono",
+      "style": "normal",
+      "weight": "600",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 14328,
+      "sha384": "sha384-5RBuK3s3It4CM5Wrz0ipl2SYBNEQ3GLj1LyiJk/TuXp2mIArplarIGyIoEhR4lx4"
+    },
+    {
+      "file": "fonts/ibm-plex-mono-normal-600-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F6qfjptAgt5VM-kVkqdyU8n3vAOwlBFgg.woff2",
+      "family": "IBM Plex Mono",
+      "style": "normal",
+      "weight": "600",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 15620,
+      "sha384": "sha384-cSEQ4sCMYSoyz3H0CBM8NqlVI2myHbtGk2vM+mtmCvcDYBO5sss7j0NZ5PzwuTGB"
+    },
+    {
+      "file": "fonts/ibm-plex-sans-normal-var-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexsans/v23/zYXzKVElMYYaJe8bpLHnCwDKr932-G7dytD-Dmu1syxQKYbABA.woff2",
+      "family": "IBM Plex Sans",
+      "style": "normal",
+      "weight": "400 500 600 700",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 30964,
+      "sha384": "sha384-4TBULo6jPS4OrjG4pJYDg9NP+zFmachnYJ2m46uMGoBiWpOHHN0+BPLDT4iQKpW8"
+    },
+    {
+      "file": "fonts/ibm-plex-sans-normal-var-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexsans/v23/zYXzKVElMYYaJe8bpLHnCwDKr932-G7dytD-Dmu1syxeKYY.woff2",
+      "family": "IBM Plex Sans",
+      "style": "normal",
+      "weight": "400 500 600 700",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 45712,
+      "sha384": "sha384-NanSx7VQkdhkOlSmALxwm5pyrMgPPIJHAx5L3FG82xDqDRATAy8ZzJJ3Ih3nwzJy"
+    },
+    {
+      "file": "fonts/ibm-plex-serif-italic-400-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexserif/v20/jizBREVNn1dOx-zrZ2X3pZvkTiUa6zsTjmbI.woff2",
+      "family": "IBM Plex Serif",
+      "style": "italic",
+      "weight": "400",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 16296,
+      "sha384": "sha384-iFvMsLJ0KvtLcgCaEJRfBq5KB6spmwvhZKs0RxtVAQNv5jfh5l+q+3TvV171w/Io"
+    },
+    {
+      "file": "fonts/ibm-plex-serif-italic-400-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexserif/v20/jizBREVNn1dOx-zrZ2X3pZvkTiUa6zUTjg.woff2",
+      "family": "IBM Plex Serif",
+      "style": "italic",
+      "weight": "400",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 20900,
+      "sha384": "sha384-fUtpHyltYGYPWW50OKJDTzCQwAgbqpnHcJE4UpgXILJLeB1oXlZhUkcx/USUgRkF"
+    },
+    {
+      "file": "fonts/ibm-plex-serif-italic-500-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexserif/v20/jizGREVNn1dOx-zrZ2X3pZvkTiUa48Ywm1fpjeOg.woff2",
+      "family": "IBM Plex Serif",
+      "style": "italic",
+      "weight": "500",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 16512,
+      "sha384": "sha384-89foTUW/VnxkZLM9I664K3mHc7D1/R9xnOCSUywi6+7ql08vdYhkCGWPDR1sBXSL"
+    },
+    {
+      "file": "fonts/ibm-plex-serif-italic-500-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexserif/v20/jizGREVNn1dOx-zrZ2X3pZvkTiUa48Ywm1npjQ.woff2",
+      "family": "IBM Plex Serif",
+      "style": "italic",
+      "weight": "500",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 21696,
+      "sha384": "sha384-TMj2AzE+/YdQBV9/QVlbgDaV2IRGKUAHflx/pf5igdovruwXYkqUjAITAXZRhzws"
+    },
+    {
+      "file": "fonts/ibm-plex-serif-normal-400-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexserif/v20/jizDREVNn1dOx-zrZ2X3pZvkTiUR2zcLig.woff2",
+      "family": "IBM Plex Serif",
+      "style": "normal",
+      "weight": "400",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 15476,
+      "sha384": "sha384-+I10NLh5ztya7ypa7UGBua4A5nvHaRCiq/7gVIh0K2Cjdy14LGiH28It1sMdAkU2"
+    },
+    {
+      "file": "fonts/ibm-plex-serif-normal-400-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexserif/v20/jizDREVNn1dOx-zrZ2X3pZvkTiUf2zc.woff2",
+      "family": "IBM Plex Serif",
+      "style": "normal",
+      "weight": "400",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 19580,
+      "sha384": "sha384-zaDvaFXCOiRcupW1t72l2b9LcCBUXhK+WHJ6DkMwYlim3yCEUWZUk4QdQExGdeAQ"
+    },
+    {
+      "file": "fonts/ibm-plex-serif-normal-500-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexserif/v20/jizAREVNn1dOx-zrZ2X3pZvkTi3s-CI6q1vxiQ.woff2",
+      "family": "IBM Plex Serif",
+      "style": "normal",
+      "weight": "500",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 15512,
+      "sha384": "sha384-79cl+q/IvBMGOCJSXuo7zfhXrhZvw6KGcDl/hnQKAkiYnV1P1bqzXT5HoaGa1hJv"
+    },
+    {
+      "file": "fonts/ibm-plex-serif-normal-500-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexserif/v20/jizAREVNn1dOx-zrZ2X3pZvkTi3s-CI0q1s.woff2",
+      "family": "IBM Plex Serif",
+      "style": "normal",
+      "weight": "500",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 20308,
+      "sha384": "sha384-s32pd9HGrBELvaeYALOGYnlBbPU7NKO73TBmUifa+oBHPdIY5Ck4tLzmAsnLOVLX"
+    },
+    {
+      "file": "fonts/ibm-plex-serif-normal-600-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexserif/v20/jizAREVNn1dOx-zrZ2X3pZvkTi3A_yI6q1vxiQ.woff2",
+      "family": "IBM Plex Serif",
+      "style": "normal",
+      "weight": "600",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 15560,
+      "sha384": "sha384-PYwVsgnpN6+l3TUH579MqSooIh4q8V+pWS+6VxuLr6PigD+jHM5ergYhqpXgpnF1"
+    },
+    {
+      "file": "fonts/ibm-plex-serif-normal-600-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/ibmplexserif/v20/jizAREVNn1dOx-zrZ2X3pZvkTi3A_yI0q1s.woff2",
+      "family": "IBM Plex Serif",
+      "style": "normal",
+      "weight": "600",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 20516,
+      "sha384": "sha384-1C35/PSGc/owlqgBYN8zwIj3AViWn5eEe9Ed12YHauIWcf2TpC3/ISLfEdPhpZW9"
+    },
+    {
+      "file": "fonts/lato-italic-400-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6u8w4BMUTPHjxsAUi-qJCY.woff2",
+      "family": "Lato",
+      "style": "italic",
+      "weight": "400",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 5776,
+      "sha384": "sha384-V1zZbzoFXequqX0yjMZ73f/W3eqXCA7gSD4j9yjKaWucqhSduSKuiY/rjIkB7kA9"
+    },
+    {
+      "file": "fonts/lato-italic-400-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6u8w4BMUTPHjxsAXC-q.woff2",
+      "family": "Lato",
+      "style": "italic",
+      "weight": "400",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 24408,
+      "sha384": "sha384-uloFnFm3iESibcAW6Jb8x94z+mGXSnuKLpZWqGTNWaAYB5zh++EhP5XQNlBwjSHB"
+    },
+    {
+      "file": "fonts/lato-italic-700-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6u_w4BMUTPHjxsI5wq_FQft1dw.woff2",
+      "family": "Lato",
+      "style": "italic",
+      "weight": "700",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 5792,
+      "sha384": "sha384-NMwVcsowCLCkfL2tuhFUqtCpuLoDWaVQS8Z4GofagoEtb2cL0cVAojk59VgcNT1T"
+    },
+    {
+      "file": "fonts/lato-italic-700-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6u_w4BMUTPHjxsI5wq_Gwft.woff2",
+      "family": "Lato",
+      "style": "italic",
+      "weight": "700",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 24448,
+      "sha384": "sha384-YC1Xp9zWtc27nYXqHHsZ5Jdj3z2P00r5H5cnZhD9S5+b/Aou99q7IZeMffBMVYCE"
+    },
+    {
+      "file": "fonts/lato-normal-300-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6u9w4BMUTPHh7USSwaPGR_p.woff2",
+      "family": "Lato",
+      "style": "normal",
+      "weight": "300",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 5820,
+      "sha384": "sha384-0CAvd720oZkplBfcZ0aeMn2LkvhYjiHqcMFpPAbIx54KC4lYB8tt58DVAuEpIvGi"
+    },
+    {
+      "file": "fonts/lato-normal-300-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6u9w4BMUTPHh7USSwiPGQ.woff2",
+      "family": "Lato",
+      "style": "normal",
+      "weight": "300",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 23236,
+      "sha384": "sha384-UGZEpai3wXEbE2T5OvJmTjm74P/dvmAXS8R6UgG5VmpIbPh5RGLQA7TinybiUo/4"
+    },
+    {
+      "file": "fonts/lato-normal-400-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6uyw4BMUTPHjxAwXjeu.woff2",
+      "family": "Lato",
+      "style": "normal",
+      "weight": "400",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 5612,
+      "sha384": "sha384-MCl0AhJxXw0J3mgpGWGCOwEszWffVvUys6U9MrftNWWEgz4ppPlbs5tUHZTTTMQ+"
+    },
+    {
+      "file": "fonts/lato-normal-400-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6uyw4BMUTPHjx4wXg.woff2",
+      "family": "Lato",
+      "style": "normal",
+      "weight": "400",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 23580,
+      "sha384": "sha384-+chn3xqCWRPSXDBtVEFQn+0J9Gb0SYR2FO1WrXo+L/arnyr8lXLVX2p0BqZIUemc"
+    },
+    {
+      "file": "fonts/lato-normal-700-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6u9w4BMUTPHh6UVSwaPGR_p.woff2",
+      "family": "Lato",
+      "style": "normal",
+      "weight": "700",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 5552,
+      "sha384": "sha384-+/vrh1Zw3xQMhmOcactE1ZVPRvEIfmvFhBnYJBIQbGH+BoHd3kX81XRL/07E1Y/m"
+    },
+    {
+      "file": "fonts/lato-normal-700-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6u9w4BMUTPHh6UVSwiPGQ.woff2",
+      "family": "Lato",
+      "style": "normal",
+      "weight": "700",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 23040,
+      "sha384": "sha384-VMhSnqoWTuTbzD+C/VKMAuMX6GpE7X2E+BiHN4Swi68wjoKZnNf8k07Z2L+ZYHcS"
+    },
+    {
+      "file": "fonts/lato-normal-900-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6u9w4BMUTPHh50XSwaPGR_p.woff2",
+      "family": "Lato",
+      "style": "normal",
+      "weight": "900",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 5640,
+      "sha384": "sha384-4njdGw5B8oT4eWpYLqUotqCXzC/rJKp+ZodT8L4RpTZNLHepSNi48FT/x64D/UD4"
+    },
+    {
+      "file": "fonts/lato-normal-900-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6u9w4BMUTPHh50XSwiPGQ.woff2",
+      "family": "Lato",
+      "style": "normal",
+      "weight": "900",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 22504,
+      "sha384": "sha384-R8YyzAhhxYcD59EwINhHaz1v4OIvSvfPGUA7MNhO37g3Hw5qjSN3NJ7nZdi3OLLW"
+    },
+    {
+      "file": "fonts/manrope-normal-var-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/manrope/v23/xn7gYHE41ni1AdIRggmxSuXd.woff2",
+      "family": "Manrope",
+      "style": "normal",
+      "weight": "300 400 500 600 700 800",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 15160,
+      "sha384": "sha384-ylbxQqhYKbJinTuZlTG65ynasz/81Ce7UXQPEpB5D5CjGyqnTZmwimy9MI+F8Msd"
+    },
+    {
+      "file": "fonts/manrope-normal-var-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/manrope/v23/xn7gYHE41ni1AdIRggexSg.woff2",
+      "family": "Manrope",
+      "style": "normal",
+      "weight": "300 400 500 600 700 800",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 24532,
+      "sha384": "sha384-DVmqjC0Py/EMcw2Khk64+RMz6hrRSK7ZGiKRiKZV95Xu6l8dlJB1SN0xiZ9XsFqC"
+    },
+    {
+      "file": "fonts/newsreader-normal-var-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/newsreader/v26/cY9AfjOCX1hbuyalUrK439DyjJBG.woff2",
+      "family": "Newsreader",
+      "style": "normal",
+      "weight": "400 500 600",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 86608,
+      "sha384": "sha384-clObKlwdpqd84FIYGEJbNr3TQH7qjO/3uLxigWNzE+LV4cs3/pYQWqyS7XNVVDhU"
+    },
+    {
+      "file": "fonts/newsreader-normal-var-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/newsreader/v26/cY9AfjOCX1hbuyalUrK4397yjA.woff2",
+      "family": "Newsreader",
+      "style": "normal",
+      "weight": "400 500 600",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 132000,
+      "sha384": "sha384-5TsIb3Y92/m28WF/gV7mdSO1juW62ueaN4e5hRZ4uC6CQV5Igadd+oBHDfLDyCX3"
+    },
+    {
+      "file": "fonts/space-grotesk-normal-var-latin-ext.woff2",
+      "source": "https://fonts.gstatic.com/s/spacegrotesk/v22/V8mDoQDjQSkFtoMM3T6r8E7mPb94C-s0.woff2",
+      "family": "Space Grotesk",
+      "style": "normal",
+      "weight": "400 500 600 700",
+      "subset": "latin-ext",
+      "license": "OFL-1.1",
+      "bytes": 18940,
+      "sha384": "sha384-pfXgxFzpO9ikTCbPzbYqL7ZT41jx4+WxzPypqQTlIdFkwrkLyP7wn+Ud0dNmATFv"
+    },
+    {
+      "file": "fonts/space-grotesk-normal-var-latin.woff2",
+      "source": "https://fonts.gstatic.com/s/spacegrotesk/v22/V8mDoQDjQSkFtoMM3T6r8E7mPbF4Cw.woff2",
+      "family": "Space Grotesk",
+      "style": "normal",
+      "weight": "400 500 600 700",
+      "subset": "latin",
+      "license": "OFL-1.1",
+      "bytes": 22288,
+      "sha384": "sha384-bFyCnQmP7dzdczmuaRhRu9VULfsqiMtFsiHv7/FBcJIjF1yOWpNedOO2AvXF0RfE"
+    },
+    {
+      "file": "fonts/fonts.css",
+      "source": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400;1,700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@300;400;500;600;700;800&display=swap",
+      "note": "generated: Google's CSS, latin + latin-ext only, urls made local",
+      "bytes": 24410,
+      "sha384": "sha384-oKwiHwiaw5WIZtJXFwU/+fHkyd6aFjHXfILk7tXYeTH8aZ66HXN6sYsY7Nr1mlmG"
+    }
+  ]
+}

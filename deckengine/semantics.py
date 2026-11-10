@@ -14,6 +14,9 @@ Design choices:
   slides on every keystroke.
 - When sentence-transformers isn't installed, every public function returns
   `None` and callers fall back to the lexical path. We never crash.
+- The model is NEVER downloaded at runtime. `scripts/fetch_models.py` saves it
+  under models/ once; here it loads from that folder with local_files_only and
+  the Hugging Face libraries forced offline. No folder → lexical fallback.
 
 Public API:
     available()                    -> bool   — is the embedding stack usable?
@@ -26,12 +29,18 @@ Public API:
 """
 from __future__ import annotations
 import hashlib
+import os
 import re
+import sys
 import threading
+from pathlib import Path
 from typing import Iterable, Optional
 
 
 _MODEL_NAME = "all-MiniLM-L6-v2"
+MODEL_REPO = f"sentence-transformers/{_MODEL_NAME}"
+# Where scripts/fetch_models.py puts it. git-ignored.
+MODEL_DIR = Path(__file__).resolve().parent.parent / "models" / _MODEL_NAME
 _model = None
 _model_lock = threading.Lock()
 _model_failed = False  # remembered so we don't retry on every call
@@ -52,20 +61,45 @@ def _get_model():
             return _model
         if _model_failed:
             return None
+        if not model_present():
+            _model_failed = True
+            _notice(f"no model at {MODEL_DIR} (run: python scripts/fetch_models.py)")
+            return None
+        # Forced, not defaulted: whatever the shell says, this process does
+        # not reach the model hub. Set before the HF libraries are imported,
+        # which is when they read it.
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
         try:
             from sentence_transformers import SentenceTransformer  # type: ignore
-            _model = SentenceTransformer(_MODEL_NAME)
+            _model = SentenceTransformer(str(MODEL_DIR), local_files_only=True)
         except Exception as e:
             _model_failed = True
-            try:
-                # one terse log line so operators know
-                import sys
-                print(f"[semantics] model unavailable, falling back to lexical: {e}",
-                      file=sys.stderr)
-            except Exception:
-                pass
+            _notice(str(e))
             return None
         return _model
+
+
+def _notice(why: str) -> None:
+    """One terse log line so operators know, printed once per process."""
+    try:
+        print(f"[semantics] model unavailable, falling back to lexical: {why}",
+              file=sys.stderr)
+    except Exception:
+        pass
+
+
+def model_present() -> bool:
+    """Has scripts/fetch_models.py put the model on disk?"""
+    return (MODEL_DIR / "modules.json").is_file() and any(
+        (MODEL_DIR / f).is_file() for f in ("model.safetensors", "pytorch_model.bin"))
+
+
+def reset_model() -> None:
+    """Forget the loaded (or failed) model so the next call tries again."""
+    global _model, _model_failed
+    with _model_lock:
+        _model, _model_failed = None, False
 
 
 def available() -> bool:

@@ -130,8 +130,8 @@ font, size or colour onto a run.
   (the user-facing setup guide) and `kits/example-co/` (a working example,
   rebuilt by `scripts/make_example_kit.py`). Install guide: `SETUP.md`;
   start script: `scripts/start.sh` (binds 127.0.0.1, auth off).
-- `frontend/ws-*.jsx` — the workspace UI: React + Babel standalone from a
-  CDN, no bundler; modules share via `Object.assign(window, {...})`, and a
+- `frontend/ws-*.jsx` — the workspace UI: React + Babel standalone from
+  `frontend/vendor/`, no bundler; modules share via `Object.assign(window, {...})`, and a
   new file is registered in `frontend/workspace.html` and
   `scripts/build-netlify.mjs`. `ws-kit.jsx` is kit setup, `ws-library.jsx`
   the asset library (sets `slide.image = {kit, file, label}` — a reference,
@@ -158,6 +158,19 @@ font, size or colour onto a run.
   no model; `extract_with_model` lets the model read implied structure but
   keeps only labels grounded in the text. `scripts/diagram_gallery.py`
   renders every kind for a look.
+- **No network at runtime** (only Ollama on 127.0.0.1). `frontend/vendor/`
+  holds React, ReactDOM (production builds), Babel standalone, pdf.js, JSZip
+  and the web fonts (`vendor/fonts/fonts.css`, latin + latin-ext woff2), all
+  committed. `scripts/vendor_frontend.py` refetches them from unpkg AND
+  jsDelivr, refuses unless the bytes match, and writes SHA-384s to
+  `vendor/MANIFEST.json` (`--check` verifies offline). Pages reference
+  `vendor/...` relatively; never add a CDN `<script>`, `@import` or font URL.
+  `deckengine/semantics.py` loads its model only from `models/` (gitignored,
+  put there once by `scripts/fetch_models.py`) with `local_files_only` and
+  the HF libraries forced offline; absent → word-overlap fallback.
+  `narrative._backend_chain` falls back only to local Ollama: Anthropic or an
+  OpenAI-compatible endpoint runs only when `DECKENGINE_NARRATIVE_BACKEND`
+  names it (default `ollama`).
 - `deckengine/boundary.py` — adds `#` and converts inches→pixels at the JSON
   edge. The ONLY place that translation happens.
 - `frontend/` — every page and asset, flat, one copy each. `server.py`

@@ -22,8 +22,9 @@ Endpoints
                              spine (one sentence), arc shape, orphans with
                              reasons, gaps with bridge suggestions, tensions
                              (contradictions, redundancies, unsupported), and
-                             concrete recommendations. Requires ANTHROPIC_API_KEY
-                             (or a Gemma swap in narrative._llm_call).
+                             concrete recommendations. Uses the model
+                             DECKENGINE_NARRATIVE_BACKEND names (default:
+                             local Ollama).
 
   GET  /health
 
