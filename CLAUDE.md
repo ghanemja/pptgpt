@@ -124,6 +124,8 @@ font, size or colour onto a run.
   density note and `org.load_org` (`narrative.learned`). `describe` is the
   one optional model pass (`/graph/describe`): it labels measured facts and
   every claim must cite existing slide ids; no model → the facts themselves.
+  The kit panel (`frontend/ws-kit.jsx`, `KitGraph`) draws the summary under
+  "Learn from examples"; each chip queries `?uses=` for its slides.
 - `kits/` — one folder per company; git-ignored except `kits/README.md`
   (the user-facing setup guide) and `kits/example-co/` (a working example,
   rebuilt by `scripts/make_example_kit.py`). Install guide: `SETUP.md`;

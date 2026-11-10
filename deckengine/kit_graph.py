@@ -704,7 +704,10 @@ def slides_using(x: Graphish, what: str) -> list[str]:
 def summary(x: Graphish) -> dict[str, Any]:
     g = _g(x)
     return {"version": g["version"], "digest": g["digest"], "decks": g["decks"],
-            "slides": g["slides"], **g["summary"]}
+            "slides": g["slides"],
+            "files": [{"id": n["id"], "file": n["file"], "slides": n["slides"]}
+                      for n in g["nodes"] if n["type"] == "deck"],
+            **g["summary"]}
 
 
 # ---- optional model pass: label, never invent -------------------------------
@@ -733,7 +736,7 @@ def _facts(g: dict[str, Any]) -> list[dict[str, Any]]:
         out.append({"text": f"The ask lands about {round(pos * 100)}% of the way through.",
                     "slides": list(a["ask"]["slides"])})
     for k in g["summary"]["preferred_diagram_kinds"][:2]:
-        out.append({"text": f"Processes are drawn as {k} diagrams.",
+        out.append({"text": f"The decks draw {k} diagrams.",
                     "slides": slides_using(g, k)})
     for t in terms(g, limit=3):
         out.append({"text": f"“{t['label']}” recurs across {t['decks']} deck(s).",

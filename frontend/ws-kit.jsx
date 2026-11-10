@@ -192,6 +192,169 @@ function KitPart({ part, scan, busy, onUpload, onImport, sources }) {
   );
 }
 
+/* The example decks' structure, from graph.json (kit_graph.py): the arc,
+   sections, visual vocabulary and recurring terms. Every chip is a query —
+   click one and the server lists the slides that use it. Nothing here
+   rereads a deck; it is all looked up in the graph learning wrote. */
+const ROLE_LABEL = {
+  cover: 'Cover', section: 'Section', statement: 'Statement', bullets: 'Bullets', two: 'Two-column',
+  chart: 'Chart', table: 'Table', picture: 'Picture', diagram: 'Diagram',
+};
+function visualLabel(v) {
+  if (v.startsWith('chart:')) return `${v.slice(6)} chart`;
+  if (v.startsWith('diagram:')) return `${v.slice(8)} diagram`;
+  return { smartart: 'SmartArt', connector: 'connected shapes', group: 'grouped shapes' }[v] || v;
+}
+
+function KitGraph({ slug, learned }) {
+  const [g, setG] = useState(null);
+  const [err, setErr] = useState('');
+  const [query, setQuery] = useState(null);          // { what, label, slides }
+  const [claims, setClaims] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const key = learned && learned.graph ? learned.graph.digest : '';
+
+  useEffect(() => {
+    setG(null); setErr(''); setQuery(null); setClaims(null);
+    if (!slug || !key) return;
+    kitCall('GET', `/api/kits/${encodeURIComponent(slug)}/graph`)
+      .then(setG).catch(e => setErr(e.message));
+  }, [slug, key]);
+
+  if (!key) return null;
+  if (err) return <p className="kitpart__how">Deck structure: {err}</p>;
+  if (!g) return null;
+
+  const files = Object.fromEntries((g.files || []).map(f => [f.id, f.file]));
+  const where = id => {
+    const [d, s] = id.split('.');
+    return `${(files[d] || d).replace(/\.pptx$/i, '')} · slide ${s.slice(1)}`;
+  };
+
+  function ask(what, label) {
+    if (query && query.what === what) { setQuery(null); return; }
+    kitCall('GET', `/api/kits/${encodeURIComponent(slug)}/graph?uses=${encodeURIComponent(what)}`)
+      .then(d => setQuery({ what, label, slides: d.slides || [] }))
+      .catch(e => setErr(e.message));
+  }
+
+  function describe() {
+    setBusy(true);
+    kitCall('POST', `/api/kits/${encodeURIComponent(slug)}/graph/describe`)
+      .then(setClaims).catch(e => setErr(e.message)).finally(() => setBusy(false));
+  }
+
+  const arc = g.arc || {};
+  const askInfo = arc.ask || {};
+  const sec = g.sections || {};
+  const chip = (what, label, count) => (
+    <button key={what} className={'kitgraph__chip' + (query && query.what === what ? ' is-on' : '')}
+      onClick={() => ask(what, label)} title="Show the slides">
+      {label}{count != null ? <b>{count}</b> : null}
+    </button>
+  );
+
+  return (
+    <div className="kitgraph">
+      <div className="kitrules__h">Deck structure</div>
+
+      {(arc.stages || []).length ? (
+        <div className="kitgraph__row">
+          <span className="kitgraph__k">Arc</span>
+          <div className="kitgraph__arc">
+            {arc.stages.map((s, i) => (
+              <React.Fragment key={s.stage}>
+                {i ? <span className="kitgraph__to">→</span> : null}
+                <button className={'kitgraph__stage' + (query && query.what === s.role ? ' is-on' : '')}
+                  onClick={() => ask(s.role, ROLE_LABEL[s.role] || s.role)}
+                  title={`${s.stage}: ${pct(s.share)} of slides here`}>
+                  <small>{s.stage}</small>{ROLE_LABEL[s.role] || s.role}
+                </button>
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <dl className="kitlearn__dl">
+        {askInfo.decks ? (
+          <React.Fragment>
+            <dt>The ask</dt>
+            <dd>{askInfo.decks_with_ask
+              ? `in ${askInfo.decks_with_ask} of ${askInfo.decks} decks, about ${pct(askInfo.position_median)} of the way through`
+              : 'no deck states an ask or decision'}</dd>
+          </React.Fragment>
+        ) : null}
+        <dt>Sections</dt>
+        <dd>{sec.decks_with_sections
+          ? `${sec.decks_with_sections} deck${sec.decks_with_sections === 1 ? ' uses' : 's use'} section breaks · median ${sec.size_median} slides per section`
+          : 'no section breaks'}</dd>
+        <dt>Slide roles</dt>
+        <dd className="kitgraph__chips">
+          {(g.roles || []).map(r => chip(r.value, ROLE_LABEL[r.value] || r.value, r.count))}
+        </dd>
+        {(g.visuals || []).length ? (
+          <React.Fragment>
+            <dt>Visuals</dt>
+            <dd className="kitgraph__chips">
+              {g.visuals.map(v => chip(v.value, visualLabel(v.value), v.count))}
+            </dd>
+          </React.Fragment>
+        ) : null}
+        {(g.preferred_diagram_kinds || []).length ? (
+          <React.Fragment>
+            <dt>Diagrams</dt>
+            <dd>{g.preferred_diagram_kinds.join(', ')} — generation and the coach prefer these</dd>
+          </React.Fragment>
+        ) : null}
+        {(g.terms || []).length ? (
+          <React.Fragment>
+            <dt>Recurring terms</dt>
+            <dd className="kitgraph__chips">
+              {g.terms.slice(0, 18).map(t => chip(t.term, t.label, t.slides))}
+            </dd>
+          </React.Fragment>
+        ) : null}
+      </dl>
+
+      {query ? (
+        <div className="kitgraph__hits">
+          <div className="kitgraph__hitsh">
+            {query.slides.length} slide{query.slides.length === 1 ? '' : 's'} · {query.label}
+          </div>
+          <ul>
+            {query.slides.map(s => (
+              <li key={s.id}>
+                <span className="kitgraph__where">{where(s.id)}</span>
+                <span>{s.title || <em>untitled</em>}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <div className="kitpart__acts">
+        <button className="tplup" disabled={busy} onClick={describe}>
+          <Ico name="spark" size={15} />{busy ? 'Reading…' : 'Summarise patterns'}
+        </button>
+        <span className="kitimport__why">Every claim cites the slides it comes from.</span>
+      </div>
+      {claims ? (
+        <ul className="kitgraph__claims">
+          {(claims.claims || []).map((c, i) => (
+            <li key={i}>
+              {c.text}
+              <span className="kitgraph__cite">{c.slides.slice(0, 4).map(where).join(' · ')}
+                {c.slides.length > 4 ? ` +${c.slides.length - 4}` : ''}</span>
+            </li>
+          ))}
+          <li className="kitgraph__src">{claims.source === 'model' ? 'Worded by the model, checked against the graph.' : 'Measured — no model was used.'}</li>
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 function KitPanel({ orgSlug, onClose, onKitsChanged, onUseKit, onScanned }) {
   const [kits, setKits] = useState([]);
   const [root, setRoot] = useState('');
@@ -424,6 +587,7 @@ function KitPanel({ orgSlug, onClose, onKitsChanged, onUseKit, onScanned }) {
                       {scan.stale ? <span className="kitstale">Examples changed since the last run.</span> : null}
                     </div>
                     <LearnedSummary learned={learned} />
+                    <KitGraph slug={cur} learned={learned} />
                     {learned ? (
                       fresh.length ? (
                         <div className="kitrules">
