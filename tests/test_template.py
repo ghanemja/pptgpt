@@ -24,7 +24,7 @@ from deckengine.layout import resolve
 from deckengine.render import render_deck
 
 SAMPLE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                      "frontend", "v2-assets", "samples", "sample.pptx")
+                      "frontend", "samples", "sample.pptx")
 
 DECK = [
     Slide(intent=LayoutIntent.STAT_CALLOUT, blocks=[

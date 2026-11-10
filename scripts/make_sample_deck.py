@@ -1,4 +1,4 @@
-"""Render frontend/v2-assets/samples/sample.pptx.
+"""Render frontend/samples/sample.pptx.
 
 The sample deck is a reference, not decoration: it is what /workspace's
 ingest, condense and "follow an existing format" paths are demonstrated
@@ -25,7 +25,7 @@ from deckengine.render import render_deck
 
 OUT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "frontend", "v2-assets", "samples", "sample.pptx",
+    "frontend", "samples", "sample.pptx",
 )
 
 # A six-slide board review that follows the default profile's arc:

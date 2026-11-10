@@ -73,7 +73,7 @@ python tests/test_layout.py      # 24/24 — every resolver
 python tests/test_ingest.py      # 6/6   — .pptx → IR safety
 python tests/test_condense.py    # 8/8   — no fabrication
 python tests/test_ambiguity.py   # 10/10 — scorer + tie detection
-python tests/smoke_e2e.py        # 16/16 — every endpoint
+BU_AUTH_DISABLED=1 python tests/smoke_e2e.py  # every endpoint
 ```
 
 ## Run
@@ -90,8 +90,9 @@ Or by hand:
 ```bash
 pip install -r requirements.txt
 python -m uvicorn server:app --reload          # offline API on :8000
-# open http://localhost:8000           — single-slide canvas
-# open http://localhost:8000/workbench — 3-panel workbench
+# open http://localhost:8000/workspace — the unified workspace
+# open http://localhost:8000/workbench — five-phase workbench
+# open http://localhost:8000/          — landing page
 ```
 
 ## Modes (the workbench knows five)
@@ -118,7 +119,6 @@ POST /api/render_ir     rawContent + palette → .pptx via the engine
 ### Frontend contract
 
 ```
-POST /api/backend         mirror of `window.mockBackend(req)`
 POST /api/storyboard      mirror of `window.extractStoryboard(req)`
 POST /api/critique        mirror of `window.generateCritique(req)`
 POST /api/render          { slides: SlideSpec[] } → .pptx
@@ -127,6 +127,16 @@ POST /api/plot            { block, params } → PNG (server-side rasterized plot
 ```
 
 See `frontend/types.md` for the SlideSpec contract.
+
+There is one server-side slide pipeline: the IR engine. The workbench's
+per-mode directions (draft/refine/condense/visualize/synthesize) still come
+from `frontend/mockBackend.js`, the in-browser demo backend the static
+Netlify deploy runs on. A Python port of it (`deckengine/synth.py`, served
+as `/api/backend`) used to run beside the engine; it was removed so
+geometry has one owner on the server.
+
+All pages and assets live flat in `frontend/` — one copy of each file.
+`scripts/build-netlify.mjs` assembles the static deploy from there.
 
 ## The UI contract (for the Claude Design canvas)
 

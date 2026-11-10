@@ -79,17 +79,6 @@ async def run():
                 "answered question came back"
             print(f"PASS  /api/design follow-up (questions left: {len(d2['questions'])})")
 
-        # --- /api/backend (synth path, all modes) ---
-        for mode in ("draft", "refine", "condense", "visualize", "synthesize"):
-            r = await ac.post("/api/backend", json={
-                "rawContent": SAMPLE_DRAFT, "mode": mode, "answers": {},
-                "wantsLiveDirections": True,
-            })
-            assert r.status_code == 200, f"/api/backend {mode}: {r.text}"
-            body = r.json()
-            assert len(body["directions"]) == 3, f"{mode}: expected 3 directions"
-            print(f"PASS  /api/backend mode={mode} ({len(body['directions'])} directions, {len(body['questions'])} questions)")
-
         # --- /api/storyboard ---
         r = await ac.post("/api/storyboard", json={"text": SAMPLE_DECK, "mode": "condense"})
         assert r.status_code == 200, r.text
@@ -114,19 +103,15 @@ async def run():
         print(f"PASS  /api/render_ir ({len(prs.slides)} slides in pptx, {len(r.content)} bytes)")
 
         # --- /api/render (SlideSpec) ---
-        # Take one direction from /api/backend and render it
-        r = await ac.post("/api/backend", json={
-            "rawContent": SAMPLE_DRAFT, "mode": "synthesize", "answers": {}, "wantsLiveDirections": True,
-        })
-        body = r.json()
-        slides = body["directions"][1].get("slides") or [body["directions"][1]["previewSpec"]]
+        # The engine's resolved SlideSpec from /api/design, rendered verbatim.
+        slides = [d["slideIR"]]
         r = await ac.post("/api/render", json={"slides": slides})
         assert r.status_code == 200, r.text
         prs = Presentation(io.BytesIO(r.content))
         print(f"PASS  /api/render (SlideSpec, {len(prs.slides)} slide(s), {len(r.content)} bytes)")
 
         # --- /api/render_direction ---
-        direction = body["directions"][0]
+        direction = {"key": "engine", "slides": slides}
         r = await ac.post("/api/render_direction", json={"direction": direction})
         assert r.status_code == 200, r.text
         prs = Presentation(io.BytesIO(r.content))

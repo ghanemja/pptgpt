@@ -2,9 +2,11 @@
    realBackend.js — HTTP wrapper that overrides the mock.
 
    Loads AFTER mockBackend.js. Probes /health; if the server is up,
-   it replaces window.mockBackend / window.extractStoryboard /
-   window.generateCritique with fetch() versions that hit the
-   matching /api/* routes. Same shapes, same semantics.
+   it replaces window.extractStoryboard / window.generateCritique
+   with fetch() versions that hit the matching /api/* routes. Same
+   shapes, same semantics. window.mockBackend (slide directions) stays
+   in the browser: the server's slide path is the IR engine
+   (/api/design), which these legacy pages do not speak.
 
    If the probe fails (e.g. opened via file:// with no server),
    the mock implementations stay in place — the UI keeps working.
@@ -42,7 +44,6 @@
   }
 
   // Keep references to the mocks; we'll fall back to them on network error.
-  const mockBackend       = window.mockBackend;
   const mockStoryboard    = window.extractStoryboard;
   const mockCritique      = window.generateCritique;
 
@@ -62,7 +63,6 @@
       console.info('[realBackend] /health unreachable — using local mock.');
       return;
     }
-    window.mockBackend       = withFallback('mockBackend',       mockBackend,    '/api/backend');
     window.extractStoryboard = withFallback('extractStoryboard', mockStoryboard, '/api/storyboard');
     window.generateCritique  = withFallback('generateCritique',  mockCritique,   '/api/critique');
 

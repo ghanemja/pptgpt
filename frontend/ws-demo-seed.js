@@ -14,7 +14,7 @@
    only. Local dev (python server.py) has a real backend and opens
    empty, as it should.
 
-   The deck mirrors frontend/v2-assets/samples/sample.pptx, which is
+   The deck mirrors frontend/samples/sample.pptx, which is
    generated from the same story by scripts/make_sample_deck.py.
    ============================================================ */
 // This build ships without a backend. The probes in workspace-backend.js and

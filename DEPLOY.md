@@ -48,7 +48,7 @@ gh repo create ghanemja/pptgpt --private --source=. --push
    cd /tmp/hfdeploy
    find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
    git --git-dir=/path/to/pptgpt/.git archive main | tar -x -C .
-   rm -rf frontend-version2 frontend/v2-assets/samples/*.pptx
+   rm -rf frontend/samples/*.pptx
    git add -A && git commit -m "Deploy <main sha> to the Space"
    git push hf hf-live:main
    ```

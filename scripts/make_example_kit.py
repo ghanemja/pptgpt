@@ -86,7 +86,7 @@ def build() -> str:
     _template(os.path.join(d, "example-co-template.pptx"))
 
     # examples: the engine's own sample deck stands in for a company's past work
-    sample = os.path.join(ROOT, "frontend", "v2-assets", "samples", "sample.pptx")
+    sample = os.path.join(ROOT, "frontend", "samples", "sample.pptx")
     shutil.copyfile(sample, os.path.join(d, "examples", "q3-board-review.pptx"))
 
     # assets + their labels

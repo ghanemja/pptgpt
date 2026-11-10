@@ -125,6 +125,9 @@ font, size or colour onto a run.
   viewer has installed, so it is the fallback, not the source of truth.
 - `deckengine/boundary.py` — adds `#` and converts inches→pixels at the JSON
   edge. The ONLY place that translation happens.
+- `frontend/` — every page and asset, flat, one copy each. `server.py`
+  serves it as-is; `scripts/build-netlify.mjs` copies it into the static
+  deploy. Do not fork a page into a second directory — edit it in place.
 - `server.py` — FastAPI, speaks the canvas contract. Offline.
 - `tests/test_layout.py`, `tests/test_ingest.py`, `tests/test_condense.py`,
   `tests/test_ambiguity.py`, `tests/test_org.py`, `tests/test_template.py`,
@@ -148,8 +151,12 @@ before they count as done. Layout quality is *measured*, not eyeballed.
 Working end-to-end via the IR engine: every archetype — `stat_callout`,
 `title_slide`, `two_column_stats`, `icon_rows`, `bullets_plain` — renders
 to openable `.pptx`. The `/api/design` endpoint exercises the §0 path
-(parse_to_ir → ambiguity scorer → layout.resolve → render). The `synth.py`
-direct-SlideSpec path stays for the existing canvas contract.
+(parse_to_ir → ambiguity scorer → layout.resolve → render). It is the only
+server-side slide pipeline: the old `synth.py` direct-SlideSpec path (a
+Python port of `frontend/mockBackend.js` with its own hard-coded pixel
+geometry, served as `/api/backend`) was removed. The legacy `/canvas` and
+`/workbench-v1` pages and the `/workbench` page get their per-mode
+directions from `frontend/mockBackend.js` in the browser.
 
 Done in v1:
 1. All five archetype resolvers (+ R2.5 invariant tests, 24/24 green).

@@ -33,7 +33,7 @@ from deckengine import kit_ingest as KI
 from deckengine import org as O
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SAMPLE = os.path.join(ROOT, "frontend", "v2-assets", "samples", "sample.pptx")
+SAMPLE = os.path.join(ROOT, "frontend", "samples", "sample.pptx")
 SVG = b'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/></svg>'
 
 
