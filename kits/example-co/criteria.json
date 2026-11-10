@@ -1,0 +1,47 @@
+{
+  "criteria": [
+    {
+      "lens": "source",
+      "label": "Every number is sourced",
+      "means": "A figure names its system of record and cut date, e.g. \"per the FY26 ledger as of 30 Jun\"."
+    },
+    {
+      "lens": "comparison",
+      "label": "Every number has a baseline",
+      "means": "Plan, last quarter or last year sits next to the figure."
+    },
+    {
+      "lens": "ask",
+      "label": "The bumper asks for something",
+      "means": "The closing line of each slide says what the room should decide."
+    },
+    {
+      "lens": "density",
+      "label": "Three points, tops",
+      "means": "Our board reads three points; the fourth goes in the appendix.",
+      "max_points": 3
+    },
+    {
+      "lens": "jargon",
+      "label": "Say it plainly",
+      "means": "Words our board has asked us to stop using.",
+      "words": ["synergy", "leverage", "unlock", "north star", "best in class", "robust", "move the needle"]
+    },
+    {
+      "id": "codenames",
+      "kind": "banned",
+      "label": "No internal codenames",
+      "means": "The board does not know our project names. Say what the project does.",
+      "words": ["Project Falcon", "Bluebird", "OKR-7"],
+      "severity": "blocker"
+    },
+    {
+      "id": "customer-names",
+      "kind": "banned",
+      "label": "No customer names without sign-off",
+      "means": "Name a customer only once Legal has cleared it; otherwise say \"a top-10 retailer\".",
+      "words": ["Acme Retail", "Globex"],
+      "on": false
+    }
+  ]
+}

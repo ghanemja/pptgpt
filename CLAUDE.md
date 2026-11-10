@@ -68,7 +68,23 @@ font, size or colour onto a run.
   lenses matter, how hard to push and in whose voice. `review_deck` reads a
   whole deck and tallies where it is weakest; `apply_overrides` tunes a
   persona for one sitting without editing its file. Deterministic, so a note
-  is a property of the slide. Notes never carry geometry.
+  is a property of the slide. Notes never carry geometry: each names the
+  CONTENT it is about (`target`: `{field, index?, missing?}`), and
+  `frontend/ws-annotate.jsx` finds where SlideCard drew that field
+  (`data-field`) to pin the note there with a callout and leader line.
+  A COMPANY KIT can restate the criteria in its own words and tune them
+  (`kits/<co>/criteria.json`: labels, "what good looks like", its own
+  jargon list and bullet limit, and `banned` phrase rules of its own, named
+  `kit:<id>`); `parse_criteria` validates it and refuses geometry. A tuned
+  reviewer can be saved (`save_persona`) to `coaches/saved/` — same format
+  as a shipped persona, gitignored, never allowed a built-in's name.
+- `deckengine/scorecard.py` — a PANEL of reviewers, each scoring the deck
+  0–100 per aspect (clear messaging, evidence, content density, plain
+  language, ownership, house rules). Scores are the coach's notes counted —
+  deterministic — judged for the AUDIENCE (how much technical detail a
+  slide may carry) and against the PURPOSE (the scoping decision must be
+  asked for). `/api/scorecard`; the workspace's Scores strip re-scores live
+  as the deck is edited (`frontend/ws-scores.jsx`).
 - `deckengine/org.py` — per-organization profiles loaded from `orgs/*.json`
   and from company kits: the scoping interview, narrative arc and house
   style rules. Convention, never geometry — the loader rejects a profile
@@ -105,8 +121,8 @@ font, size or colour onto a run.
 - `server.py` — FastAPI, speaks the canvas contract. Offline.
 - `tests/test_layout.py`, `tests/test_ingest.py`, `tests/test_condense.py`,
   `tests/test_ambiguity.py`, `tests/test_org.py`, `tests/test_template.py`,
-  `tests/test_native.py`, `tests/test_coach.py`, `tests/test_charts.py`,
-  `tests/test_kit.py`,
+  `tests/test_native.py`, `tests/test_coach.py`, `tests/test_scorecard.py`,
+  `tests/test_charts.py`, `tests/test_kit.py`,
   `tests/smoke_e2e.py` — invariant + endpoint tests.
 
 ## Conventions

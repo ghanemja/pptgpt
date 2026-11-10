@@ -383,12 +383,12 @@ function SlideCard({ slide }) {
   const eyebrow = (
     <div style={{ fontSize: z(13), fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: pal.mute, display: 'flex', alignItems: 'center', gap: 9 }}>
       <span style={{ width: 7, height: 7, borderRadius: '50%', background: pal.spark }} />
-      {slide.eyebrow}
+      <span data-field="eyebrow">{slide.eyebrow}</span>
     </div>
   );
   const takeaway = slide.takeaway && (
     <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: `1px solid ${pal.rule}`, fontSize: z(story ? 22 : 16), fontStyle: 'italic', fontWeight: 700, color: pal.accent, lineHeight: 1.4 }}>
-      {'“' + slide.takeaway + '”'}
+      <span data-field="takeaway">{'“' + slide.takeaway + '”'}</span>
     </div>
   );
   const footer = slide.footer && (
@@ -401,7 +401,7 @@ function SlideCard({ slide }) {
     return (
       <div style={{ ...base, justifyContent: 'center', padding: '54px 58px' }}>
         <div style={{ fontSize: z(13), fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: pal.spark, marginBottom: 18 }}>{slide.eyebrow}</div>
-        <h2 style={{ fontFamily: ffHead, margin: 0, fontSize: z(46), fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.04, maxWidth: '92%' }}>{slide.title}</h2>
+        <h2 style={{ fontFamily: ffHead, margin: 0, fontSize: z(46), fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.04, maxWidth: '92%' }}><span data-field="title">{slide.title}</span></h2>
         {slide.subtitle && <div style={{ marginTop: 18, fontSize: z(19), color: pal.sub, fontWeight: 500, maxWidth: '80%', lineHeight: 1.4 }}>{slide.subtitle}</div>}
         <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: z(12), color: pal.mute, fontWeight: 700, letterSpacing: '0.02em' }}>
           <span>{slide.footer || ''}</span><span>{slide.date || ''}</span>
@@ -414,8 +414,8 @@ function SlideCard({ slide }) {
     return (
       <div style={base}>
         {eyebrow}
-        <h3 style={{ fontFamily: ffHead, margin: '14px 0 10px', fontSize: z(30), fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{slide.title}</h3>
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center' }}>
+        <h3 style={{ fontFamily: ffHead, margin: '14px 0 10px', fontSize: z(30), fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}><span data-field="title">{slide.title}</span></h3>
+        <div data-field="diagram" style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center' }}>
           <MiniDiagram diagram={slide.diagram} pal={pal} w={SLIDE_W - 96} h={168} />
         </div>
         {takeaway}
@@ -427,9 +427,9 @@ function SlideCard({ slide }) {
     return (
       <div style={base}>
         {eyebrow}
-        <h3 style={{ fontFamily: ffHead, margin: '14px 0 6px', fontSize: z(30), fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{slide.title}</h3>
+        <h3 style={{ fontFamily: ffHead, margin: '14px 0 6px', fontSize: z(30), fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}><span data-field="title">{slide.title}</span></h3>
         <div style={{ fontSize: z(13), fontWeight: 700, color: pal.mute, marginBottom: 6 }}>{slide.chart.title}</div>
-        <div style={{ flex: 1, minHeight: 0 }}><MiniChart chart={slide.chart} pal={pal} w={SLIDE_W - 96} h={176} /></div>
+        <div data-field="chart" style={{ flex: 1, minHeight: 0 }}><MiniChart chart={slide.chart} pal={pal} w={SLIDE_W - 96} h={176} /></div>
         {takeaway}
         {footer}
       </div>
@@ -439,7 +439,7 @@ function SlideCard({ slide }) {
     return (
       <div style={base}>
         {eyebrow}
-        <h3 style={{ fontFamily: ffHead, margin: '14px 0 8px', fontSize: z(28), fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{slide.title}</h3>
+        <h3 style={{ fontFamily: ffHead, margin: '14px 0 8px', fontSize: z(28), fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1 }}><span data-field="title">{slide.title}</span></h3>
         {slide.plot.eq && <div style={{ fontSize: z(18), fontWeight: 700, color: pal.accent, marginBottom: 6 }}>{slide.plot.eq}</div>}
         <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center' }}><MiniPlot fn={slide.plot.fn} params={slide.plot.params} pal={pal} w={SLIDE_W - 96} h={170} /></div>
         {takeaway}
@@ -453,20 +453,20 @@ function SlideCard({ slide }) {
   return (
     <div style={base}>
       {eyebrow}
-      <h3 style={{ fontFamily: ffHead, margin: '14px 0 0', fontSize: z(story ? 40 : 33), fontWeight: 900, letterSpacing: '-0.025em', lineHeight: 1.08, maxWidth: story ? '90%' : '100%' }}>{slide.title}</h3>
+      <h3 style={{ fontFamily: ffHead, margin: '14px 0 0', fontSize: z(story ? 40 : 33), fontWeight: 900, letterSpacing: '-0.025em', lineHeight: 1.08, maxWidth: story ? '90%' : '100%' }}><span data-field="title">{slide.title}</span></h3>
       <div style={{ display: 'flex', gap: 34, marginTop: 20, flex: 1, minHeight: 0 }}>
         {hasMetric && (
           <div style={{ flex: 'none' }}>
-            <div className="tnum" style={{ fontSize: z(68), fontWeight: 900, letterSpacing: '-0.03em', color: pal.accent, lineHeight: 0.95 }}>{slide.metric}</div>
-            {slide.metricSub && <div style={{ fontSize: z(13), fontWeight: 700, color: pal.mute, marginTop: 6, maxWidth: 190 }}>{slide.metricSub}</div>}
+            <div className="tnum" data-field="metric" style={{ fontSize: z(68), fontWeight: 900, letterSpacing: '-0.03em', color: pal.accent, lineHeight: 0.95 }}>{slide.metric}</div>
+            {slide.metricSub && <div data-field="metricSub" style={{ fontSize: z(13), fontWeight: 700, color: pal.mute, marginTop: 6, maxWidth: 190 }}>{slide.metricSub}</div>}
           </div>
         )}
         {Array.isArray(slide.bullets) && slide.bullets.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 4, flex: 1 }}>
+          <div data-field="bullets" style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 4, flex: 1 }}>
             {slide.bullets.slice(0, story ? 3 : 4).map((b, i) => (
               <div key={i} style={{ display: 'flex', gap: 12, fontSize: z(16.5), color: pal.sub, lineHeight: 1.4 }}>
                 <span style={{ color: pal.spark, fontWeight: 900 }}>—</span>
-                <span>{b}</span>
+                <span data-field="bullets" data-index={i}>{b}</span>
               </div>
             ))}
           </div>

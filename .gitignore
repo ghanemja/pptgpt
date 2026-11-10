@@ -48,3 +48,6 @@ kits/*/.cache/
 
 # Local settings and API keys (copy .env.example). Never committed.
 .env
+# Reviewers people tuned and saved in the Review phase. Personal; the shipped
+# personas in coaches/*.json are what the project ships.
+coaches/saved/
