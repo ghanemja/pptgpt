@@ -54,3 +54,20 @@ local, usable by a non-expert) — not methodological novelty.
   re-solving geometry — directions vary only in palette in v1. This is
   Scout's idea in its weakest form (color-only variation, not structural),
   packaged so end users see alternatives by default.
+
+## Slide voice (`humanplease_slides.md`, `workspace_gen.py`)
+
+- **Source:** the author's own humanplease writing skills
+  (github.com/ghanemja/humanplease), vendored at a pinned commit into
+  `deckengine/vendor/humanplease/` by `scripts/sync_humanplease.py` (the
+  commit is in `SOURCE.json`). `natural-voice-writing` draws its "shape"
+  rules from the StoryScope study of human vs model fiction (COLM 2026), as
+  cited in that skill.
+- **What DeckEngine does with it (engineering only):** A short, slide-only
+  derivation (`deckengine/humanplease_slides.md`) is appended to every
+  generation prompt: real specifics or a visible placeholder, the banned
+  phrase list, no em dashes, no stated moral, an honest bullet count. The
+  prose-only rules are left out, and `natural-word-choice`'s
+  "invent a specific person" rule is deliberately not used, since on a slide
+  an invented specific is a fabricated fact. Measured with
+  `scripts/eval_voice.py`.

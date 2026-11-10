@@ -80,6 +80,13 @@ font, size or colour onto a run.
   it every call. Also the asset library search, SVG→PNG, and `house_brief`
   (rules + learned norms + voice → generation prompt). Import and reveal
   answer to localhost only.
+- `deckengine/humanplease_slides.md` — the slide voice: a short block
+  derived from the humanplease writing skill (pinned copy in
+  `deckengine/vendor/humanplease/`, refreshed only by
+  `scripts/sync_humanplease.py`, never fetched at runtime). `workspace_gen`
+  appends it to every feature's prompt after the house style. Content rules
+  only; `tests/test_workspace_gen.py` keeps it short, geometry-free and in
+  step with the vendored commit. `scripts/eval_voice.py` A/Bs it.
 - `deckengine/kit_ingest.py` — `learn(slug)`: MEASURES the example decks
   (points/slide, words/point, titles, visuals, layouts, type) into
   learned.json, with norms and suggested rules. Never inferred by a model.
