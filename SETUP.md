@@ -293,7 +293,7 @@ Every line should end in `N/N passed`. The JavaScript test needs Node 18+.
 |---|---|
 | `start.sh: Permission denied` | `chmod +x scripts/start.sh` |
 | "Ollama not reachable" | Open the Ollama app or run `ollama serve`; check `curl http://127.0.0.1:11434/api/tags` |
-| `[narrative] anthropic backend failed … No module named 'anthropic'` after an Ollama timeout | With `ANTHROPIC_API_KEY` set, a failed Ollama call falls back to Anthropic, which needs the SDK. `requirements.txt` lists it, but a venv built before that (or with the line removed) lacks it: `.venv/bin/pip install anthropic`, or unset `ANTHROPIC_API_KEY` to stay fully local. Frequent Ollama timeouts themselves usually mean the machine is busy or the model is too big for it |
+| `[narrative] ollama backend failed … timed out` | Ollama took over 180 s. Usually the machine is busy (other heavy apps) or the model is too big for it; try again, or a smaller model. A timeout no longer falls back to Anthropic (deck text stays on this machine), so older logs ending in `No module named 'anthropic'` meant the same thing. If you do pick `DECKENGINE_NARRATIVE_BACKEND=anthropic`, install the SDK: `.venv/bin/pip install anthropic` |
 | Slides all say the same canned things | The model isn't answering. Check the terminal for `[narrative] … backend failed`, and run `.venv/bin/python scripts/check_model.py` |
 | `start.sh` stops at the model check | Read the ✗ line: it names the setting to fix in `.env`. See [Use your own model](#use-your-own-model) |
 | "Port 8000 is in use" | `PORT=8010 scripts/start.sh` |
