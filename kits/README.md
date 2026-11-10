@@ -77,7 +77,8 @@ kits/
     │   ├── icons/             ← .svg or .png icons
     │   ├── images/            ← photos, screenshots
     │   └── clipart/           ← illustrations
-    └── learned.json           ← written by "Learn from examples" — don't edit
+    ├── learned.json           ← written by "Learn from examples" — don't edit
+    └── graph.json             ← written alongside it: the decks' structure
 ```
 
 `kits/example-co/` is a complete working kit. Open it to see every file
@@ -220,8 +221,16 @@ model:
 - how often slides use charts, pictures, tables, or text only
 - which of the template's layouts the decks use most
 - fonts and type sizes
+- what role each slide plays (cover, section, bullets, chart, table,
+  diagram…), how your decks open and close, and where the ask lands
+- how long sections run, which terms recur and on which slides
+- which charts, tables and diagrams you use: SmartArt, connected shapes and
+  chevron rows are recognised as flow, hierarchy, cycle, timeline or funnel
+  diagrams (matrix and swimlane when the SmartArt layout or the slide title
+  names them)
 
-It writes the results to `learned.json` and offers **suggested house rules**
+It writes the measurements to `learned.json` and the structure to
+`graph.json`, and offers **suggested house rules**
 such as "At most 4 points per slide." Tick the ones that are true for your
 company and press **Add to house rules** — they are appended to
 `profile.json`. Nothing becomes a rule until you tick it.
@@ -231,7 +240,7 @@ What the measurements change, even without adding rules:
 - The **coach** judges density against your own decks ("denser than your own
   decks") instead of a generic limit.
 - **Generation** is told your norms (bullets per slide, words per bullet,
-  title length).
+  title length, how your decks open and close, the diagrams you use).
 - With a template, the layouts your decks use most win ties when a slide
   could fit more than one layout.
 

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-11-09T22:58:51",
-  "generated_epoch": 1794283131.7634418,
+  "generated_at": "2026-11-10T01:57:43",
+  "generated_epoch": 1794293863.2455812,
   "decks": 1,
   "slides": 6,
   "files": [
@@ -80,12 +80,49 @@
     "titles_argue": true,
     "preferred_layouts": [
       "Blank"
-    ]
+    ],
+    "preferred_diagram_kinds": [],
+    "arc": {
+      "stages": [
+        "cover",
+        "bullets",
+        "bullets",
+        "statement",
+        "statement"
+      ],
+      "opens": "cover",
+      "closes": "statement",
+      "ask_position": 1.0,
+      "ask_share": 1.0
+    },
+    "section_size": null
+  },
+  "graph": {
+    "path": "graph.json",
+    "digest": "50339bf8c5409675",
+    "nodes": 22,
+    "edges": 50,
+    "roles": [
+      {
+        "value": "statement",
+        "count": 3
+      },
+      {
+        "value": "bullets",
+        "count": 2
+      },
+      {
+        "value": "cover",
+        "count": 1
+      }
+    ],
+    "preferred_diagram_kinds": []
   },
   "suggested_rules": [
     "At most 4 points per slide.",
     "Keep each point under 10 words.",
     "Titles state a claim, not a topic.",
-    "Text-led slides are the norm; save visuals for the evidence."
+    "Text-led slides are the norm; save visuals for the evidence.",
+    "End on the ask: the last slides say what needs deciding."
   ]
 }

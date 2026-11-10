@@ -406,6 +406,40 @@ def api_kit_learn(slug: str):
         return _kit_error(e)
 
 
+@app.get("/api/kits/{slug}/graph")
+def api_kit_graph(slug: str, uses: str | None = None, full: bool = False):
+    """What the example decks are, as a graph (kit_graph): the summary by
+    default; `uses=timeline` (a role, visual, diagram kind or term) lists the
+    slides that use it; `full=1` returns every node and edge."""
+    from deckengine import kit_graph
+    try:
+        kitmod.kit_dir(slug)
+        g = kit_graph.load(slug)
+    except KitError as e:
+        return _kit_error(e)
+    if g is None:
+        return JSONResponse({"error": "not learned yet — run learning on the examples"},
+                            status_code=404)
+    if uses:
+        ids = kit_graph.slides_using(g, uses)
+        return {"uses": uses, "slides": [kit_graph.slide(g, i) for i in ids]}
+    return g if full else kit_graph.summary(g)
+
+
+@app.post("/api/kits/{slug}/graph/describe")
+def api_kit_graph_describe(slug: str):
+    """Labelled claims about the decks, each citing real slide ids. Uses the
+    narrative model when one is up; otherwise the measured facts."""
+    from deckengine import kit_graph
+    try:
+        kitmod.kit_dir(slug)
+        if kit_graph.load(slug) is None:
+            return JSONResponse({"error": "not learned yet"}, status_code=404)
+        return kit_graph.describe(slug)
+    except KitError as e:
+        return _kit_error(e)
+
+
 @app.put("/api/kits/{slug}/voice")
 def api_kit_voice(slug: str, req: KitVoiceReq):
     try:

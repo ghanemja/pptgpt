@@ -1,0 +1,680 @@
+{
+ "decks": 1,
+ "digest": "50339bf8c5409675",
+ "edges": [
+  {
+   "from": "d1",
+   "to": "d1.s1",
+   "type": "contains"
+  },
+  {
+   "from": "d1.s1",
+   "to": "role:cover",
+   "type": "is"
+  },
+  {
+   "from": "d1",
+   "to": "d1.s2",
+   "type": "contains"
+  },
+  {
+   "from": "d1.s2",
+   "to": "role:statement",
+   "type": "is"
+  },
+  {
+   "from": "d1.s1",
+   "to": "d1.s2",
+   "type": "follows"
+  },
+  {
+   "from": "d1",
+   "to": "d1.s3",
+   "type": "contains"
+  },
+  {
+   "from": "d1.s3",
+   "to": "role:bullets",
+   "type": "is"
+  },
+  {
+   "from": "d1.s2",
+   "to": "d1.s3",
+   "type": "follows"
+  },
+  {
+   "from": "d1",
+   "to": "d1.s4",
+   "type": "contains"
+  },
+  {
+   "from": "d1.s4",
+   "to": "role:bullets",
+   "type": "is"
+  },
+  {
+   "from": "d1.s3",
+   "to": "d1.s4",
+   "type": "follows"
+  },
+  {
+   "from": "d1",
+   "to": "d1.s5",
+   "type": "contains"
+  },
+  {
+   "from": "d1.s5",
+   "to": "role:statement",
+   "type": "is"
+  },
+  {
+   "from": "d1.s4",
+   "to": "d1.s5",
+   "type": "follows"
+  },
+  {
+   "from": "d1",
+   "to": "d1.s6",
+   "type": "contains"
+  },
+  {
+   "from": "d1.s6",
+   "to": "role:statement",
+   "type": "is"
+  },
+  {
+   "from": "d1.s5",
+   "to": "d1.s6",
+   "type": "follows"
+  },
+  {
+   "count": 1,
+   "from": "role:bullets",
+   "to": "role:bullets",
+   "type": "follows"
+  },
+  {
+   "count": 1,
+   "from": "role:bullets",
+   "to": "role:statement",
+   "type": "follows"
+  },
+  {
+   "count": 1,
+   "from": "role:cover",
+   "to": "role:statement",
+   "type": "follows"
+  },
+  {
+   "count": 1,
+   "from": "role:statement",
+   "to": "role:bullets",
+   "type": "follows"
+  },
+  {
+   "count": 1,
+   "from": "role:statement",
+   "to": "role:statement",
+   "type": "follows"
+  },
+  {
+   "from": "d1.s1",
+   "to": "term:enterprise",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s3",
+   "to": "term:enterprise",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s4",
+   "to": "term:enterprise",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s5",
+   "to": "term:enterprise",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s4",
+   "to": "term:q1",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s5",
+   "to": "term:q1",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s6",
+   "to": "term:q1",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s1",
+   "to": "term:q3",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s2",
+   "to": "term:q3",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s4",
+   "to": "term:q3",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s2",
+   "to": "term:beat",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s3",
+   "to": "term:beat",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s4",
+   "to": "term:cohort",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s5",
+   "to": "term:cohort",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s3",
+   "to": "term:flat",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s5",
+   "to": "term:flat",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s3",
+   "to": "term:mid-market",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s5",
+   "to": "term:mid-market",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s3",
+   "to": "term:motion",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s5",
+   "to": "term:motion",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s2",
+   "to": "term:plan",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s3",
+   "to": "term:plan",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s4",
+   "to": "term:read",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s5",
+   "to": "term:read",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s2",
+   "to": "term:retention",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s4",
+   "to": "term:retention",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s1",
+   "to": "term:review",
+   "type": "mentions"
+  },
+  {
+   "from": "d1.s5",
+   "to": "term:review",
+   "type": "mentions"
+  }
+ ],
+ "nodes": [
+  {
+   "digest": "56eda85b5dff59fe",
+   "file": "q3-board-review.pptx",
+   "id": "d1",
+   "slides": 6,
+   "type": "deck"
+  },
+  {
+   "ask": true,
+   "deck": "d1",
+   "evidence": [],
+   "id": "d1.s1",
+   "layout": "Blank",
+   "n": 1,
+   "points": 1,
+   "role": "cover",
+   "title": "Double down on enterprise",
+   "type": "slide",
+   "visuals": []
+  },
+  {
+   "ask": false,
+   "deck": "d1",
+   "evidence": [],
+   "id": "d1.s2",
+   "layout": "Blank",
+   "n": 2,
+   "points": 0,
+   "role": "statement",
+   "title": "Q3 beat plan on every line",
+   "type": "slide",
+   "visuals": []
+  },
+  {
+   "ask": false,
+   "deck": "d1",
+   "evidence": [],
+   "id": "d1.s3",
+   "layout": "Blank",
+   "n": 3,
+   "points": 3,
+   "role": "bullets",
+   "title": "The beat came from one segment",
+   "type": "slide",
+   "visuals": []
+  },
+  {
+   "ask": false,
+   "deck": "d1",
+   "evidence": [],
+   "id": "d1.s4",
+   "layout": "Blank",
+   "n": 4,
+   "points": 4,
+   "role": "bullets",
+   "title": "Is this structural or seasonal?",
+   "type": "slide",
+   "visuals": []
+  },
+  {
+   "ask": false,
+   "deck": "d1",
+   "evidence": [],
+   "id": "d1.s5",
+   "layout": "Blank",
+   "n": 5,
+   "points": 0,
+   "role": "statement",
+   "title": "Three moves for Q1",
+   "type": "slide",
+   "visuals": []
+  },
+  {
+   "ask": true,
+   "deck": "d1",
+   "evidence": [],
+   "id": "d1.s6",
+   "layout": "Blank",
+   "n": 6,
+   "points": 0,
+   "role": "statement",
+   "title": "The ask",
+   "type": "slide",
+   "visuals": []
+  },
+  {
+   "id": "role:cover",
+   "slides": 1,
+   "type": "role"
+  },
+  {
+   "id": "role:statement",
+   "slides": 3,
+   "type": "role"
+  },
+  {
+   "id": "role:bullets",
+   "slides": 2,
+   "type": "role"
+  },
+  {
+   "decks": 1,
+   "entity": false,
+   "id": "term:enterprise",
+   "label": "enterprise",
+   "slides": 4,
+   "type": "term"
+  },
+  {
+   "decks": 1,
+   "entity": true,
+   "id": "term:q1",
+   "label": "Q1",
+   "slides": 3,
+   "type": "term"
+  },
+  {
+   "decks": 1,
+   "entity": true,
+   "id": "term:q3",
+   "label": "Q3",
+   "slides": 3,
+   "type": "term"
+  },
+  {
+   "decks": 1,
+   "entity": false,
+   "id": "term:beat",
+   "label": "beat",
+   "slides": 2,
+   "type": "term"
+  },
+  {
+   "decks": 1,
+   "entity": false,
+   "id": "term:cohort",
+   "label": "cohort",
+   "slides": 2,
+   "type": "term"
+  },
+  {
+   "decks": 1,
+   "entity": false,
+   "id": "term:flat",
+   "label": "flat",
+   "slides": 2,
+   "type": "term"
+  },
+  {
+   "decks": 1,
+   "entity": false,
+   "id": "term:mid-market",
+   "label": "Mid-market",
+   "slides": 2,
+   "type": "term"
+  },
+  {
+   "decks": 1,
+   "entity": false,
+   "id": "term:motion",
+   "label": "motion",
+   "slides": 2,
+   "type": "term"
+  },
+  {
+   "decks": 1,
+   "entity": false,
+   "id": "term:plan",
+   "label": "plan",
+   "slides": 2,
+   "type": "term"
+  },
+  {
+   "decks": 1,
+   "entity": false,
+   "id": "term:read",
+   "label": "read",
+   "slides": 2,
+   "type": "term"
+  },
+  {
+   "decks": 1,
+   "entity": false,
+   "id": "term:retention",
+   "label": "retention",
+   "slides": 2,
+   "type": "term"
+  },
+  {
+   "decks": 1,
+   "entity": false,
+   "id": "term:review",
+   "label": "review",
+   "slides": 2,
+   "type": "term"
+  }
+ ],
+ "slides": 6,
+ "summary": {
+  "arc": {
+   "ask": {
+    "decks": 1,
+    "decks_with_ask": 1,
+    "position_median": 1.0,
+    "positions": [
+     1.0
+    ],
+    "slides": [
+     "d1.s6"
+    ]
+   },
+   "closes": [
+    {
+     "count": 1,
+     "value": "statement > statement"
+    }
+   ],
+   "first": [
+    {
+     "count": 1,
+     "value": "cover"
+    }
+   ],
+   "last": [
+    {
+     "count": 1,
+     "value": "statement"
+    }
+   ],
+   "opens": [
+    {
+     "count": 1,
+     "value": "cover > statement"
+    }
+   ],
+   "stages": [
+    {
+     "role": "cover",
+     "share": 0.5,
+     "stage": "open"
+    },
+    {
+     "role": "bullets",
+     "share": 1.0,
+     "stage": "early"
+    },
+    {
+     "role": "bullets",
+     "share": 1.0,
+     "stage": "middle"
+    },
+    {
+     "role": "statement",
+     "share": 1.0,
+     "stage": "late"
+    },
+    {
+     "role": "statement",
+     "share": 1.0,
+     "stage": "close"
+    }
+   ],
+   "transitions": [
+    {
+     "count": 1,
+     "from": "bullets",
+     "to": "bullets"
+    },
+    {
+     "count": 1,
+     "from": "bullets",
+     "to": "statement"
+    },
+    {
+     "count": 1,
+     "from": "cover",
+     "to": "statement"
+    },
+    {
+     "count": 1,
+     "from": "start",
+     "to": "cover"
+    },
+    {
+     "count": 1,
+     "from": "statement",
+     "to": "bullets"
+    },
+    {
+     "count": 1,
+     "from": "statement",
+     "to": "end"
+    },
+    {
+     "count": 1,
+     "from": "statement",
+     "to": "statement"
+    }
+   ]
+  },
+  "preferred_diagram_kinds": [],
+  "roles": [
+   {
+    "count": 3,
+    "value": "statement"
+   },
+   {
+    "count": 2,
+    "value": "bullets"
+   },
+   {
+    "count": 1,
+    "value": "cover"
+   }
+  ],
+  "sections": {
+   "decks": [
+    {
+     "before_first": 6,
+     "breaks": [],
+     "deck": "d1",
+     "sizes": []
+    }
+   ],
+   "decks_with_sections": 0,
+   "sections_per_deck": 0,
+   "size_max": null,
+   "size_median": null
+  },
+  "terms": [
+   {
+    "decks": 1,
+    "entity": false,
+    "label": "enterprise",
+    "slides": 4,
+    "term": "enterprise"
+   },
+   {
+    "decks": 1,
+    "entity": true,
+    "label": "Q1",
+    "slides": 3,
+    "term": "q1"
+   },
+   {
+    "decks": 1,
+    "entity": true,
+    "label": "Q3",
+    "slides": 3,
+    "term": "q3"
+   },
+   {
+    "decks": 1,
+    "entity": false,
+    "label": "beat",
+    "slides": 2,
+    "term": "beat"
+   },
+   {
+    "decks": 1,
+    "entity": false,
+    "label": "cohort",
+    "slides": 2,
+    "term": "cohort"
+   },
+   {
+    "decks": 1,
+    "entity": false,
+    "label": "flat",
+    "slides": 2,
+    "term": "flat"
+   },
+   {
+    "decks": 1,
+    "entity": false,
+    "label": "Mid-market",
+    "slides": 2,
+    "term": "mid-market"
+   },
+   {
+    "decks": 1,
+    "entity": false,
+    "label": "motion",
+    "slides": 2,
+    "term": "motion"
+   },
+   {
+    "decks": 1,
+    "entity": false,
+    "label": "plan",
+    "slides": 2,
+    "term": "plan"
+   },
+   {
+    "decks": 1,
+    "entity": false,
+    "label": "read",
+    "slides": 2,
+    "term": "read"
+   },
+   {
+    "decks": 1,
+    "entity": false,
+    "label": "retention",
+    "slides": 2,
+    "term": "retention"
+   },
+   {
+    "decks": 1,
+    "entity": false,
+    "label": "review",
+    "slides": 2,
+    "term": "review"
+   }
+  ],
+  "visuals": []
+ },
+ "version": 1
+}

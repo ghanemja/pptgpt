@@ -106,6 +106,24 @@ font, size or colour onto a run.
 - `deckengine/kit_ingest.py` — `learn(slug)`: MEASURES the example decks
   (points/slide, words/point, titles, visuals, layouts, type) into
   learned.json, with norms and suggested rules. Never inferred by a model.
+- `deckengine/kit_graph.py` — the same `learn` pass, kept as STRUCTURE:
+  `kits/<slug>/graph.json`, a graph of decks, slides, roles, terms and
+  visual kinds (edges: contains, follows, is, uses, mentions). Each slide
+  gets a role (native.py's cover/section/statement/bullets/two, plus chart,
+  table, picture, diagram); the arc (stage roles, openers, closers, role
+  transitions, where the ask lands), section sizes, recurring terms with
+  their slide ids, chart types, tables, and diagrams classified into
+  `diagram.KINDS` (SmartArt by layout id, connectors by topology, shape rows,
+  dates, title words) are counted from it. Positions are never read, so
+  moving shapes leaves the graph byte-identical; no timestamp inside, a
+  content digest instead. Query with plain functions (`arc`, `sections`,
+  `terms`, `slides_using`, `preferred_kinds`, `summary`) or
+  `GET /api/kits/{slug}/graph[?uses=X|full=1]` — look a convention up here,
+  never reread decks. `norms_from_graph` adds `arc` and
+  `preferred_diagram_kinds` to learned norms → `house_brief`, the coach's
+  density note and `org.load_org` (`narrative.learned`). `describe` is the
+  one optional model pass (`/graph/describe`): it labels measured facts and
+  every claim must cite existing slide ids; no model → the facts themselves.
 - `kits/` — one folder per company; git-ignored except `kits/README.md`
   (the user-facing setup guide) and `kits/example-co/` (a working example,
   rebuilt by `scripts/make_example_kit.py`). Install guide: `SETUP.md`;
@@ -147,7 +165,8 @@ font, size or colour onto a run.
 - `tests/test_layout.py`, `tests/test_ingest.py`, `tests/test_condense.py`,
   `tests/test_ambiguity.py`, `tests/test_org.py`, `tests/test_template.py`,
   `tests/test_native.py`, `tests/test_coach.py`, `tests/test_scorecard.py`,
-  `tests/test_charts.py`, `tests/test_kit.py`, `tests/test_diagram.py`,
+  `tests/test_charts.py`, `tests/test_kit.py`, `tests/test_kit_graph.py`,
+  `tests/test_diagram.py`,
   `tests/smoke_e2e.py` — invariant + endpoint tests.
 
 ## Conventions

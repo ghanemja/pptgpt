@@ -210,8 +210,11 @@ def lens_density(slide, ctx):
     if len(bullets) > limit:
         why = (f"Your own decks usually carry {limit} or fewer."
                if norms.get("max_points") else "The room will read, not listen.")
-        return _note("density", PUSH, f"{len(bullets)} points on one slide. {why}",
-                     "Which could go in the appendix or the next slide?",
+        kinds = norms.get("preferred_diagram_kinds") or []
+        ask = ("Which could go in the appendix or the next slide"
+               + (f" — or is this a {kinds[0]}, drawn the way your decks draw one?"
+                  if kinds else "?"))
+        return _note("density", PUSH, f"{len(bullets)} points on one slide. {why}", ask,
                      target={"field": "bullets"})
 
     if word_limit:

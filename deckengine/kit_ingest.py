@@ -140,20 +140,34 @@ def read_slide(slide) -> dict[str, Any]:
 
 
 def read_deck(path: str) -> dict[str, Any]:
+    return _read(path)[0]
+
+
+def _read(path: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    """One open of the file, two readings: the measured conventions for
+    learned.json and the structure for graph.json."""
+    from . import kit_graph
+    from .kit import file_digest
     prs = Presentation(path)
     slides = [read_slide(s) for s in prs.slides]
-    return {"file": os.path.basename(path), "slides": slides}
+    name = os.path.basename(path)
+    return ({"file": name, "slides": slides},
+            kit_graph.read_deck(prs, name, slides, digest=file_digest(path)))
 
 
 def learn(slug: str) -> dict[str, Any]:
-    """Read every example deck in the kit and write learned.json."""
+    """Read every example deck in the kit; write learned.json and graph.json."""
+    from . import kit_graph
     files = example_files(slug)
-    decks, failed = [], []
+    decks, structure, failed = [], [], []
     for path in files:
         try:
-            decks.append(read_deck(path))
+            measured, graphed = _read(path)
+            decks.append(measured)
+            structure.append(graphed)
         except Exception as e:                       # one bad file must not sink the run
             failed.append({"file": os.path.basename(path), "reason": str(e)[:160]})
+    graph = kit_graph.build(structure)
 
     slides = [s for d in decks for s in d["slides"]]
     content = [s for s in slides if s["points"] or s["title"]]
@@ -201,9 +215,14 @@ def learn(slug: str) -> dict[str, Any]:
             "body_pt": _summary([p for s in slides for p in s["body_pt"]]),
         },
     }
-    result["norms"] = norms_from(result)
+    result["norms"] = {**norms_from(result), **kit_graph.norms_from_graph(graph)}
+    result["graph"] = {"path": kit_graph.GRAPH_FILE, "digest": graph["digest"],
+                       "nodes": len(graph["nodes"]), "edges": len(graph["edges"]),
+                       "roles": graph["summary"]["roles"],
+                       "preferred_diagram_kinds": graph["summary"]["preferred_diagram_kinds"]}
     result["suggested_rules"] = suggested_rules(result)
 
+    kit_graph.write(slug, graph)
     path = os.path.join(kit_dir(slug), "learned.json")
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(result, fh, indent=2)
@@ -254,6 +273,12 @@ def suggested_rules(result: dict[str, Any]) -> list[str]:
         out.append("Show numbers as charts where you can.")
     if v["text_only_share"] >= 0.8:
         out.append("Text-led slides are the norm; save visuals for the evidence.")
+    arc = n.get("arc") or {}
+    if (arc.get("ask_share") or 0) >= 0.5 and (arc.get("ask_position") or 0) >= 0.8:
+        out.append("End on the ask: the last slides say what needs deciding.")
+    kinds = n.get("preferred_diagram_kinds") or []
+    if kinds:
+        out.append(f"Draw processes as {' or '.join(kinds[:2])} diagrams.")
     return out
 
 

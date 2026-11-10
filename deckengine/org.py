@@ -50,6 +50,10 @@ class Narrative:
     beats: list[str] = field(default_factory=list)
     bumper_rule: str = ""
     messages_per_slide: int = 3
+    # Measured from the kit's example decks (kit_graph): the role at each
+    # stage, how decks open and close, where the ask lands. Filled on load,
+    # never written to profile.json — the examples are its source.
+    learned: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -184,7 +188,22 @@ def load_org(slug: str = "default") -> OrgProfile:
     if not os.path.exists(path):
         raise OrgError(f"no org profile {slug!r}")
     with open(path, "r", encoding="utf-8") as fh:
-        return parse_org(json.load(fh), slug)
+        prof = parse_org(json.load(fh), slug)
+    if os.path.isdir(os.path.join(KITS_DIR, slug)):
+        prof.narrative.learned = _learned_arc(slug)
+    return prof
+
+
+def _learned_arc(slug: str) -> dict[str, Any]:
+    """The narrative arc the kit's own example decks follow, if learned."""
+    path = os.path.join(KITS_DIR, slug, "learned.json")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            norms = json.load(fh).get("norms") or {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+    arc = norms.get("arc")
+    return dict(arc) if isinstance(arc, dict) else {}
 
 
 def list_orgs() -> list[dict[str, Any]]:
