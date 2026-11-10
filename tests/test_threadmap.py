@@ -202,6 +202,77 @@ def test_fast_and_auto_agree_when_no_model_is_reachable():
     b = compute_thread_map(_messy_outline(), sides="before")["before"]
     assert a["graph"]["edges"] == b["graph"]["edges"] and a["engine"] == b["engine"]
 
+
+def _hiring_outline() -> list[dict]:
+    """A hiring ask with one stray message (slide 3) and one off-topic slide
+    (slide 4) that the deck walks into and out of without a handoff."""
+    rows = [
+        ("t1", "We beat Q3 plan by 14%", ["Enterprise revenue drove the beat", "Net retention 118%", "Pipeline doubled"], "Enterprise is where the growth is."),
+        ("t2", "Enterprise accounts expand fastest", ["Net retention 118% in enterprise", "SMB retention flat at 96%", "Expansion comes from seat growth"], "But we cannot cover the enterprise pipeline."),
+        ("t3", "The enterprise pipeline is ageing", ["40 enterprise deals untouched for 30 days", "One AE covers 120 accounts", "Our new logo is ready"], "Two more enterprise AEs close the gap."),
+        ("t4", "Office plants and kitchen refresh", ["New plants on floor 3", "Coffee machine replaced", "Snack budget unchanged"], ""),
+        ("t5", "Two enterprise AEs pay back in two quarters", ["Each AE carries 1.2M quota", "Ramp is one quarter", "Payback by Q3"], "The risk is waiting."),
+    ]
+    return [{"id": i, "title": t, "messages": m, "bumper": b} for i, t, m, b in rows]
+
+
+def _msg(flow, sid, text):
+    sl = next(s for s in flow["slides"] if s["id"] == sid)
+    return next(m for m in sl["messages"] if m["text"] == text)
+
+
+def _handoff(flow, a, b):
+    return next(h for h in flow["handoffs"] if h["from"] == a and h["to"] == b)
+
+
+def test_flow_flags_a_stray_message():
+    from deckengine.threadmap import flow
+    f = flow(_hiring_outline())
+    stray = _msg(f, "t3", "Our new logo is ready")
+    assert stray["status"] == "orphan", f"stray message read as {stray['status']} ({f['engine']})"
+    assert stray["picks_up"] is None
+    # a message another slide picks up is linked, and says which slide
+    pipe = _msg(f, "t1", "Pipeline doubled")
+    assert pipe["status"] == "linked" and pipe["picks_up"] in ("t2", "t3")
+
+
+def test_flow_ignores_generic_words_when_linking():
+    # "new" is shared by "Our new logo" and "New plants" — not an idea.
+    from deckengine.threadmap import flow
+    stray = _msg(flow(_hiring_outline()), "t3", "Our new logo is ready")
+    assert stray["picks_up"] != "t4"
+
+
+def test_flow_marks_abrupt_and_smooth_handoffs():
+    from deckengine.threadmap import flow
+    f = flow(_hiring_outline())
+    assert _handoff(f, "t2", "t3")["status"] == "smooth"
+    assert _handoff(f, "t3", "t4")["status"] == "abrupt", "walking into the off-topic slide is a cut"
+    assert _handoff(f, "t4", "t5")["status"] == "abrupt", "and out of it"
+
+
+def test_flow_says_when_there_is_no_bumper():
+    from deckengine.threadmap import flow
+    h = _handoff(flow(_hiring_outline()), "t4", "t5")
+    assert h["no_bumper"] is True and h["source"] == "Snack budget unchanged"
+    assert _handoff(flow(_hiring_outline()), "t1", "t2")["no_bumper"] is False
+
+
+def test_flow_is_data_only_and_rides_on_every_view():
+    from deckengine.threadmap import flow
+    out = compute_thread_map(_hiring_outline(), engine="fast", sides="before")
+    f = out["before"]["flow"]
+    assert f == flow(_hiring_outline()), "flow is deterministic and engine-independent"
+    banned = {"x", "y", "w", "h", "color", "colour", "left", "top", "width", "height"}
+    def walk(o):
+        if isinstance(o, dict):
+            assert not (banned & set(o)), f"geometry/colour leaked into flow: {banned & set(o)}"
+            for v in o.values(): walk(v)
+        elif isinstance(o, list):
+            for v in o: walk(v)
+    walk(f)
+    assert compute_thread_map([], sides="before")["before"]["flow"]["slides"] == []
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed = 0

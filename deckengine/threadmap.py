@@ -123,6 +123,7 @@ def _view(outline: list[dict], *, engine: str = "auto") -> dict:
             "graph": {"nodes": [], "edges": [], "orphans": [], "spine": None, "gaps": []},
             "ribbons": [], "stats": {"slides": 0, "messiness": 0.0},
             "engine": "empty",
+            "flow": {"engine": "empty", "slides": [], "handoffs": []},
         }
 
     # Tier 1: real model — reads the deck and reasons about narrative. It is
@@ -135,6 +136,7 @@ def _view(outline: list[dict], *, engine: str = "auto") -> dict:
             view["engine"] = "narrative"
             view["narrative_spine"] = narr.get("spine")
             view["narrative_arc"]   = narr.get("arc")
+            view["flow"] = flow(outline)
             return view
 
     # Tier 2: embedding similarity — catches synonyms/paraphrase
@@ -142,12 +144,180 @@ def _view(outline: list[dict], *, engine: str = "auto") -> dict:
         view = _view_semantic(outline)
         if view is not None:
             view["engine"] = "semantic"
+            view["flow"] = flow(outline)
             return view
 
     # Tier 3: bag-of-words token overlap — last resort, honest about it
     view = _view_lexical(outline)
     view["engine"] = "lexical"
+    view["flow"] = flow(outline)
     return view
+
+
+# ---- flow: the deck read message by message, handoff by handoff ----------
+#
+# The graph says which SLIDES connect. A storyboard is written one level
+# down — a title, three messages, a bumper that hands off to the next slide
+# — and that is where a deck actually breaks: a message nothing else in the
+# deck picks up, or a bumper that does not set up the next title. `flow`
+# reads at that level. Always the fast tiers (embeddings, else shared
+# words): it is a property of the text, so the same deck reads the same way
+# whichever engine drew the graph. Pure data — statuses, scores and ids; the
+# UI decides how they look.
+
+# A message is one short sentence, and short sentences embed noisily: real
+# supporting points score 0.2-0.5 against their own slide. So a message is
+# judged on BOTH signals — it is an orphan only when it shares no meaningful
+# word with any slide AND its embedding is far from every slide. Either one
+# alone was wrong on real decks (words linked "our new logo" to "new plants";
+# embeddings flagged half the genuine points).
+MSG_LINK_THRESHOLD     = 0.45   # embedding: another slide picks it up
+MSG_ORPHAN_THRESHOLD   = 0.30   # embedding: below this for every slide
+# Handoff thresholds: bumper of slide i against slide i+1 (title weighted in).
+HANDOFF_SMOOTH         = 0.45
+HANDOFF_ABRUPT         = 0.30
+
+# Words too generic to count as a shared idea between two messages.
+_GENERIC = {
+    "new", "two", "three", "four", "five", "per", "each", "all", "every",
+    "just", "only", "now", "today", "last", "next", "also", "make", "made",
+    "get", "got", "still", "over", "under", "need", "needs", "want", "time",
+    "year", "years", "week", "weeks", "month", "months", "day", "days",
+    "good", "great", "better", "best", "high", "low", "big", "small",
+}
+
+
+def _mtok(text: str) -> set[str]:
+    return _tok(text) - _GENERIC
+
+
+def flow(outline: list[dict]) -> dict:
+    """Per-message status and per-handoff status for one outline.
+
+    messages: `linked` (another slide picks it up — `picks_up` names it),
+              `local` (it backs its own slide only), `orphan` (neither).
+    handoffs: `smooth`, `weak` or `abrupt`, judged from the bumper (or the
+              slide's last message when there is no bumper — flagged
+              `no_bumper`) against the next slide.
+    `engine` says which signals were used: "semantic" (words + embeddings)
+    or "lexical" (words only).
+    """
+    if not outline:
+        return {"engine": "empty", "slides": [], "handoffs": []}
+    vec = _flow_vectors(outline) if semantics.available() else None
+    return {
+        "engine": "semantic" if vec else "lexical",
+        "slides": _flow_messages(outline, vec),
+        "handoffs": _flow_handoffs(outline, vec),
+    }
+
+
+def _sid(s: dict, i: int) -> str:
+    return s.get("id") or f"s{i}"
+
+
+def _own_text(s: dict) -> str:
+    return " ".join(p for p in [s.get("title") or "", s.get("bumper") or ""] if p)
+
+
+def _handoff_source(s: dict) -> tuple[str, bool]:
+    """What hands off to the next slide: the bumper, else the last message."""
+    b = (s.get("bumper") or "").strip()
+    if b:
+        return b, False
+    msgs = [m for m in (s.get("messages") or []) if str(m).strip()]
+    return (msgs[-1] if msgs else (s.get("title") or "")), True
+
+
+def _handoff_status(score: float, smooth: float, abrupt: float) -> str:
+    return "smooth" if score >= smooth else ("abrupt" if score < abrupt else "weak")
+
+
+def _flow_vectors(outline: list[dict]) -> Optional[dict]:
+    """Every embedding the flow needs, or None if any is unavailable."""
+    full = semantics.embed_outline(outline)
+    if not full:
+        return None
+    titles = [semantics.embed_text(s.get("title") or "") for s in outline]
+    owns = [semantics.embed_text(_own_text(s)) for s in outline]
+    msgs = [[semantics.embed_text(str(m)) for m in (s.get("messages") or [])] for s in outline]
+    srcs = [semantics.embed_text(_handoff_source(s)[0]) for s in outline]
+    flat = titles + owns + srcs + [v for row in msgs for v in row]
+    if any(v is None for v in flat):
+        return None
+    return {"full": full, "titles": titles, "owns": owns, "msgs": msgs, "srcs": srcs}
+
+
+def _flow_messages(outline: list[dict], vec: Optional[dict]) -> list[dict]:
+    full_tok = [_mtok(_slide_text(s)) for s in outline]
+    cos = semantics.cosine_sim
+    slides = []
+    for i, s in enumerate(outline):
+        own_tok = _mtok(_own_text(s))
+        out = []
+        for k, m in enumerate(s.get("messages") or []):
+            t = _mtok(str(m))
+            # words: the other slide sharing the most meaningful words
+            w_j, w_best = None, 0
+            for j, other in enumerate(full_tok):
+                if j != i and len(t & other) > w_best:
+                    w_j, w_best = j, len(t & other)
+            own_hit = bool(t & own_tok)
+            # embeddings: nearest other slide, and support for its own slide
+            e_j, e_best, e_own = None, -1.0, -1.0
+            if vec:
+                v = vec["msgs"][i][k]
+                for j, other in enumerate(vec["full"]):
+                    if j != i and cos(v, other) > e_best:
+                        e_j, e_best = j, cos(v, other)
+                e_own = cos(v, vec["owns"][i])
+
+            if w_best >= 1:
+                status, picks = "linked", w_j
+            elif vec and e_best >= MSG_LINK_THRESHOLD:
+                status, picks = "linked", e_j
+            elif own_hit or (vec and max(e_best, e_own) >= MSG_ORPHAN_THRESHOLD):
+                status, picks = "local", None
+            else:
+                status, picks = "orphan", None
+            out.append({
+                "text": str(m), "status": status,
+                "picks_up": _sid(outline[picks], picks) if picks is not None else None,
+                "shared": sorted(t & full_tok[picks])[:4] if picks is not None else [],
+                "score": round(max(e_best, e_own), 3) if vec else w_best,
+            })
+        slides.append({"id": _sid(s, i), "index": i,
+                       "title": (s.get("title") or "").strip() or f"Slide {i+1}",
+                       "bumper": s.get("bumper") or "", "messages": out})
+    return slides
+
+
+def _flow_handoffs(outline: list[dict], vec: Optional[dict]) -> list[dict]:
+    full_tok = [_tok(_slide_text(s)) for s in outline]
+    out = []
+    for i in range(len(outline) - 1):
+        src, no_bumper = _handoff_source(outline[i])
+        nxt = outline[i + 1]
+        a = _tok(src)
+        title_hits = a & _tok(nxt.get("title") or "")
+        body_hits = a & full_tok[i + 1]
+        if vec:
+            # The next title is what a bumper has to set up; the rest of the
+            # slide counts too, at a lower weight.
+            cos = semantics.cosine_sim
+            score = round(0.65 * cos(vec["srcs"][i], vec["titles"][i + 1])
+                          + 0.35 * cos(vec["srcs"][i], vec["full"][i + 1]), 3)
+            status = _handoff_status(score, HANDOFF_SMOOTH, HANDOFF_ABRUPT)
+        else:
+            # A word shared with the next TITLE is a real setup; one buried
+            # in its messages counts for half.
+            score = len(title_hits) + 0.5 * len(body_hits - title_hits)
+            status = _handoff_status(score, 1.0, 0.5)
+        out.append({"from": _sid(outline[i], i), "to": _sid(nxt, i + 1),
+                    "source": src, "no_bumper": no_bumper,
+                    "next_title": nxt.get("title") or "",
+                    "score": score, "shared": sorted(body_hits)[:6], "status": status})
+    return out
 
 
 def _view_lexical(outline: list[dict]) -> dict:

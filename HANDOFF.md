@@ -116,3 +116,15 @@ per deck (counts drew 25px strokes).
 - A kit wins over a built-in profile with the same slug.
 - With a template, the template owns geometry (`native.py`); `layout.py`
   owns it otherwise (`CLAUDE.md`, "Templates: who owns geometry").
+
+## Slide voice (humanplease)
+
+`deckengine/humanplease_slides.md` (derived from humanplease @ 7f7f2d0,
+vendored in `deckengine/vendor/humanplease/` by `scripts/sync_humanplease.py`)
+rides on every workspace_gen prompt, refine included (refine was also missing
+the house style; fixed). `scripts/eval_voice.py` A/Bs it. First run on
+gemma3:4b, 8 briefs × 2: banned phrases 7→0, invented numbers 3→0, but
+bullets per slide 3.4→1.6 (real points dropped) and invented owner names on
+the postmortem brief unchanged (the `standup` tone asks for owners).
+Open, needs the owner's call: loosening the `"bullets":["","",""]` template.
+
