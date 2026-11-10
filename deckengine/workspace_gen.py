@@ -40,7 +40,10 @@ _AUDIENCE_TONE = {
     "exec": "numbers-forward, sparse, decision-oriented; the hero number leads and a decision anchors the lower right",
     "customer": "narrative-first, warmer, a little more visual, ends with a single ask",
     "conf": "one idea, big typography, takeaway-first, minimal supporting text",
-    "standup": "dense and practical, action items phrased with owners in mind",
+    "standup": (
+        "dense and practical, action items stated plainly; name an owner only when "
+        "the input, the user or the source material names one, otherwise write [owner]"
+    ),
 }
 
 
