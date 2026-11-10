@@ -22,6 +22,7 @@ zipped, versioned, or handed to a colleague as a directory.
         assets.csv      file,label,tags,use,license
         icons/ images/ clipart/
       learned.json      written by `learn` — what the examples taught
+      graph.json        written by `learn` — the examples' structure (kit_graph)
 
 Conventions live here; geometry never does. A kit can name a template, which
 owns its own layouts (see native.py); nothing in a kit places a box.
@@ -775,6 +776,16 @@ def house_brief(slug: Optional[str]) -> str:
         if n.get("title_words"):
             lines.append(f"- Titles around {n['title_words']} words"
                          + ("; a title states a claim." if n.get("titles_argue") else "."))
+        arc = n.get("arc") or {}
+        if arc.get("opens") and arc.get("closes"):
+            ask = arc.get("ask_position")
+            lines.append(f"- Decks open with a {arc['opens']} slide and close on a "
+                         f"{arc['closes']} slide"
+                         + (f"; the ask lands about {round(ask * 100)}% through." if ask is not None
+                            and (arc.get("ask_share") or 0) >= 0.5 else "."))
+        if n.get("preferred_diagram_kinds"):
+            lines.append("- Diagrams this house uses: "
+                         + ", ".join(n["preferred_diagram_kinds"]) + ".")
         voice = voice_text(slug).strip()
         if voice:
             if len(voice) > VOICE_BUDGET_CHARS:

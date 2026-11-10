@@ -47,7 +47,6 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from auth import auth_middleware, mint_token, check_password
 
 from deckengine.storyboard import extract_storyboard, generate_critique
 from deckengine.spec_render import render_specs, _render_plot_png
@@ -85,15 +84,17 @@ app = FastAPI(title="DeckEngine")
 
 # CORS — defaults to * for dev; in prod set CORS_ORIGINS to the Netlify URL
 # (comma-separated allowed). Same env var name as the rest of the portfolio.
-_cors_raw = os.environ.get("CORS_ORIGINS", "*").strip()
-_cors_origins = ["*"] if _cors_raw == "*" else [o.strip() for o in _cors_raw.split(",") if o.strip()]
-app.add_middleware(
-    CORSMiddleware, allow_origins=_cors_origins, allow_methods=["*"], allow_headers=["*"],
-)
-
-# Bearer-token auth — gated by BU_AUTH_* env vars (same pattern across all
-# portfolio projects, so the shared secret means one login works everywhere).
-app.middleware("http")(auth_middleware)
+# There is no login: pptgpt runs on your own computer, bound to 127.0.0.1
+# (scripts/start.sh), so nothing else on the network can reach it.
+#
+# Cross-origin requests are OFF unless CORS_ORIGINS names who may call. With
+# a wildcard here, any web page open in your browser could read this local
+# server's decks and kits; the app's own pages are same-origin and need none.
+_cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware, allow_origins=_cors_origins, allow_methods=["*"], allow_headers=["*"],
+    )
 
 
 # ---- request models (loose: passthrough dicts) ---------------------------
@@ -304,7 +305,7 @@ def _local_only(request: Request):
     Reading an arbitrary folder, or opening one in the file manager, is
     exactly right for someone running pptgpt on their own laptop and exactly
     wrong for anyone reaching this server over a network. Those two routes
-    answer only to localhost, whatever the auth settings say.
+    answer only to localhost, however the server was started.
     """
     host = (request.client.host if request.client else "") or ""
     if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
@@ -402,6 +403,40 @@ def api_kit_learn(slug: str):
             return JSONResponse({"error": "add some example decks first"}, status_code=400)
         result = kit_learn(slug)
         return {"learned": result, "kit": kitmod.scan(slug)}
+    except KitError as e:
+        return _kit_error(e)
+
+
+@app.get("/api/kits/{slug}/graph")
+def api_kit_graph(slug: str, uses: str | None = None, full: bool = False):
+    """What the example decks are, as a graph (kit_graph): the summary by
+    default; `uses=timeline` (a role, visual, diagram kind or term) lists the
+    slides that use it; `full=1` returns every node and edge."""
+    from deckengine import kit_graph
+    try:
+        kitmod.kit_dir(slug)
+        g = kit_graph.load(slug)
+    except KitError as e:
+        return _kit_error(e)
+    if g is None:
+        return JSONResponse({"error": "not learned yet — run learning on the examples"},
+                            status_code=404)
+    if uses:
+        ids = kit_graph.slides_using(g, uses)
+        return {"uses": uses, "slides": [kit_graph.slide(g, i) for i in ids]}
+    return g if full else kit_graph.summary(g)
+
+
+@app.post("/api/kits/{slug}/graph/describe")
+def api_kit_graph_describe(slug: str):
+    """Labelled claims about the decks, each citing real slide ids. Uses the
+    narrative model when one is up; otherwise the measured facts."""
+    from deckengine import kit_graph
+    try:
+        kitmod.kit_dir(slug)
+        if kit_graph.load(slug) is None:
+            return JSONResponse({"error": "not learned yet"}, status_code=404)
+        return kit_graph.describe(slug)
     except KitError as e:
         return _kit_error(e)
 
@@ -1021,25 +1056,6 @@ def api_render_ir(req: RenderIrReq):
 @app.get("/health")
 def health():
     return {"ok": True}
-
-
-# ---- auth ----------------------------------------------------------------
-
-class LoginReq(BaseModel):
-    username: str = ""
-    password: str = ""
-
-
-@app.post("/login")
-def login(req: LoginReq):
-    """Issue a bearer token for valid credentials.
-
-    Shared BU_AUTH_* env vars across portfolio projects mean the SAME
-    username/password works on every project's Space. Tokens are not
-    portable across projects unless BU_AUTH_SECRET is also shared."""
-    if not check_password(req.username, req.password):
-        return JSONResponse({"detail": "invalid credentials"}, status_code=401)
-    return {"token": mint_token(req.username), "user": req.username}
 
 
 # ---- static frontend -----------------------------------------------------

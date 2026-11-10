@@ -72,7 +72,7 @@ Read `CLAUDE.md` first. Run the suite before and after (`python3 tests/test_*.py
    template the engine casts it into the picture placeholder. A linked asset
    folder is labelled by its own `assets.csv`.
 5. `kits/README.md` (setup guide), `SETUP.md` (work-machine install),
-   `scripts/start.sh` (checks deps, 127.0.0.1 only, auth off). README.md and
+   `scripts/start.sh` (checks deps, 127.0.0.1 only, no login). README.md and
    CLAUDE.md link them.
 6. Dead `Coach` / `coachContent` / `coachStage` removed from `ws-app.jsx`.
 
@@ -111,7 +111,7 @@ per deck (counts drew 25px strokes).
 
 ## Decisions already made — don't relitigate
 - The folder is the source of truth; the UI only writes into it.
-- `import` and `reveal` answer to localhost only, whatever the auth settings.
+- `import` and `reveal` answer to localhost only.
 - Learning is measured from the files, never inferred by a model.
 - A kit wins over a built-in profile with the same slug.
 - With a template, the template owns geometry (`native.py`); `layout.py`

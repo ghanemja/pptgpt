@@ -135,7 +135,7 @@ network.
 On Windows, without bash, start it with:
 
 ```powershell
-$env:BU_AUTH_DISABLED="1"; $env:DECKENGINE_NARRATIVE_BACKEND="ollama"; $env:OLLAMA_MODEL="gemma3:4b"; $env:OLLAMA_HOST="http://127.0.0.1:11434"
+$env:DECKENGINE_NARRATIVE_BACKEND="ollama"; $env:OLLAMA_MODEL="gemma3:4b"; $env:OLLAMA_HOST="http://127.0.0.1:11434"
 .venv\Scripts\python -m uvicorn server:app --host 127.0.0.1 --port 8000
 ```
 
@@ -197,8 +197,7 @@ Get a key at <https://console.anthropic.com> → API keys.
 ### Option C: any OpenAI-compatible endpoint
 
 This covers OpenAI itself and anything that speaks the same API: a company
-AI gateway, LM Studio, vLLM, llama.cpp's server, a hosted Hugging Face
-endpoint. If its documentation mentions `/v1/chat/completions`, it works.
+AI gateway, LM Studio, vLLM, llama.cpp's server. If its documentation mentions `/v1/chat/completions`, it works.
 
 ```dotenv
 DECKENGINE_NARRATIVE_BACKEND=openai

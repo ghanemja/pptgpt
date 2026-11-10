@@ -4,9 +4,9 @@
 #   scripts/start.sh            # http://127.0.0.1:8000/workspace
 #   PORT=8010 scripts/start.sh  # another port
 #
-# Binds to 127.0.0.1 ONLY. That is what makes BU_AUTH_DISABLED=1 safe: no
-# other computer can reach the server, so there is no login. Do not change
-# the host to 0.0.0.0 without turning auth back on (see auth.py).
+# Binds to 127.0.0.1 ONLY. pptgpt has no login, so this is what keeps it
+# private: no other computer can reach the server. Do not change the host to
+# 0.0.0.0 — that would put your decks on the network for anyone to open.
 #
 # Checks what it needs first and says what is missing. Only Python and the
 # packages are required; without Ollama slides come from the built-in
@@ -34,9 +34,6 @@ fi
 HOST="127.0.0.1"
 PORT="${PORT:-8000}"
 
-export BU_AUTH_DISABLED=1
-# Auth is off, so the token key is unused; set one anyway to keep auth.py quiet.
-export BU_AUTH_SECRET="${BU_AUTH_SECRET:-$(head -c 32 /dev/urandom | base64)}"
 export DECKENGINE_NARRATIVE_BACKEND="${DECKENGINE_NARRATIVE_BACKEND:-ollama}"
 export OLLAMA_MODEL="${OLLAMA_MODEL:-gemma3:4b}"
 export OLLAMA_HOST="${OLLAMA_HOST:-http://127.0.0.1:11434}"
