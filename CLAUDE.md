@@ -69,9 +69,32 @@ font, size or colour onto a run.
   whole deck and tallies where it is weakest; `apply_overrides` tunes a
   persona for one sitting without editing its file. Deterministic, so a note
   is a property of the slide. Notes never carry geometry.
-- `deckengine/org.py` — per-organization profiles loaded from `orgs/*.json`:
-  the scoping interview, narrative arc and house style rules. Convention,
-  never geometry — the loader rejects a profile carrying coordinates.
+- `deckengine/org.py` — per-organization profiles loaded from `orgs/*.json`
+  and from company kits: the scoping interview, narrative arc and house
+  style rules. Convention, never geometry — the loader rejects a profile
+  carrying coordinates. A kit wins a slug clash with `orgs/`.
+- `deckengine/kit.py` — company kits. `kits/<slug>/` is the source of truth
+  (profile.json, voice.md, a top-level template, examples/, assets/ +
+  assets.csv, learned.json); upload, "point to a folder" (copy or link) and
+  files dropped in by hand all land in the same folder, and `scan()` re-reads
+  it every call. Also the asset library search, SVG→PNG, and `house_brief`
+  (rules + learned norms + voice → generation prompt). Import and reveal
+  answer to localhost only.
+- `deckengine/kit_ingest.py` — `learn(slug)`: MEASURES the example decks
+  (points/slide, words/point, titles, visuals, layouts, type) into
+  learned.json, with norms and suggested rules. Never inferred by a model.
+- `kits/` — one folder per company; git-ignored except `kits/README.md`
+  (the user-facing setup guide) and `kits/example-co/` (a working example,
+  rebuilt by `scripts/make_example_kit.py`). Install guide: `SETUP.md`;
+  start script: `scripts/start.sh` (binds 127.0.0.1, auth off).
+- `frontend/ws-*.jsx` — the workspace UI: React + Babel standalone from a
+  CDN, no bundler; modules share via `Object.assign(window, {...})`, and a
+  new file is registered in `frontend/workspace.html` and
+  `scripts/build-netlify.mjs`. `ws-kit.jsx` is kit setup, `ws-library.jsx`
+  the asset library (sets `slide.image = {kit, file, label}` — a reference,
+  never a position). `window.WS_ORG` names the selected company on every API
+  call; read it at call time, as `window.aiGenerate` must be (the backend
+  wrapper replaces it after load).
 - `deckengine/preview.py` — EXACT slide previews: one spec through
   `spec_render` onto the template master, rasterised by LibreOffice and
   cached by content hash. The HTML preview can only draw with fonts the
@@ -82,6 +105,7 @@ font, size or colour onto a run.
 - `tests/test_layout.py`, `tests/test_ingest.py`, `tests/test_condense.py`,
   `tests/test_ambiguity.py`, `tests/test_org.py`, `tests/test_template.py`,
   `tests/test_native.py`, `tests/test_coach.py`, `tests/test_charts.py`,
+  `tests/test_kit.py`,
   `tests/smoke_e2e.py` — invariant + endpoint tests.
 
 ## Conventions

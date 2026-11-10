@@ -210,8 +210,11 @@ const _exactUrls = new Map();     // sig -> blob url
 const _exactPending = new Map();  // sig -> promise
 const EXACT_URL_MAX = 60;
 
+// The org is part of the picture: it decides which layouts win a tie and
+// resolves a library image, so the same slide under two companies is two
+// renders.
 function exactSignature(slide, templateId) {
-  return JSON.stringify([slide, templateId || null]);
+  return JSON.stringify([slide, templateId || null, window.WS_ORG || null]);
 }
 
 function exactUrl(slide, templateId) {
@@ -220,12 +223,13 @@ function exactUrl(slide, templateId) {
   if (_exactPending.has(sig)) return _exactPending.get(sig);
   if (!API || window.WS_NO_BACKEND) return Promise.resolve(null);
 
+  const org = window.WS_ORG || null;
   let payload;
   if (templateId) {
-    payload = { slide, templateId };
+    payload = { slide, templateId, org };
   } else {
     if (!window.slideToSpec) return Promise.resolve(null);
-    try { payload = { spec: window.slideToSpec(slide) }; }
+    try { payload = { spec: window.slideToSpec(slide), org }; }
     catch (e) { return Promise.resolve(null); }
   }
 
@@ -281,7 +285,7 @@ function ExactThumb({ slide, templateId, width, height, children }) {
 function ExactSlide({ slide, templateId, width, height, children }) {
   const [src, setSrc] = useState(null);
   const [state, setState] = useState('idle');    // idle | rendering | ok | off
-  const sig = JSON.stringify([slide, templateId]);
+  const sig = exactSignature(slide, templateId);
 
   useEffect(() => {
     if (!API || window.WS_NO_BACKEND || !window.slideToSpec) { setState('off'); return; }

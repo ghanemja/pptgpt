@@ -81,7 +81,9 @@ def _outline_hash(outline: list[dict], audience: str | None, mode: str | None) -
 #     Configurable via DECKENGINE_NARRATIVE_MODEL (default claude-sonnet-4-6).
 #
 #   DECKENGINE_NARRATIVE_BACKEND=ollama
-#     Calls a local Ollama server (default http://localhost:11434).
+#     Calls a local Ollama server (default http://127.0.0.1:11434 — the
+#     address Ollama binds. "localhost" can resolve to ::1 first, and where
+#     nothing answers there the 1.5s reachability probe times out.)
 #     Requires `ollama serve` running locally and the model pulled:
 #         ollama pull gemma4              # E4B, 9.6 GB on disk (default)
 #         ollama pull gemma4:e2b          # E2B, 7.2 GB — works on 8 GB Macs
@@ -96,7 +98,7 @@ def _outline_hash(outline: list[dict], audience: str | None, mode: str | None) -
 _BACKEND     = os.environ.get("DECKENGINE_NARRATIVE_BACKEND", "anthropic").lower()
 _MODEL_NAME  = os.environ.get("DECKENGINE_NARRATIVE_MODEL", "claude-sonnet-4-6")
 _API_KEY     = os.environ.get("ANTHROPIC_API_KEY", "")
-_OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+_OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
 _OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
 # Gemma via an OpenAI-compatible /v1 endpoint (the shared HF Inference
 # Endpoint). Reuses the same LOCAL_LLM_* env as Brain University, so one

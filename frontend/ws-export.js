@@ -219,6 +219,15 @@
     // is whatever is left between the title and it.
     const takeawayY = 335;
     const contentH = Math.max(60, takeawayY - 12 - contentY);
+    // A library image takes a fixed column at the right of the content band
+    // and the text narrows to make room (SlideCard draws the same column).
+    // The server letterboxes the picture inside this box, never stretches it.
+    if (slide.image && slide.image.file) {
+      const imgW = 220, gap = 34, imgX = 48 + 624 - imgW;
+      blocks.push({ type: 'image', x: X(imgX), y: X(contentY), w: X(imgW), h: X(contentH),
+        image: { kit: slide.image.kit || null, file: slide.image.file, label: slide.image.label || '' } });
+      contentW = Math.max(120, imgX - gap - contentX);
+    }
     if (Array.isArray(slide.bullets) && slide.bullets.length) {
       blocks.push({ type: 'bullets', x: X(contentX), y: X(contentY), w: X(contentW), h: X(contentH),
         items: slide.bullets.slice(0, story ? 3 : 4), font: 'sans', size: PT(16.5), weight: 400,

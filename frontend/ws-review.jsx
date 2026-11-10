@@ -75,7 +75,7 @@ function ReviewPhase({ deck, onOpenSlide, onReviewed }) {
     fetch(API + '/api/critique_deck', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slides: deck.slides, coach: who, overrides }),
+      body: JSON.stringify({ slides: deck.slides, coach: who, overrides, org: window.WS_ORG || null }),
     })
       .then(r => (r.ok ? r.json() : Promise.reject()))
       .then(d => { setReport(d); setState('ok'); if (onReviewed) onReviewed(); })

@@ -7,7 +7,10 @@
    ============================================================ */
 
 const { useState, useEffect, useRef, useCallback, useLayoutEffect } = React;
-const { SLIDE_W, SLIDE_H, PALETTES, AUDIENCES, FEATURES, FEATURE_ICON, Ico, SlideCard, aiGenerate, uid, Storyboard } = window;
+// `aiGenerate` is deliberately NOT taken from window here: workspace-backend.js
+// replaces window.aiGenerate with the engine-backed one only after /health
+// answers, which is after this line runs. Read it at call time instead.
+const { SLIDE_W, SLIDE_H, PALETTES, AUDIENCES, FEATURES, FEATURE_ICON, Ico, SlideCard, uid, Storyboard } = window;
 const { PHASES, PhaseRail, ScopePhase, VisualsPhase, PhaseEmpty, useOrg, briefFrom, scopeProgress, TOOL_PHASE } = window;
 
 const LS_KEY = (typeof window !== 'undefined' && window.WS_LS_KEY) || 'pptgpt-ws-v2';
@@ -94,7 +97,7 @@ function Thumb({ slide, w, template }) {
 }
 
 /* ── sidebar ──────────────────────────────────────────────── */
-function Sidebar({ collapsed, onCollapse, feature, onFeature, decks, deckId, onPickSlide, onSwitch, onNew, audience, phase, onPhase, phaseStatus, template }) {
+function Sidebar({ collapsed, onCollapse, feature, onFeature, decks, deckId, onPickSlide, onSwitch, onNew, audience, phase, onPhase, phaseStatus, template, orgName, orgIsKit, onKit }) {
   return (
     <aside className="rail">
       <div className="rail__top">
@@ -140,13 +143,15 @@ function Sidebar({ collapsed, onCollapse, feature, onFeature, decks, deckId, onP
         </div>
       </div>
 
-      <div className="rail__foot">
-        <span className="avatar">JG</span>
+      {/* The company this deck is written for, and the way into its kit. */}
+      <button className="rail__foot" onClick={onKit} title="Set up a company kit: template, example decks, icons, voice">
+        <span className="avatar">{(orgName || '?').replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '?'}</span>
         <span className="rail__foot-txt">
-          <span className="rail__foot-name">Jane G.</span>
-          <span className="rail__foot-sub">Pro workspace</span>
+          <span className="rail__foot-name">{orgName || 'Default'}</span>
+          <span className="rail__foot-sub">{orgIsKit ? 'Company kit · edit' : 'Set up a company kit'}</span>
         </span>
-      </div>
+        <span className="rail__foot-go"><Ico name="folder" size={15} /></span>
+      </button>
     </aside>
   );
 }
@@ -453,94 +458,6 @@ function Work({ deck, loading, feature, onSample, onPickSlide, onPrev, onNext, o
   );
 }
 
-/* ── coach (guidance + chips above composer) ──────────────── */
-function coachContent(stage, feature, active, deck) {
-  const others = FEATURE_ORDER.filter(f => f !== feature);
-  if (stage === 'taste') {
-    return {
-      text: <>Nice draft. Should the <b>number</b> lead the eye, or the <b>story</b>?</>,
-      chips: [
-        { label: 'Number leads', accent: active && active.emphasis !== 'story', act: { type: 'emphasis', v: 'number' } },
-        { label: 'Story leads', accent: active && active.emphasis === 'story', act: { type: 'emphasis', v: 'story' } },
-        { label: 'Looks good', act: { type: 'skip' } },
-      ],
-    };
-  }
-  if (stage === 'needdata') {
-    return {
-      text: <>I can chart that — paste the numbers and I{"'"}ll build it. <b>Label value</b>, separated by commas.</>,
-      chips: [
-        { label: 'Q1 32, Q2 38, Q3 42, Q4 45', act: { type: 'send', text: 'Chart it: Q1 32, Q2 38, Q3 42, Q4 45' } },
-        { label: 'SMB 1.2, Mid 2.1, Ent 8.4', act: { type: 'send', text: 'Chart it: SMB 1.2, Mid 2.1, Ent 8.4' } },
-        { label: 'Never mind', act: { type: 'skip' } },
-      ],
-    };
-  }
-  if (stage === 'count') {
-    return {
-      text: <>Kept the spine — <b>{deck.slides.length} slides</b>. Tighter, or give it room?</>,
-      chips: [
-        { label: 'Tight · 3 slides', act: { type: 'count', v: 3 } },
-        { label: 'Room · 5 slides', act: { type: 'count', v: 5 } },
-      ],
-    };
-  }
-  if (stage === 'direction') {
-    return {
-      text: <>Now the <b>direction</b> — same content, three palettes. It applies to the whole deck.</>,
-      chips: Object.values(PALETTES).map(p => ({
-        label: p.label, sw: p.swatch, accent: deck.slides.every(s => s.palette === p.key),
-        act: { type: 'palette', v: p.key },
-      })),
-    };
-  }
-  if (stage === 'refine') {
-    return {
-      text: <>You{'’'}re on slide {deck.slides.findIndex(s => s.id === deck.activeId) + 1}. What feels off? Type a note, or:</>,
-      chips: [
-        { label: 'Pull the takeaway up', act: { type: 'send', text: 'The takeaway is buried — pull it up front.' } },
-        { label: 'Sharpen the title', act: { type: 'send', text: 'The title is generic — make it argue the point.' } },
-        { label: 'Cut to one idea', act: { type: 'send', text: 'Too dense — cut it to one idea.' } },
-      ],
-    };
-  }
-  if (stage === 'next') {
-    return {
-      text: <>Looks sharp. <b>Export</b> it — or hand the deck to another feature.</>,
-      chips: [
-        { label: 'Download .pptx', act: { type: 'export', v: 'pptx' } },
-        { label: 'Download .pdf', act: { type: 'export', v: 'pdf' } },
-        ...others.map(o => ({ label: `Send to ${FEATURES[o].name}`, act: { type: 'goto', v: o } })),
-      ],
-    };
-  }
-  return null;
-}
-
-function Coach({ stage, feature, active, deck, onChip, onHistory, hasHistory }) {
-  const c = coachContent(stage, feature, active, deck);
-  if (!c) return null;
-  return (
-    <div className="coach">
-      <div className="coach__row">
-        <span className="coach__ava">p</span>
-        <div className="coach__body">
-          <div className="coach__text">{c.text}</div>
-          <div className="coach__chips">
-            {c.chips.map((chip, i) => (
-              <button key={i} className={`qchip ${chip.accent ? 'is-accent' : ''}`} onClick={() => onChip(chip.act)}>
-                {chip.sw && <span className="qchip__sw" style={{ background: chip.sw }} />}
-                {chip.label}
-              </button>
-            ))}
-            {hasHistory && <button className="coach__more" onClick={onHistory}><Ico name="up" size={13} /> conversation</button>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── composer ─────────────────────────────────────────────── */
 function Composer({ feature, draft, setDraft, files, setFiles, audience, setAudience, onSend, loading, showPresets, onPreset, coach, compact }) {
   const [audOpen, setAudOpen] = useState(false);
@@ -695,11 +612,9 @@ function App() {
     ? saved.decks
     : (saved && saved.deck ? [{ id: saved.deck.id || 'd1', ...saved.deck }] : [{ id: 'd1', title: 'Untitled deck', slides: [], activeId: null }]);
   const initDeckId = (saved && saved.deckId) || initDecks[0].id;
-  const initDeck = initDecks.find(d => d.id === initDeckId) || initDecks[0];
   const [decks, setDecks] = useState(initDecks);
   const [deckId, setDeckId] = useState(initDeckId);
   const [chat, setChat] = useState(saved ? saved.chat || [] : []);
-  const [coachStage, setCoachStage] = useState(initDeck.slides.length ? 'next' : null);
   const [topAudOpen, setTopAudOpen] = useState(false);
 
   const [draft, setDraft] = useState('');
@@ -708,6 +623,10 @@ function App() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyFilter, setHistoryFilter] = useState('all');
   const [coachOpen, setCoachOpen] = useState(false);
+  const [kitOpen, setKitOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  // Bumped when kits change, so the organization list is read again.
+  const [orgsVersion, setOrgsVersion] = useState(0);
   // Phase 05 is 'done' once the deck has been read by somebody.
   const [reviewed, setReviewed] = useState(false);
   const [toasts, setToasts] = useState([]);
@@ -720,7 +639,14 @@ function App() {
   const [phase, setPhase] = useState(saved && saved.phase ? saved.phase : 'scope');
   const [orgSlug, setOrgSlug] = useState(saved && saved.orgSlug ? saved.orgSlug : 'default');
   const [scope, setScope] = useState(saved && saved.scope ? saved.scope : {});
-  const { org, orgs, offline: orgOffline } = useOrg(orgSlug);
+  const { org, orgs, offline: orgOffline } = useOrg(orgSlug, orgsVersion);
+  // Every API call names the company it is for: generation gets its house
+  // brief, previews and export its layouts and library images, the coach its
+  // learned norms. Read at call time by workspace-backend.js, ws-template.jsx,
+  // ws-coach.jsx and ws-review.jsx, so set it on every render.
+  window.WS_ORG = orgSlug || null;
+  const orgMeta = orgs.find(o => o.slug === orgSlug) || null;
+  const orgIsKit = !!(orgMeta && orgMeta.kit);
   const [advDismissed, setAdvDismissed] = useState([]);
   // A visual the user asked for that is waiting on its numbers or steps.
   const [pendingChart, setPendingChart] = useState(null);
@@ -828,7 +754,7 @@ function App() {
     const label = text || `Draft from ${files.map(f => f.name).join(', ')}`;
     pushChat('user', label);
     setDraft(''); const usedFiles = files; setFiles([]);
-    setLoading(true); setCoachStage(null); setHistoryOpen(false);
+    setLoading(true); setHistoryOpen(false);
 
     // ── "chart this" is answered by the engine, not the model ──────
     // If the prompt asks for a visual, the numbers either already exist
@@ -836,7 +762,10 @@ function App() {
     // chart from them. Not found, it ASKS — a model asked to chart numbers
     // it does not have will invent them, and a slide of invented data is
     // the worst thing this program could put in front of a room.
-    if (window.visualIntent && tool !== 'refine') {
+    // Condense is skipped too: it turns prose into a spine, and a brief is
+    // prose that often carries arrows ("Situation → Complication → …") that
+    // read as a flow-chart request when they are only a narrative arc.
+    if (window.visualIntent && tool !== 'refine' && tool !== 'condense') {
       const found = window.findSeries({
         prompt: text, slide: active, deck, scope: scopeAnswers, chat,
       });
@@ -920,14 +849,14 @@ function App() {
       const fIds = [...touched, ...dcActive.map(c => c.id)];
       if (fIds.length) { setFlash(fIds); setTimeout(() => setFlash([]), 1800); }
       setDashNotify(true);
-      setLoading(false); setCoachStage('next');
+      setLoading(false);
       pushChat('assistant', 'Applied it — see the highlighted adjustment below.');
       if (active) pulse(active.id);
       return;
     }
 
     const deckPalette = deck.slides.length ? deck.slides[0].palette : 'warm';
-    const result = await aiGenerate({ feature: tool, prompt: text, audience, files: usedFiles, current: active, palette: deckPalette });
+    const result = await window.aiGenerate({ feature: tool, prompt: text, audience, files: usedFiles, current: active, palette: deckPalette });
 
     let newActiveId;
     setDeck(prev => {
@@ -961,7 +890,7 @@ function App() {
     if (flashIds.length) { setFlash(flashIds); setTimeout(() => setFlash([]), 1800); }
     setDashNotify(true);
 
-    setLoading(false); setCoachStage('next');
+    setLoading(false);
     // A tool run from Visuals produces a slide, and a slide is shown in Deck.
     // Condense stays put: its output IS the board you are already looking at.
     if (phase === 'visuals') setPhase('deck');
@@ -1006,22 +935,18 @@ function App() {
       setDeck(prev => ({ ...prev, slides: prev.slides.map(s => s.id === prev.activeId ? { ...s, emphasis: act.v } : s) }));
       pushChat('assistant', act.v === 'story' ? 'Story leads now — the headline and takeaway carry it.' : 'Number leads — the hero stat anchors the slide.');
       if (active) pulse(active.id);
-      setCoachStage('direction');
     } else if (act.type === 'skip') {
-      if (pendingChart) { setPendingChart(null); setCoachStage(hasSlides ? 'next' : null); return; }
-      setCoachStage('direction');
+      if (pendingChart) setPendingChart(null);
     } else if (act.type === 'count') {
       setDeck(prev => {
         let slides = prev.slides.slice(0, act.v);
         return { ...prev, slides, activeId: slides.some(s => s.id === prev.activeId) ? prev.activeId : slides[0].id };
       });
       pushChat('assistant', `Trimmed to ${act.v} slides.`);
-      setCoachStage('direction');
     } else if (act.type === 'palette') {
       setDeck(prev => ({ ...prev, slides: prev.slides.map(s => ({ ...s, palette: act.v })) }));
       pushChat('assistant', `Applied the ${PALETTES[act.v].label} direction across the deck.`);
       if (active) pulse(active.id);
-      setCoachStage('next');
     } else if (act.type === 'export') {
       doExport(act.v);
     } else if (act.type === 'goto') {
@@ -1041,12 +966,10 @@ function App() {
         .catch(() => {
           toast('Export failed — check the server logs.');
         });
-      setCoachStage('next');
       return;
     }
     toast(`Exported ${deck.title || 'deck'} · ${deck.slides.length} slides · .${fmt}`);
     pushChat('assistant', `Exported the deck as .${fmt} (${deck.slides.length} slides).`);
-    setCoachStage('next');
   }
 
   function gotoFeature(next, fromChip, keepPhase) {
@@ -1054,10 +977,10 @@ function App() {
     setHistoryOpen(false);
     // A tool belongs to a phase; selecting one moves you there.
     if (!keepPhase && TOOL_PHASE[next]) setPhase(TOOL_PHASE[next]);
-    if (deck.slides.length === 0) { setCoachStage(null); return; }
-    if (next === 'refine') { setCoachStage('refine'); if (fromChip) pushChat('assistant', 'Moved the deck into Refine. Tell me what feels off.'); }
-    else if (next === 'condense') { setCoachStage(deck.slides.length > 1 ? 'count' : null); if (fromChip) pushChat('assistant', 'Moved into Condense — paste more, or tune the spine.'); }
-    else { setCoachStage('next'); if (fromChip) pushChat('assistant', 'Back in Create. Add another slide, or export.'); }
+    if (deck.slides.length === 0 || !fromChip) return;
+    if (next === 'refine') pushChat('assistant', 'Moved the deck into Refine. Tell me what feels off.');
+    else if (next === 'condense') pushChat('assistant', 'Moved into Condense — paste more, or tune the spine.');
+    else pushChat('assistant', 'Back in Create. Add another slide, or export.');
   }
 
   // "Add slide" adds a real blank slide and selects it; the next generation
@@ -1072,7 +995,6 @@ function App() {
         : [...prev.slides, slide],
       activeId: slide.id,
     }));
-    setCoachStage('next');
     setPendingChart(null);
     setPendingVisual(null);
     setDashNotify(true);
@@ -1109,7 +1031,6 @@ function App() {
     }));
     setPhase('deck');
     gotoFeature('create', false, true);
-    setCoachStage(null);
     // Put the cursor where the answer goes.
     setTimeout(() => {
       const ta = document.querySelector('.composer textarea');
@@ -1121,13 +1042,13 @@ function App() {
   function newDeck() {
     const d = { id: uid(), title: 'Untitled deck', slides: [], activeId: null };
     setDecks(prev => [...prev, d]); setDeckId(d.id);
-    setChat([]); setCoachStage(null); setFeature('create'); setDraft(''); setFiles([]);
+    setChat([]); setFeature('create'); setDraft(''); setFiles([]);
     setDynCats([]); setFlash([]); setPhase('scope'); setAdvDismissed([]);
   }
 
   function switchDeck(id) {
     if (id === deckId) return;
-    setDeckId(id); setCoachStage('next'); setDynCats([]); setFlash([]); setHistoryOpen(false); setDraft(''); setAdvDismissed([]);
+    setDeckId(id); setDynCats([]); setFlash([]); setHistoryOpen(false); setDraft(''); setAdvDismissed([]);
   }
 
   const dashCats = active ? [
@@ -1173,7 +1094,6 @@ function App() {
     }
     setFeature('condense');
     setPhase('story');
-    setCoachStage(null);
     setDraft('');
     doSend(brief, 'condense');
   }
@@ -1205,7 +1125,9 @@ function App() {
     let dead = false;
     fetch(`${origin}/api/templates/${template.id}`)
       .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then(fresh => { if (!dead && fresh && fresh.id) setTemplate(fresh); })
+      // Keep `fromKit`: it records that a company kit applied this template,
+      // which decides whether switching company may swap it out.
+      .then(fresh => { if (!dead && fresh && fresh.id) setTemplate(t => ({ ...fresh, ...(t && t.fromKit ? { fromKit: t.fromKit } : {}) })); })
       .catch(status => {
         if (dead) return;
         if (status === 404) { removeTemplate(); toast('That template is no longer on the server.'); }
@@ -1221,6 +1143,54 @@ function App() {
     setDeck(prev => ({ ...prev, slides: prev.slides.map(sl => ({ ...sl, palette: 'template' })) }));
     toast(`Applied ${tpl.name} — exports draw onto its master.`);
     pushChat('assistant', `Applied the ${tpl.name} template. Same slides, your brand and backdrop.`);
+  }
+
+  // A company kit's template is applied when that company is picked.
+  // Only a template a kit applied is ever swapped or removed by this — one
+  // the user chose in Visuals stays until they remove it.
+  const templateRef = useRef(template);
+  templateRef.current = template;
+  function syncKitTemplate(scan) {
+    if (!scan || scan.slug !== orgSlug || !window.kitCall) return;
+    const cur = templateRef.current;
+    if (cur && !cur.fromKit) return;
+    const pinned = (scan.templates || []).find(t => t.id);
+    if (!pinned) {
+      if (cur && cur.fromKit !== scan.slug) removeTemplate();
+      return;
+    }
+    if (cur && cur.id === pinned.id) return;
+    window.kitCall('GET', `/api/templates/${pinned.id}`)
+      .then(tpl => { if (tpl && tpl.id) applyTemplate({ ...tpl, fromKit: scan.slug }); })
+      .catch(() => {});
+  }
+  useEffect(() => {
+    // Wait for the organization list: until it arrives, a kit cannot be
+    // told from a built-in profile, and a stored kit template would be
+    // dropped on every reload.
+    if (!orgMeta || window.WS_NO_BACKEND || !window.kitCall) return;
+    if (!orgIsKit) {
+      if (templateRef.current && templateRef.current.fromKit) removeTemplate();
+      return;
+    }
+    let dead = false;
+    window.kitCall('GET', `/api/kits/${encodeURIComponent(orgSlug)}`)
+      .then(scan => { if (!dead) syncKitTemplate(scan); })
+      .catch(() => {});
+    return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgSlug, orgIsKit, !!orgMeta]);
+
+  // A picture from the company library, by reference; null takes it off.
+  function setSlideImage(image) {
+    setDeck(prev => ({ ...prev, slides: prev.slides.map(sl => {
+      if (sl.id !== prev.activeId) return sl;
+      if (image) return { ...sl, image };
+      const { image: _gone, ...rest } = sl;
+      return rest;
+    }) }));
+    if (active) pulse(active.id);
+    toast(image ? `Placed ${image.label || 'the image'} on this slide.` : 'Removed the image.');
   }
 
   function removeTemplate() {
@@ -1294,6 +1264,8 @@ function App() {
         decks={decks} deckId={deckId} onPickSlide={id => setDeck(p => ({ ...p, activeId: id }))}
         onSwitch={switchDeck} onNew={newDeck} audience={audience}
         phase={phase} phaseStatus={phaseStatus} template={template}
+        orgName={org.name} orgIsKit={orgIsKit}
+        onKit={() => { setKitOpen(o => !o); setHistoryOpen(false); setCoachOpen(false); setLibraryOpen(false); }}
       />
       <div className="main">
         <div className="topbar">
@@ -1306,15 +1278,23 @@ function App() {
               onChange={e => setDeck(p => ({ ...p, title: e.target.value }))} spellCheck={false} />
           </div>
           <span className="topbar__spacer" />
+          {orgIsKit ? (
+            <button className={`topbar__hist ${libraryOpen ? 'on' : ''}`}
+              onClick={() => { setLibraryOpen(o => !o); setHistoryOpen(false); setCoachOpen(false); setKitOpen(false); }}
+              title={`Icons and images from ${org.name}'s kit`}>
+              <Ico name="image" size={15} />
+              <span>Library</span>
+            </button>
+          ) : null}
           <button className={`topbar__hist ${coachOpen ? 'on' : ''}`}
-            onClick={() => { setCoachOpen(o => !o); setHistoryOpen(false); }}
+            onClick={() => { setCoachOpen(o => !o); setHistoryOpen(false); setKitOpen(false); setLibraryOpen(false); }}
             disabled={!active}
             title={active ? 'Hear this slide read by a critic you choose' : 'Add a slide first'}>
             <Ico name="spark" size={15} />
             <span>Coach</span>
           </button>
           <button className={`topbar__hist ${historyOpen ? 'on' : ''}`}
-            onClick={() => { setHistoryOpen(o => !o); setCoachOpen(false); }}
+            onClick={() => { setHistoryOpen(o => !o); setCoachOpen(false); setKitOpen(false); setLibraryOpen(false); }}
             title="Everything you have typed in this deck">
             <Ico name="up" size={15} />
             <span>History</span>
@@ -1344,6 +1324,7 @@ function App() {
           ) : phase === 'scope' ? (
             <ScopePhase
               org={org} orgs={orgs} orgSlug={orgSlug} onOrg={setOrgSlug} offline={orgOffline}
+              orgIsKit={orgIsKit} onKit={() => { setKitOpen(true); setHistoryOpen(false); setCoachOpen(false); setLibraryOpen(false); }}
               answers={scopeAnswers} onAnswer={setScopeAnswer} onStart={startFromBrief}
               mode={scopeMode} onMode={v => setScopeMeta('__mode', v)}
               carry={scopeCarry} onCarry={v => setScopeMeta('__carry', v)}
@@ -1429,6 +1410,37 @@ function App() {
                 if (input) { input.focus(); input.select(); }
               }, 120);
             }}
+          />
+        ) : null}
+
+        {/* Kit setup and the asset library sit over the working area too. */}
+        {kitOpen && window.KitPanel ? (
+          <window.KitPanel
+            orgSlug={orgSlug}
+            onClose={() => setKitOpen(false)}
+            onKitsChanged={slug => {
+              setOrgsVersion(v => v + 1);
+              if (slug) setOrgSlug(slug);
+            }}
+            onUseKit={slug => {
+              setOrgSlug(slug);
+              toast(`This deck is now written for ${(orgs.find(o => o.slug === slug) || {}).name || slug}.`);
+            }}
+            onScanned={scan => {
+              if (scan && scan.slug === orgSlug) {
+                // Rules or voice may have changed: read the profile again.
+                setOrgsVersion(v => v + 1);
+                syncKitTemplate(scan);
+              }
+            }}
+          />
+        ) : null}
+        {libraryOpen && orgIsKit && window.LibraryPanel ? (
+          <window.LibraryPanel
+            kit={orgSlug} kitName={org.name} slide={active}
+            onPick={img => setSlideImage(img)}
+            onRemove={() => setSlideImage(null)}
+            onClose={() => setLibraryOpen(false)}
           />
         ) : null}
 

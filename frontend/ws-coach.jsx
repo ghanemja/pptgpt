@@ -44,7 +44,9 @@ function CoachPanel({ slide, nextSlide, onClose, onFocusField }) {
   const [result, setResult] = useState(null);
   const [state, setState] = useState('idle');
 
-  const sig = JSON.stringify([slide, who]);
+  // Judged against the company's own decks when it has a kit (learned norms).
+  const org = window.WS_ORG || null;
+  const sig = JSON.stringify([slide, who, org]);
   useEffect(() => {
     if (!API || !slide) { setState('off'); return; }
     let dead = false;
@@ -52,7 +54,7 @@ function CoachPanel({ slide, nextSlide, onClose, onFocusField }) {
     fetch(API + '/api/critique_slide', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slide, coach: who, next: nextSlide || null }),
+      body: JSON.stringify({ slide, coach: who, next: nextSlide || null, org }),
     })
       .then(r => (r.ok ? r.json() : Promise.reject()))
       .then(d => { if (!dead) { setResult(d); setState('ok'); } })

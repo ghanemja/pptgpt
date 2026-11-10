@@ -40,6 +40,22 @@
       return;
     }
 
+    // The client generator is defined by ws-slide.jsx, which Babel compiles
+    // and runs AFTER this plain script — and usually after /health answers.
+    // Wrapping before it exists meant ws-slide.jsx's Object.assign(window, …)
+    // overwrote the wrapper, so the engine was never called. Wait for it.
+    whenDefined('aiGenerate', installGenerate);
+    installExport();
+    console.info('[workspace-backend] connected to /api — real generation + export installed.');
+  });
+
+  function whenDefined(name, fn, tries) {
+    if (typeof window[name] === 'function') { fn(); return; }
+    if ((tries || 0) > 600) { console.warn('[workspace-backend] ' + name + ' never appeared'); return; }
+    setTimeout(() => whenDefined(name, fn, (tries || 0) + 1), 25);
+  }
+
+  function installGenerate() {
     const clientGenerate = window.aiGenerate;
 
     window.aiGenerate = async function (req) {
@@ -51,6 +67,9 @@
           body: JSON.stringify({
             feature, prompt, audience, current, palette,
             fileNames: (files || []).map(f => f.name),
+            // The company: its house rules, learned norms and voice are
+            // appended to the prompt server-side (kit.house_brief).
+            org: window.WS_ORG || null,
           }),
         });
         if (!res.ok) throw new Error('workspace_generate -> ' + res.status);
@@ -76,14 +95,19 @@
         return clientGenerate(req);
       }
     };
+  }
 
+  function installExport() {
     // `templateId` draws the deck onto an uploaded .pptx master — see
     // deckengine/template.py. Omitted, the engine renders on its own base.
     window.exportPptx = async function (slides, templateId) {
       // Same choice as the preview: a template casts, nothing else places.
+      // `org` brings the company's learned layout preferences and resolves
+      // any library image a slide carries.
+      const org = window.WS_ORG || null;
       const body = templateId
-        ? { slides, templateId, native: true }
-        : { slides: slides.map(s => window.slideToSpec(s)), templateId: null };
+        ? { slides, templateId, native: true, org }
+        : { slides: slides.map(s => window.slideToSpec(s)), templateId: null, org };
       const res = await fetch(ORIGIN + '/api/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,7 +124,5 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     };
-
-    console.info('[workspace-backend] connected to /api — real generation + export installed.');
-  });
+  }
 })();

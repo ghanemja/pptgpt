@@ -22,6 +22,12 @@ anchored to the slide region it affects, and the user's answer supplies the
 missing constraint. This turns the hard "pick the right layout automatically"
 problem into a UX affordance.
 
+**Running it on your own machine:** [SETUP.md](SETUP.md) — Python, Ollama +
+`gemma3:4b`, LibreOffice, then `scripts/start.sh`.
+**Teaching it your company's style:** [kits/README.md](kits/README.md) —
+template, example decks, icons, house rules and voice, added by upload, by
+pointing at a folder, or by dropping files into `kits/<company>/`.
+
 ## Architecture
 
 ```
@@ -71,6 +77,15 @@ python tests/smoke_e2e.py        # 16/16 — every endpoint
 ```
 
 ## Run
+
+Full install for a work machine: [SETUP.md](SETUP.md). Day to day:
+
+```bash
+scripts/start.sh                               # checks deps, serves 127.0.0.1:8000
+# open http://127.0.0.1:8000/workspace
+```
+
+Or by hand:
 
 ```bash
 pip install -r requirements.txt

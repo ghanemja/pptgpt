@@ -237,6 +237,21 @@ def test_scan_reports_what_is_missing():
         assert not parts["learned"]["ok"]
 
 
+def test_scan_carries_the_rules_and_voice_the_setup_screen_edits():
+    with sandbox() as kits:
+        slug = K.create_kit("Acme")
+        s = K.scan(slug)
+        assert s["rules"] == [] and s["voice_text"] == "", "a new kit starts empty"
+        path = os.path.join(kits, slug, "profile.json")
+        prof = json.load(open(path))
+        prof["style"]["rules"] = ["Say customers, never users."]
+        json.dump(prof, open(path, "w"))
+        K.set_voice(slug, "We write short.")
+        s = K.scan(slug)
+        assert s["rules"] == ["Say customers, never users."]
+        assert s["voice_text"].strip() == "We write short."
+
+
 def test_a_template_in_the_kit_is_registered_with_a_stable_id():
     with sandbox() as kits, tempfile.TemporaryDirectory() as tpl:
         from deckengine import template as T
@@ -259,6 +274,20 @@ def test_unlabelled_assets_are_usable_but_flagged():
         assert a.label == "data center" and a.labeled is False
         parts = {p["key"]: p for p in K.scan(slug)["parts"]}
         assert parts["assets"]["problems"], "an unlabelled asset should be reported"
+
+
+def test_a_linked_asset_folder_is_labelled_by_its_own_csv():
+    with sandbox(), tempfile.TemporaryDirectory() as lib:
+        slug = K.create_kit("Acme")
+        os.makedirs(os.path.join(lib, "icons"))
+        with open(os.path.join(lib, "icons", "up.svg"), "wb") as fh:
+            fh.write(SVG)
+        with open(os.path.join(lib, "assets.csv"), "w") as fh:
+            fh.write("file,label,tags,use,license\nicons/up.svg,Growth,revenue;up,,internal\n")
+        K.import_path(slug, lib, mode="link", part="assets")
+        [a] = K.assets(slug)
+        assert a.linked and a.labeled and a.label == "Growth" and "revenue" in a.tags
+        assert K.search_assets(slug, "revenue")[0]["label"] == "Growth"
 
 
 def test_search_ranks_a_tag_above_a_label():

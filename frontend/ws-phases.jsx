@@ -96,7 +96,7 @@ const FALLBACK_ORG = {
 };
 
 /* ── org loading ──────────────────────────────────────────── */
-function useOrg(slug) {
+function useOrg(slug, version) {
   const [orgs, setOrgs] = useState([{ slug:'default', name:'Default', tagline: FALLBACK_ORG.tagline }]);
   const [org, setOrg] = useState(FALLBACK_ORG);
   const [offline, setOffline] = useState(true);
@@ -109,7 +109,7 @@ function useOrg(slug) {
       .then(d => { if (!dead && Array.isArray(d.orgs) && d.orgs.length) { setOrgs(d.orgs); setOffline(false); } })
       .catch(() => {});
     return () => { dead = true; };
-  }, []);
+  }, [version]);
 
   useEffect(() => {
     if (!API_ORIGIN) { setOrg(FALLBACK_ORG); return; }
@@ -119,7 +119,7 @@ function useOrg(slug) {
       .then(d => { if (!dead && d && d.scope_questions) { setOrg(d); setOffline(false); } })
       .catch(() => { if (!dead) setOrg(FALLBACK_ORG); });
     return () => { dead = true; };
-  }, [slug]);
+  }, [slug, version]);
 
   return { org, orgs, offline };
 }
@@ -194,7 +194,7 @@ function demoAnswer(q) {
 }
 
 function ScopePhase({ org, orgs, orgSlug, onOrg, answers, onAnswer, onStart, offline,
-                      mode, onMode, carry, onCarry }) {
+                      mode, onMode, carry, onCarry, orgIsKit, onKit }) {
   const p = scopeProgress(org, answers);
   const m = mode || 'prompt';
   // Testing the pipeline means getting past this form a lot. The toggle fills
@@ -224,6 +224,12 @@ function ScopePhase({ org, orgs, orgSlug, onOrg, answers, onAnswer, onStart, off
             </select>
             <span className="orgpick__tag">{org.tagline}</span>
             {offline ? <span className="orgpick__off" title="No backend reachable — showing the default profile">default profile</span> : null}
+            {!offline && onKit ? (
+              <button className="orgpick__kit" onClick={onKit}
+                title="A company kit: your template, example decks, icons and writing voice">
+                <Ico name="folder" size={13} />{orgIsKit ? 'Edit kit' : 'Set up a kit'}
+              </button>
+            ) : null}
             <button className={`demofill ${filled ? 'on' : ''}`} onClick={toggleDemo}
               title="Fill every question from this profile's own examples">
               {filled ? 'Clear demo' : 'Demo fill'}

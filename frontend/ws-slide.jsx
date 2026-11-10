@@ -106,6 +106,8 @@ function Ico({ name, size = 18 }) {
     check:   <><path d="M5 12l5 5 9-11" /></>,
     tune:    <><path d="M4 8h10M18 8h2M4 16h4M12 16h8" /><circle cx="16" cy="8" r="2" /><circle cx="10" cy="16" r="2" /></>,
     doc:     <><path d="M7 3h7l4 4v14H7z" /><path d="M14 3v4h4" /></>,
+    folder:  <><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></>,
+    image:   <><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M21 16l-5-5-8 8" /></>,
   };
   return <svg {...s}>{P[name] || null}</svg>;
 }
@@ -469,11 +471,29 @@ function SlideCard({ slide }) {
             ))}
           </div>
         )}
+        {/* A picture from the company library sits right of the text. Same
+            box as ws-export.js gives it, so preview and export agree. */}
+        {slide.image && slide.image.file ? (
+          <div style={{ flex: 'none', width: SLIDE_IMAGE_W, alignSelf: 'stretch', minHeight: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img src={slideImageUrl(slide.image)} alt={slide.image.label || ''}
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+          </div>
+        ) : null}
       </div>
       {takeaway}
       {footer}
     </div>
   );
+}
+
+/* Library images: the column width (design px, matching ws-export.js) and
+   where the kit serves the file from. */
+const SLIDE_IMAGE_W = 220;
+function slideImageUrl(image) {
+  const api = (window.BU_API_BASE || '').replace(/\/$/, '')
+    || ((location.protocol === 'http:' || location.protocol === 'https:') ? location.origin : '');
+  return `${api}/api/kits/${encodeURIComponent(image.kit || window.WS_ORG || '')}/asset?file=${encodeURIComponent(image.file)}`;
 }
 
 /* ── generation ───────────────────────────────────────────── */

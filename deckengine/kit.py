@@ -460,8 +460,22 @@ def assets(slug: str) -> list[Asset]:
 
     for src in read_manifest(slug)["sources"]["assets"]:
         if os.path.isdir(src):
+            # A linked library is kept somewhere else, so it labels itself:
+            # its own assets.csv (paths relative to that folder) comes first,
+            # then the kit's CSV by file name.
+            own: dict[str, dict[str, str]] = {}
+            own_csv = os.path.join(src, "assets.csv")
+            if os.path.isfile(own_csv) and not os.path.islink(own_csv):
+                try:
+                    with open(own_csv, "r", encoding="utf-8-sig") as fh:
+                        for r in parse_assets_csv(fh.read()):
+                            own[os.path.normpath(r["file"])] = r
+                except (KitError, OSError, UnicodeDecodeError):
+                    own = {}
             for full in _walk(src, IMAGE_EXT):
-                row = rows.get(os.path.basename(full))
+                rel = os.path.normpath(os.path.relpath(full, src))
+                row = (own.get(rel) or own.get(os.path.basename(full))
+                       or rows.get(os.path.basename(full)))
                 a = _asset_from(full, row)
                 a.linked = True
                 found.append(a)
@@ -761,6 +775,7 @@ def scan(slug: str) -> dict[str, Any]:
     m = read_manifest(slug)
 
     profile_ok, profile_err, profile_name = False, "", m.get("name") or slug
+    rules: list[str] = []
     ppath = os.path.join(d, "profile.json")
     if os.path.isfile(ppath):
         try:
@@ -768,6 +783,7 @@ def scan(slug: str) -> dict[str, Any]:
             with open(ppath, "r", encoding="utf-8") as fh:
                 prof = parse_org(json.load(fh), slug)
             profile_ok, profile_name = True, prof.name
+            rules = list(prof.style.rules)
         except Exception as e:
             profile_err = str(e)
     else:
@@ -821,6 +837,10 @@ def scan(slug: str) -> dict[str, Any]:
         "path": d, "parts": parts, "ready": ready, "total": len(parts),
         "templates": templates, "learned": learn, "stale": stale,
         "sources": m["sources"],
+        # What the setup screen edits in place: the house rules already in
+        # profile.json (so a suggested rule already adopted is not offered
+        # again) and the voice guide's text ("" while it is the starter).
+        "rules": rules, "voice_text": voice,
     }
 
 
