@@ -87,8 +87,48 @@ def _text_of(slide: dict[str, Any]) -> str:
     return " ".join(str(p) for p in parts if p)
 
 
-def _note(lens, severity, note, ask="", fix=None):
-    return {"lens": lens, "severity": severity, "note": note, "ask": ask, "fix": fix}
+# ---- what a note is about ---------------------------------------------------
+#
+# A note names the CONTENT it is about — "the title", "the third bullet" —
+# so a reader can see it pinned to the slide. That is a reference into the
+# slide's fields, never a position: where the title sits on the page is the
+# renderer's business, and the UI finds it there (R0.1).
+
+def _fields(slide: dict[str, Any]):
+    """(target, text) for each piece of content, in reading order."""
+    def one(field):
+        v = slide.get(field)
+        if v:
+            yield {"field": field}, str(v)
+    yield from one("eyebrow")
+    yield from one("title")
+    yield from one("metric")
+    yield from one("metricSub")
+    for i, b in enumerate(slide.get("bullets") or []):
+        if str(b).strip():
+            yield {"field": "bullets", "index": i}, str(b)
+    chart = slide.get("chart") or {}
+    chart_text = " ".join([str(chart.get("title") or "")]
+                          + [str(r.get("label", "")) for r in (chart.get("data") or [])])
+    if chart_text.strip():
+        yield {"field": "chart"}, chart_text
+    steps = (slide.get("diagram") or {}).get("steps") or []
+    if steps:
+        yield {"field": "diagram"}, " ".join(str(s) for s in steps)
+    yield from one("takeaway")
+
+
+def _locate(slide: dict[str, Any], rx: re.Pattern) -> Optional[dict[str, Any]]:
+    """The first piece of content the pattern matches, or None."""
+    for target, text in _fields(slide):
+        if rx.search(text):
+            return target
+    return None
+
+
+def _note(lens, severity, note, ask="", fix=None, target=None):
+    return {"lens": lens, "severity": severity, "note": note, "ask": ask, "fix": fix,
+            "target": target or {"field": "slide"}}
 
 
 def lens_ask(slide, ctx):
@@ -96,7 +136,7 @@ def lens_ask(slide, ctx):
         return _note("ask", BLOCKER,
                      "This slide states facts and stops. Nothing tells me what to do with them.",
                      "What should I conclude, decide or approve here?",
-                     {"field": "takeaway"})
+                     {"field": "takeaway"}, {"field": "takeaway", "missing": True})
     return None
 
 
@@ -104,12 +144,12 @@ def lens_title(slide, ctx):
     title = (slide.get("title") or "").strip()
     if not title:
         return _note("title", BLOCKER, "There is no headline.", "What is this slide about?",
-                     {"field": "title"})
+                     {"field": "title"}, {"field": "title", "missing": True})
     if not _VERB.search(title):
         return _note("title", PUSH,
                      f"“{title}” names a topic rather than making a point.",
                      "What does this slide assert about that topic?",
-                     {"field": "title"})
+                     {"field": "title"}, {"field": "title"})
     return None
 
 
@@ -118,7 +158,7 @@ def lens_evidence(slide, ctx):
     if _CLAIM.search(text) and not _NUM.search(text):
         return _note("evidence", PUSH,
                      "There is a claim of movement here with no number behind it.",
-                     "By how much, and from what?")
+                     "By how much, and from what?", target=_locate(slide, _CLAIM))
     return None
 
 
@@ -127,7 +167,7 @@ def lens_source(slide, ctx):
     if _NUM.search(text) and not _SOURCE.search(text):
         return _note("source", PUSH,
                      "Numbers appear with nothing saying where they came from or as of when.",
-                     "What is the source and the cut date?")
+                     "What is the source and the cut date?", target=_locate(slide, _NUM))
     return None
 
 
@@ -136,7 +176,8 @@ def lens_comparison(slide, ctx):
     if _NUM.search(text) and not _COMPARE.search(text):
         return _note("comparison", PUSH,
                      "A number on its own is not an argument — there is nothing to compare it to.",
-                     "Compared to what: plan, last quarter, the market?")
+                     "Compared to what: plan, last quarter, the market?",
+                     target=_locate(slide, _NUM))
     return None
 
 
@@ -157,19 +198,24 @@ def lens_density(slide, ctx):
         why = (f"Your own decks usually carry {limit} or fewer."
                if norms.get("max_points") else "The room will read, not listen.")
         return _note("density", PUSH, f"{len(bullets)} points on one slide. {why}",
-                     "Which could go in the appendix or the next slide?")
+                     "Which could go in the appendix or the next slide?",
+                     target={"field": "bullets"})
 
     if word_limit:
-        long = [b for b in bullets if len(str(b).split()) > word_limit]
+        long = [i for i, b in enumerate(slide.get("bullets") or [])
+                if str(b).strip() and len(str(b).split()) > word_limit]
         if long:
             return _note("density", NIT,
                          f"{len(long)} point(s) run past {word_limit} words, "
                          "longer than your decks usually allow.",
-                         f"Can it be said in {word_limit} words or fewer?")
+                         f"Can it be said in {word_limit} words or fewer?",
+                         target={"field": "bullets", "index": long[0]})
     elif max((len(str(b)) for b in bullets), default=0) > 140:
+        para = next(i for i, b in enumerate(slide.get("bullets") or []) if len(str(b)) > 140)
         return _note("density", NIT,
                      "At least one point is a paragraph.",
-                     "Can that be said in under fifteen words?")
+                     "Can that be said in under fifteen words?",
+                     target={"field": "bullets", "index": para})
     return None
 
 
@@ -178,7 +224,7 @@ def lens_hedge(slide, ctx):
     if m:
         return _note("hedge", NIT,
                      f"“{m.group(0)}” softens the claim.",
-                     "Do you believe it or not? Say which.")
+                     "Do you believe it or not? Say which.", target=_locate(slide, _HEDGE))
     return None
 
 
@@ -187,17 +233,19 @@ def lens_jargon(slide, ctx):
     if m:
         return _note("jargon", NIT,
                      f"“{m.group(0)}” is doing no work.",
-                     "What does that mean in plain words?")
+                     "What does that mean in plain words?", target=_locate(slide, _JARGON))
     return None
 
 
 def lens_ownership(slide, ctx):
     text = _text_of(slide)
-    asks_action = re.search(r"\b(should|must|need to|propose|recommend|approve|fund|hire)\b", text, re.I)
+    action_rx = re.compile(r"\b(should|must|need to|propose|recommend|approve|fund|hire)\b", re.I)
+    asks_action = action_rx.search(text)
     if asks_action and not _OWNER.search(text):
         return _note("ownership", PUSH,
                      "Something is being proposed with nobody attached to it.",
-                     "Who owns this, and what do they stop doing to make room?")
+                     "Who owns this, and what do they stop doing to make room?",
+                     target=_locate(slide, action_rx))
     return None
 
 
@@ -213,7 +261,8 @@ def lens_handoff(slide, ctx):
     if words and following and not (words & following):
         return _note("handoff", NIT,
                      "This slide's closing line shares nothing with the next slide's headline.",
-                     "Does the order still hold, or is one of them in the wrong place?")
+                     "Does the order still hold, or is one of them in the wrong place?",
+                     target={"field": "takeaway"})
     return None
 
 

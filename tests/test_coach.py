@@ -121,6 +121,34 @@ def test_notes_carry_no_geometry():
             assert set(n) >= {"lens", "severity", "note"}
 
 
+def test_every_note_names_the_content_it_is_about():
+    """A note is pinned to a field of the slide, so the UI can draw it there.
+
+    The target is a reference into the content — never a position (R0.1).
+    """
+    fields = {"slide", "eyebrow", "title", "metric", "metricSub", "bullets",
+              "chart", "diagram", "takeaway"}
+    for slug in ("board-chair", "frontline-skeptic"):
+        for slide in (WEAK, STRONG):
+            for n in C.critique_slide(slide, C.load_persona(slug))["notes"]:
+                t = n["target"]
+                assert t["field"] in fields, t
+                assert not ({"x", "y", "w", "h", "left", "top"} & set(t)), t
+                if "index" in t:
+                    assert t["field"] == "bullets"
+                    assert 0 <= t["index"] < len(slide["bullets"]), t
+
+
+def test_a_note_points_at_the_words_that_raised_it():
+    p = C.Persona(slug="t", name="T",
+                  lenses={"hedge": 3, "jargon": 3, "ask": 3, "title": 3})
+    notes = {n["lens"]: n["target"] for n in C.critique_slide(WEAK, p)["notes"]}
+    assert notes["hedge"] == {"field": "bullets", "index": 4}      # "We might expand"
+    assert notes["jargon"] == {"field": "bullets", "index": 2}     # "best in class"
+    assert notes["ask"] == {"field": "takeaway", "missing": True}  # nothing there to point at
+    assert notes["title"] == {"field": "title"}
+
+
 def test_bad_personas_are_refused():
     _expect_error(lambda: C.parse_persona({"lenses": {"ask": 3}}, "x"), "name")
     _expect_error(lambda: C.parse_persona({"name": "X"}, "x"), "lens")

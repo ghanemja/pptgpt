@@ -46,6 +46,7 @@ const ASSETS = [
   ["ws-data.js", "ws-data.js"],
   ["ws-template.jsx", "ws-template.jsx"],
   ["ws-coach.jsx", "ws-coach.jsx"],
+  ["ws-annotate.jsx", "ws-annotate.jsx"],
   ["ws-review.jsx", "ws-review.jsx"],
   ["ws-demo-seed.js", "ws-demo-seed.js"],
   ["ws-export.js", "ws-export.js"],

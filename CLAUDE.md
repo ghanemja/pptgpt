@@ -68,7 +68,10 @@ font, size or colour onto a run.
   lenses matter, how hard to push and in whose voice. `review_deck` reads a
   whole deck and tallies where it is weakest; `apply_overrides` tunes a
   persona for one sitting without editing its file. Deterministic, so a note
-  is a property of the slide. Notes never carry geometry.
+  is a property of the slide. Notes never carry geometry: each names the
+  CONTENT it is about (`target`: `{field, index?, missing?}`), and
+  `frontend/ws-annotate.jsx` finds where SlideCard drew that field
+  (`data-field`) to pin the note there with a callout and leader line.
 - `deckengine/org.py` — per-organization profiles loaded from `orgs/*.json`:
   the scoping interview, narrative arc and house style rules. Convention,
   never geometry — the loader rejects a profile carrying coordinates.

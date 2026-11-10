@@ -690,6 +690,52 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .revslide__verdict { font-size: 11.5px; color: var(--mute); }
 
+/* Review, marked up: the report is wider than the form so a slide can have
+   a gutter of callouts on each side. Lines and outlines are SVG over it. */
+.revwide { width: 100%; max-width: 1240px; margin: 0 auto; flex: none; padding-bottom: 40px; }
+.revview { display: flex; align-items: center; gap: 6px; margin-top: 16px; }
+.revview__label { font-size: 12px; color: var(--mute); margin-right: 4px; }
+.revslide--marked { padding: 10px 14px 18px; gap: 12px; }
+
+.annwrap { position: relative; width: 100%; }
+.annstage { position: relative; width: 100%; }
+.annslide { position: absolute; top: 0; overflow: hidden; border-radius: 4px;
+  box-shadow: var(--shadow-card); }
+.annsvg { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+.annbelow { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+
+.ann--blocker { --ann: var(--accent); }
+.ann--push    { --ann: var(--spark); }
+.ann--nit     { --ann: var(--mute); }
+
+.annbox { fill: var(--ann); fill-opacity: .07; stroke: var(--ann); stroke-width: 1.5;
+  transition: opacity .15s var(--ease); }
+.annbox--ghost { fill-opacity: .04; stroke-dasharray: 5 4; }
+.annline { transition: opacity .15s var(--ease); }
+.annline__halo { fill: none; stroke: var(--bg-3); stroke-width: 4; stroke-opacity: .85;
+  stroke-linejoin: round; stroke-linecap: round; }
+.annline__ink { fill: none; stroke: var(--ann); stroke-width: 1.4; stroke-linejoin: round; }
+.annline__dot { fill: var(--ann); stroke: var(--bg-3); stroke-width: 1.5; }
+.annline.ann--hot .annline__ink { stroke-width: 2.2; }
+.annmark circle { fill: var(--ann); stroke: var(--bg-3); stroke-width: 1.5; }
+.annmark text { fill: var(--on-accent); font: 800 10px var(--font-sans); text-anchor: middle; }
+.ann--dim { opacity: .28; }
+
+.anncall { background: var(--card); border: var(--bw) solid var(--border);
+  border-left: 3px solid var(--ann); border-radius: var(--r-sm); padding: 8px 10px 9px;
+  box-shadow: var(--shadow-card); cursor: pointer; display: flex; flex-direction: column; gap: 4px;
+  transition: opacity .15s var(--ease), box-shadow .15s var(--ease), transform .15s var(--ease); }
+.anncall.ann--hot { box-shadow: var(--shadow-float); }
+.anncall:focus-visible { outline: 2px solid var(--ann); outline-offset: 2px; }
+.anncall__head { display: flex; align-items: center; gap: 7px; }
+.anncall__num { width: 17px; height: 17px; border-radius: 50%; background: var(--ann);
+  color: var(--on-accent); font-size: 10px; font-weight: 800; display: grid; place-items: center; flex: none; }
+.anncall__sev { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ann); }
+.anncall__lens { font-size: 10.5px; color: var(--mute); border: 1px solid var(--border);
+  border-radius: var(--r-pill); padding: 0 6px; margin-left: auto; }
+.anncall__note { font-size: 12.5px; color: var(--ink); line-height: 1.42; }
+.anncall__ask { font-size: 12px; color: var(--ink-2); font-style: italic; line-height: 1.4; }
+
 /* Coach: the persona strip, what they said, and each note. */
 .coachpick { display: flex; gap: 4px; margin-left: auto; margin-right: 10px; flex-wrap: wrap; }
 .coachsay { display: flex; gap: 11px; align-items: flex-start; padding-bottom: 4px; }

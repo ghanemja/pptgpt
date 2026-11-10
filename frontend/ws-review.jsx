@@ -51,6 +51,13 @@ function ReviewPhase({ deck, onOpenSlide, onReviewed }) {
   const [off, setOff] = useState([]);          // lenses switched off for this run
   const [report, setReport] = useState(null);
   const [state, setState] = useState('idle');  // idle | running | ok | off
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem('pptgpt-review-view') || 'marked'; } catch (e) { return 'marked'; }
+  });
+  function pickView(v) {
+    setView(v);
+    try { localStorage.setItem('pptgpt-review-view', v); } catch (e) {}
+  }
 
   useEffect(() => {
     if (!API) { setState('off'); return; }
@@ -159,8 +166,12 @@ function ReviewPhase({ deck, onOpenSlide, onReviewed }) {
             <Ico name="expand" size={15} />
           </button>
         </footer>
+      </div>
 
-        {report && state === 'ok' ? (
+      {/* The report gets more room than the form above it: a marked-up
+          slide needs gutters either side for its callouts. */}
+      {report && state === 'ok' ? (
+        <div className="revwide">
           <section className="vsec">
             <div className="revsay">
               <span className="msg__ava">{(report.coach.name || '?').slice(0, 2).toUpperCase()}</span>
@@ -189,9 +200,18 @@ function ReviewPhase({ deck, onOpenSlide, onReviewed }) {
               </div>
             ) : null}
 
+            <div className="revview">
+              <span className="revview__label">Show notes</span>
+              {[['marked', 'On the slides'], ['list', 'As a list']].map(([k, label]) => (
+                <button key={k} className={`dircard ${view === k ? 'on' : ''}`}
+                  onClick={() => pickView(k)}>{label}</button>
+              ))}
+            </div>
+
             <div className="revlist">
               {report.results.map(r => (
-                <div key={r.slideId || r.index} className={`revslide revslide--${r.verdict}`}>
+                <div key={r.slideId || r.index}
+                  className={`revslide revslide--${r.verdict}${view === 'marked' && r.notes.length ? ' revslide--marked' : ''}`}>
                   <button className="revslide__head" onClick={() => onOpenSlide(r.slideId)}>
                     <span className="revslide__num tnum">{String(r.index + 1).padStart(2, '0')}</span>
                     <span className="revslide__title">
@@ -201,7 +221,10 @@ function ReviewPhase({ deck, onOpenSlide, onReviewed }) {
                       {r.verdict === 'clear' ? 'clear' : `${r.notes.length} note${r.notes.length === 1 ? '' : 's'}`}
                     </span>
                   </button>
-                  {r.notes.map((n, i) => (
+                  {view === 'marked' && r.notes.length && deck.slides[r.index] && window.AnnotatedSlide ? (
+                    <window.AnnotatedSlide slide={deck.slides[r.index]} notes={r.notes}
+                      onOpen={() => onOpenSlide(r.slideId)} />
+                  ) : r.notes.map((n, i) => (
                     <div key={i} className={`cnote cnote--${n.severity}`}>
                       <div className="cnote__head">
                         <span className="cnote__sev">{SEV_LABEL[n.severity]}</span>
@@ -215,8 +238,8 @@ function ReviewPhase({ deck, onOpenSlide, onReviewed }) {
               ))}
             </div>
           </section>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
