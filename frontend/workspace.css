@@ -906,30 +906,87 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 .storytab:hover { color: var(--ink-2); background: var(--bg-3); }
 .storytab.on { background: var(--accent-soft); color: var(--accent); }
 
-.tg { padding: 4px 0 8px; }
-.tg__head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
 .tg__title { font-size: 14px; font-weight: 700; color: var(--ink); }
 .tg__engine { font-size: 11.5px; color: var(--mute); font-style: italic; }
-.tg__legend { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--mute); }
-.tg__k { width: 11px; height: 3px; border-radius: 2px; display: inline-block; margin-left: 8px; }
-.tg__k--link { background: var(--accent); }
-.tg__k--gap { background: var(--mute); }
-.tg__k--orphan { background: transparent; border: 2px solid var(--ink); height: 9px; width: 9px; border-radius: 50%; }
-.tg__svg { width: 100%; height: auto; display: block; }
-.tg__rail { stroke: var(--border); stroke-width: 2; }
-.tg__edge { fill: none; stroke: var(--accent); opacity: .42; transition: opacity 140ms; }
-.tg__edge.is-on { opacity: 1; }
-.tg__gap line { stroke: var(--mute); stroke-width: 2; stroke-dasharray: 3 3; }
-.tg__gap text { fill: var(--mute); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.tg__node { cursor: pointer; }
-.tg__node circle { fill: var(--card); stroke: var(--accent); stroke-width: 2; transition: fill 140ms; }
-.tg__node.is-on circle { fill: var(--accent-soft); }
-.tg__node.is-orphan circle { stroke: var(--ink); stroke-dasharray: 3 3; }
-.tg__num { fill: var(--ink-2); font-size: 10px; font-weight: 700; }
-.tg__label { fill: var(--ink-2); font-size: 11px; }
-.tg__read { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
-.tg__read p { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.55; }
 .tg__note { font-size: 13px; color: var(--mute); line-height: 1.6; padding: 18px 0; }
+
+/* Threads: the deck as it runs (left), what breaks (right). */
+:root {
+  --tf-ok: #2F9E6B; --tf-warn: #D4930F; --tf-bad: #D8453B;
+}
+.phasewrap.phasewrap--wide { max-width: 1120px; }
+.tf__head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.tf__headl { display: flex; flex-direction: column; gap: 3px; }
+.tf__tally { display: flex; gap: 6px; flex-wrap: wrap; }
+.tf__chip { font-size: 11.5px; font-weight: 800; padding: 4px 10px; border-radius: var(--r-pill); }
+.tf__chip--bad { color: var(--tf-bad); background: color-mix(in srgb, var(--tf-bad) 13%, transparent); }
+.tf__chip--warn { color: var(--tf-warn); background: color-mix(in srgb, var(--tf-warn) 15%, transparent); }
+.tf__chip.is-zero { color: var(--mute); background: var(--bg-2); }
+.tf__spine { margin: 10px 0 14px; font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+
+.tf__cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 22px; align-items: start; }
+@media (max-width: 960px) { .tf__cols { grid-template-columns: 1fr; } }
+
+.tf__run { display: flex; flex-direction: column; }
+.tfs { border: var(--bw) solid var(--border); border-radius: var(--r); background: var(--card);
+  padding: 10px 12px 9px; transition: box-shadow 160ms, border-color 160ms; scroll-margin: 80px; }
+.tfs.is-orphan { border-color: var(--tf-bad); border-style: dashed; }
+.tfs.is-peek { border-color: var(--tf-ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tf-ok) 22%, transparent); }
+.tfs.is-sel { box-shadow: 0 0 0 3px color-mix(in srgb, var(--tf-bad) 30%, transparent); }
+.tfs__head { display: flex; align-items: baseline; gap: 10px; width: 100%; text-align: left; padding: 0 0 6px; }
+.tfs__head:hover .tfs__title { color: var(--accent); }
+.tfs__num { font-size: 11px; font-weight: 800; color: var(--mute); flex: none; }
+.tfs__title { flex: 1; min-width: 0; font-size: 14px; font-weight: 800; color: var(--ink); line-height: 1.3; }
+.tfs__msgs { display: flex; flex-direction: column; gap: 3px; }
+.tfm { display: flex; align-items: center; gap: 9px; padding: 4px 8px; border-radius: var(--r-sm);
+  font-size: 13px; color: var(--ink-2); line-height: 1.4; scroll-margin: 80px; }
+.tfm__text { flex: 1; min-width: 0; }
+.tfm__dot, .tf__legend .tfm__dot { width: 8px; height: 8px; border-radius: 50%; flex: none; display: inline-block; }
+.tfm--linked .tfm__dot, .tfm__dot--linked { background: var(--tf-ok); }
+.tfm--local .tfm__dot, .tfm__dot--local { background: transparent; border: 1.5px solid var(--mute); }
+.tfm--orphan { background: color-mix(in srgb, var(--tf-bad) 11%, transparent); color: var(--ink); }
+.tfm--orphan .tfm__dot, .tfm__dot--orphan { background: var(--tf-bad); }
+.tfm--empty { color: var(--mute); font-style: italic; }
+.tfm.is-sel { box-shadow: inset 0 0 0 2px var(--tf-bad); }
+.tf__tag { flex: none; font-size: 10.5px; font-weight: 800; letter-spacing: .03em; padding: 1px 7px; border-radius: var(--r-pill); }
+.tf__tag--ok { color: var(--tf-ok); background: color-mix(in srgb, var(--tf-ok) 14%, transparent); }
+.tf__tag--bad { color: var(--tf-bad); background: color-mix(in srgb, var(--tf-bad) 14%, transparent); text-transform: uppercase; }
+.tfs__bumper { margin-top: 6px; padding: 5px 8px 0; border-top: 1px dashed var(--border); font-size: 12.5px;
+  font-style: italic; color: var(--accent); }
+.tfs__bumper.is-none { color: var(--mute); font-style: normal; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+
+.tfh { position: relative; display: flex; align-items: center; gap: 8px; height: 38px; padding-left: 26px; scroll-margin: 80px; }
+.tfh__line { position: absolute; left: 30px; top: 0; bottom: 0; width: 3px; border-radius: 2px; background: var(--tf-ok); }
+.tfh--weak .tfh__line { background: repeating-linear-gradient(var(--tf-warn) 0 5px, transparent 5px 9px); }
+.tfh--abrupt .tfh__line { background: none; }
+.tfh--abrupt .tfh__line::before, .tfh--abrupt .tfh__line::after { content: ""; position: absolute; left: 0; width: 3px; height: 9px; border-radius: 2px; background: var(--tf-bad); }
+.tfh--abrupt .tfh__line::before { top: 0; } .tfh--abrupt .tfh__line::after { bottom: 0; }
+.tfh__pill { margin-left: 18px; font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: var(--r-pill);
+  color: var(--tf-ok); background: color-mix(in srgb, var(--tf-ok) 13%, transparent); }
+.tfh--weak .tfh__pill { color: var(--tf-warn); background: color-mix(in srgb, var(--tf-warn) 15%, transparent); }
+.tfh--abrupt .tfh__pill { color: #fff; background: var(--tf-bad); }
+.tfh--smooth .tfh__pill { opacity: .75; }
+.tfh__why { font-size: 11.5px; color: var(--mute); }
+.tfh.is-sel .tfh__pill { box-shadow: 0 0 0 3px color-mix(in srgb, var(--tf-bad) 30%, transparent); }
+
+.tf__fix { position: sticky; top: 0; display: flex; flex-direction: column; gap: 7px; padding: 14px;
+  border: var(--bw) solid var(--border); border-radius: var(--r); background: var(--bg-2); max-height: calc(100vh - 220px); overflow-y: auto; }
+.tf__fixh { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 15px; color: var(--ink); }
+.tf__clean { margin: 0; font-size: 13px; color: var(--tf-ok); font-weight: 700; line-height: 1.5; }
+.tf__grp { margin-top: 6px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.tf__grp--bad { color: var(--tf-bad); }
+.tf__grp--warn { color: var(--tf-warn); }
+.tfx { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 9px 11px; border-radius: var(--r-sm);
+  background: var(--card); border: var(--bw) solid var(--border); border-left: 4px solid var(--tf-bad); }
+.tfx--warn { border-left-color: var(--tf-warn); }
+.tfx:hover, .tfx.is-sel { border-color: var(--tf-bad); }
+.tfx--warn:hover, .tfx--warn.is-sel { border-color: var(--tf-warn); }
+.tfx__where { font-size: 11px; font-weight: 800; color: var(--mute); }
+.tfx__what { font-size: 13px; color: var(--ink); line-height: 1.45; }
+.tfx__fix { font-size: 12px; color: var(--ink-2); font-style: italic; line-height: 1.4; }
+.tf__legend { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
+  font-size: 11.5px; color: var(--mute); }
+.tf__legend span { display: inline-flex; align-items: center; gap: 7px; }
 
 /* flow report */
 .sbreport { flex: none; display: flex; gap: 18px; align-items: stretch; }

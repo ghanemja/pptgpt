@@ -1355,7 +1355,7 @@ function App() {
               </div>
               {storyView === 'threads' ? (
                 <div className="stage__scroll stage__scroll--phase">
-                  <div className="phasewrap">
+                  <div className="phasewrap phasewrap--wide">
                     <ThreadGraph deck={deck} onPick={id => { setDeck(p => ({ ...p, activeId: id })); setStoryView('board'); }} />
                   </div>
                 </div>

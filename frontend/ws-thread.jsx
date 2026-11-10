@@ -1,17 +1,11 @@
 /* ============================================================
    ws-thread.jsx — the thread connectivity graph.
 
-   A deck is connected when each slide shares meaning with its
-   neighbours. deckengine/threadmap.py already computes that:
-   nodes, weighted edges, orphans (a slide nothing links to),
-   gaps (adjacent slides that do not connect) and the spine.
-   Nothing rendered it until now.
-
-   The backend emits pure data — no pixels, no colors (R0.1) —
-   so the drawing lives here. Layout is deterministic: slides sit
-   in deck order along a line, links arc above, and arc height
-   tracks link weight. No physics, nothing to settle, the same
-   deck always draws the same way.
+   A deck breaks in two places: a message nothing else picks up,
+   and a bumper that does not set up the next title. threadmap.py
+   reads both (`flow`: a status per message, a status per handoff)
+   plus orphan slides and the spine. The backend emits pure data —
+   no pixels, no colors (R0.1) — so how they look lives here.
 
    Two reads, one after the other. The fast one (embeddings, or shared
    words without them) answers in well under a second and paints at
@@ -100,10 +94,21 @@ const ENGINE_LABEL = {
   lexical: 'matched by shared words',
 };
 
-/* ── the drawing ──────────────────────────────────────────── */
+/* ── the reading ──────────────────────────────────────────── */
+/* Two columns. Left, the deck as it runs: every slide with its messages
+   coloured by whether anything else in the deck picks them up, and between
+   slides the handoff coloured by whether the bumper sets up the next title.
+   Right, what breaks, worst first — each item jumps to its place on the
+   left. Statuses come from threadmap.flow(); only their look is decided
+   here. */
+
+const HANDOFF_LABEL = { smooth: 'Smooth handoff', weak: 'Weak handoff', abrupt: 'Abrupt cut' };
+const num = i => String(i + 1).padStart(2, '0');
+
 function ThreadGraph({ deck, onPick }) {
   const { data, state, deep } = useThreadMap(deck, true);
-  const [hover, setHover] = useState(null);
+  const [sel, setSel] = useState(null);        // the element an issue points at
+  const [peek, setPeek] = useState(null);      // the slide a linked message points at
 
   if (deck.slides.length < 2) {
     return <div className="tg__note">A thread needs at least two beats. Add another slide.</div>;
@@ -120,118 +125,156 @@ function ThreadGraph({ deck, onPick }) {
   if (!data) return null;
 
   const view = data.before;
-  const g = view.graph;
-  const n = g.nodes.length;
-  const W = 820, H = 300, padX = 60, baseY = 214;
-  const step = n > 1 ? (W - padX * 2) / (n - 1) : 0;
-  // Labels must not run into each other on a long deck: fit the text to the
-  // gap between beats, and alternate two rows once the gap gets tight.
-  const stagger = step < 110;
-  const maxChars = Math.max(6, Math.min(22, Math.floor((stagger ? step * 2 : step) / 6.4)));
-  const clip = t => (t.length > maxChars ? t.slice(0, maxChars - 1) + '…' : t);
-  const xOf = i => padX + i * step;
-  const orphans = new Set(g.orphans || []);
-  const gapPairs = new Set((g.gaps || []).map(x => `${x.from}->${x.to}`));
-  const byId = {};
-  g.nodes.forEach(nd => { byId[nd.id] = nd; });
-  // Weights are on different scales per engine: a similarity in 0..1 for
-  // embeddings, a COUNT (shared words, or shared recommendations) for the
-  // other two. Draw them relative to the strongest link in this deck.
-  const maxW = Math.max(1e-6, ...(g.edges || []).map(e => e.weight || 0));
-  const rel = e => (e.weight || 0) / maxW;
-  const linkNote = e => (view.engine === 'semantic'
-    ? `${Math.round((e.weight || 0) * 100)}% similar`
-    : view.engine === 'narrative'
-      ? `linked by ${e.weight} note${e.weight === 1 ? '' : 's'}`
-      : `${e.weight} shared word${e.weight === 1 ? '' : 's'}`);
-  // orphan_reasons is {slide_id: reason}, present only on the model's read.
-  const firstOrphan = (g.orphans || [])[0];
-  const orphanReason = (g.orphan_reasons && firstOrphan && g.orphan_reasons[firstOrphan]) || null;
+  const g = view.graph || {};
+  const fl = view.flow || { slides: [], handoffs: [] };
+  const orphanSlides = new Set(g.orphans || []);
+  const reasons = g.orphan_reasons || {};
+  const idx = {};
+  fl.slides.forEach(sl => { idx[sl.id] = sl.index; });
+  const handoffAfter = {};
+  fl.handoffs.forEach(h => { handoffAfter[h.from] = h; });
+
+  // What breaks, worst first.
+  const cuts = fl.handoffs.filter(h => h.status === 'abrupt');
+  const weak = fl.handoffs.filter(h => h.status === 'weak');
+  const strays = [];
+  fl.slides.forEach(sl => sl.messages.forEach((m, k) => {
+    if (m.status === 'orphan' && !orphanSlides.has(sl.id)) strays.push({ sl, m, k });
+  }));
+  const lonely = fl.slides.filter(sl => orphanSlides.has(sl.id));
+  const total = cuts.length + weak.length + strays.length + lonely.length;
+
+  function go(key) {
+    setSel(key);
+    const el = document.getElementById('tf-' + key);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  const on = key => (sel === key ? 'is-sel' : '');
+
+  const spine = view.narrative_spine
+    || (g.spine && g.spine.word ? `“${g.spine.word}” runs through ${g.spine.count} of ${fl.slides.length} beats.` : null);
 
   return (
-    <div className="tg">
-      <div className="tg__head">
-        <span className="tg__title">Thread connectivity</span>
-        <span className="tg__engine">
-          {ENGINE_LABEL[view.engine] || view.engine}
-          {deep === 'reading' ? ' · the model is reading it…'
-            : deep === 'none' ? ' · the model did not answer, so this is the quick read'
-            : deep === 'empty' ? ' · the model found nothing to add' : ''}
-        </span>
-        <span className="tg__legend">
-          <i className="tg__k tg__k--link" /> shared meaning
-          <i className="tg__k tg__k--gap" /> hard cut
-          <i className="tg__k tg__k--orphan" /> orphan
-        </span>
+    <div className="tf">
+      <div className="tf__head">
+        <div className="tf__headl">
+          <span className="tg__title">How the story connects</span>
+          <span className="tg__engine">
+            {ENGINE_LABEL[view.engine] || view.engine}
+            {deep === 'reading' ? ' · the model is reading it…'
+              : deep === 'none' ? ' · the model did not answer, so this is the quick read'
+              : deep === 'empty' ? ' · the model found nothing to add' : ''}
+          </span>
+        </div>
+        <div className="tf__tally">
+          <span className={`tf__chip tf__chip--bad ${cuts.length ? '' : 'is-zero'}`}>{cuts.length} abrupt cut{cuts.length === 1 ? '' : 's'}</span>
+          <span className={`tf__chip tf__chip--warn ${weak.length ? '' : 'is-zero'}`}>{weak.length} weak</span>
+          <span className={`tf__chip tf__chip--bad ${strays.length ? '' : 'is-zero'}`}>{strays.length} stray message{strays.length === 1 ? '' : 's'}</span>
+          <span className={`tf__chip tf__chip--bad ${lonely.length ? '' : 'is-zero'}`}>{lonely.length} orphan slide{lonely.length === 1 ? '' : 's'}</span>
+        </div>
       </div>
+      {spine ? <p className="tf__spine"><b>Spine.</b> {spine}</p> : <p className="tf__spine"><b>No spine.</b> No one idea runs through most of the deck.</p>}
 
-      <svg className="tg__svg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
-        {/* the running order */}
-        <line x1={padX} y1={baseY} x2={xOf(n - 1)} y2={baseY} className="tg__rail" />
+      <div className="tf__cols">
+        {/* ── left: the deck as it runs ── */}
+        <div className="tf__run">
+          {fl.slides.map(sl => {
+            const h = handoffAfter[sl.id];
+            const lone = orphanSlides.has(sl.id);
+            return (
+              <React.Fragment key={sl.id}>
+                <div id={`tf-s-${sl.id}`}
+                  className={`tfs ${lone ? 'is-orphan' : ''} ${peek === sl.id ? 'is-peek' : ''} ${on('s-' + sl.id)}`}>
+                  <button className="tfs__head" onClick={() => onPick && onPick(sl.id)} title="Open this beat on the board">
+                    <span className="tfs__num tnum">{num(sl.index)}</span>
+                    <span className="tfs__title">{sl.title}</span>
+                    {lone ? <span className="tf__tag tf__tag--bad">orphan slide</span> : null}
+                  </button>
+                  <div className="tfs__msgs">
+                    {sl.messages.map((m, k) => (
+                      <div key={k} id={`tf-m-${sl.id}-${k}`}
+                        className={`tfm tfm--${m.status} ${on(`m-${sl.id}-${k}`)}`}
+                        onMouseEnter={() => m.picks_up && setPeek(m.picks_up)}
+                        onMouseLeave={() => setPeek(null)}>
+                        <i className="tfm__dot" />
+                        <span className="tfm__text">{m.text}</span>
+                        {m.status === 'linked' && m.picks_up != null ? (
+                          <span className="tf__tag tf__tag--ok" title={m.shared && m.shared.length ? `shares: ${m.shared.join(', ')}` : 'close in meaning'}>
+                            ↗ {num(idx[m.picks_up])}
+                          </span>
+                        ) : m.status === 'orphan' ? <span className="tf__tag tf__tag--bad">stray</span> : null}
+                      </div>
+                    ))}
+                    {!sl.messages.length ? <div className="tfm tfm--empty"><span className="tfm__text">no messages</span></div> : null}
+                  </div>
+                  <div className={`tfs__bumper ${sl.bumper ? '' : 'is-none'}`}>
+                    {sl.bumper ? <>“{sl.bumper}”</> : (h ? 'no bumper' : 'last beat')}
+                  </div>
+                </div>
+                {h ? (
+                  <div id={`tf-h-${h.from}`} className={`tfh tfh--${h.status} ${on('h-' + h.from)}`}>
+                    <span className="tfh__line" />
+                    <span className="tfh__pill">{HANDOFF_LABEL[h.status] || h.status}</span>
+                    {h.status !== 'smooth' && h.no_bumper ? <span className="tfh__why">no bumper to hand off with</span> : null}
+                  </div>
+                ) : null}
+              </React.Fragment>
+            );
+          })}
+        </div>
 
-        {/* a hard cut between adjacent beats */}
-        {g.nodes.map((nd, i) => {
-          if (i === 0) return null;
-          const prev = g.nodes[i - 1];
-          if (!gapPairs.has(`${prev.id}->${nd.id}`)) return null;
-          const mx = (xOf(i - 1) + xOf(i)) / 2;
-          return (
-            <g key={`gap-${nd.id}`} className="tg__gap">
-              <line x1={mx} y1={baseY - 16} x2={mx} y2={baseY + 16} />
-              <text x={mx} y={baseY + 34} textAnchor="middle">cut</text>
-            </g>
-          );
-        })}
+        {/* ── right: what breaks ── */}
+        <aside className="tf__fix">
+          <div className="tf__fixh">What breaks</div>
+          {total === 0 ? (
+            <p className="tf__clean">Nothing. Every message is picked up or backs its slide, and every handoff lands.</p>
+          ) : null}
 
-        {/* links, arced above the running order */}
-        {(g.edges || []).map((e, i) => {
-          const a = byId[e.from], b = byId[e.to];
-          if (!a || !b) return null;
-          const x1 = xOf(a.index), x2 = xOf(b.index);
-          const span = Math.abs(b.index - a.index);
-          const lift = Math.min(150, 46 + span * 34);
-          const on = hover && (hover === e.from || hover === e.to);
-          return (
-            <path key={i}
-              className={`tg__edge ${on ? 'is-on' : ''}`}
-              style={{ strokeWidth: 1 + rel(e) * 4 }}
-              d={`M ${x1} ${baseY - 12} Q ${(x1 + x2) / 2} ${baseY - lift} ${x2} ${baseY - 12}`}>
-              <title>{`${linkNote(e)}${e.shared && e.shared.length ? ' · ' + e.shared.join(' · ') : ''}`}</title>
-            </path>
-          );
-        })}
+          {cuts.length ? <div className="tf__grp tf__grp--bad">Abrupt cuts</div> : null}
+          {cuts.map(h => (
+            <button key={'c' + h.from} className={`tfx tfx--bad ${on('h-' + h.from)}`} onClick={() => go('h-' + h.from)}>
+              <span className="tfx__where tnum">{num(idx[h.from])} → {num(idx[h.to])}</span>
+              <span className="tfx__what">
+                {h.no_bumper
+                  ? <>No bumper. “{h.source}” does not set up “{h.next_title}”.</>
+                  : <>“{h.source}” does not set up “{h.next_title}”.</>}
+              </span>
+              <span className="tfx__fix">Write a bumper that names what the next slide is about — or move the slide.</span>
+            </button>
+          ))}
 
-        {/* the beats */}
-        {g.nodes.map((nd, i) => {
-          const isOrphan = orphans.has(nd.id);
-          return (
-            <g key={nd.id} className={`tg__node ${isOrphan ? 'is-orphan' : ''} ${hover === nd.id ? 'is-on' : ''}`}
-               onMouseEnter={() => setHover(nd.id)} onMouseLeave={() => setHover(null)}
-               onClick={() => onPick && onPick(nd.id)}>
-              <circle cx={xOf(i)} cy={baseY - 12} r={isOrphan ? 11 : 9} />
-              <text x={xOf(i)} y={baseY - 8} textAnchor="middle" className="tg__num">{i + 1}</text>
-              <text x={xOf(i)} y={baseY + (stagger && i % 2 ? 72 : 56)} textAnchor="middle" className="tg__label">
-                {clip(nd.title || '')}
-                <title>{nd.title || ''}</title>
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+          {lonely.length ? <div className="tf__grp tf__grp--bad">Orphan slides</div> : null}
+          {lonely.map(sl => (
+            <button key={'o' + sl.id} className={`tfx tfx--bad ${on('s-' + sl.id)}`} onClick={() => go('s-' + sl.id)}>
+              <span className="tfx__where tnum">{num(sl.index)}</span>
+              <span className="tfx__what">“{sl.title}” — {reasons[sl.id] || 'nothing else in the deck picks it up.'}</span>
+              <span className="tfx__fix">Tie it to a neighbour, move it to an appendix, or cut it.</span>
+            </button>
+          ))}
 
-      <div className="tg__read">
-        {view.narrative_spine ? <p><b>Spine.</b> {view.narrative_spine}</p>
-          : g.spine && g.spine.word ? <p><b>Spine.</b> “{g.spine.word}” runs through {g.spine.count} of {n} beats.</p>
-          : <p><b>No spine.</b> No idea runs through most of the deck.</p>}
-        {orphans.size
-          ? <p><b>{orphans.size} orphan{orphans.size === 1 ? '' : 's'}.</b> {' '}
-              {orphanReason
-                ? <>“{(byId[firstOrphan] || {}).title}”: {orphanReason}</>
-                : 'Nothing else in the deck picks this up — tie it to a neighbour or cut it.'}</p>
-          : <p>No orphans — every beat connects to another.</p>}
-        {(g.gaps || []).length
-          ? <p><b>{g.gaps.length} hard cut{g.gaps.length === 1 ? '' : 's'}.</b> The bumper does not set up the next title, so the room has to jump.</p>
-          : <p>No hard cuts — each beat hands off to the next.</p>}
+          {strays.length ? <div className="tf__grp tf__grp--bad">Stray messages</div> : null}
+          {strays.map(({ sl, m, k }) => (
+            <button key={`m${sl.id}-${k}`} className={`tfx tfx--bad ${on(`m-${sl.id}-${k}`)}`} onClick={() => go(`m-${sl.id}-${k}`)}>
+              <span className="tfx__where tnum">{num(sl.index)}</span>
+              <span className="tfx__what">“{m.text}” backs neither its title nor anything else in the deck.</span>
+              <span className="tfx__fix">Cut it, or rewrite it to support “{sl.title}”.</span>
+            </button>
+          ))}
+
+          {weak.length ? <div className="tf__grp tf__grp--warn">Weak handoffs</div> : null}
+          {weak.map(h => (
+            <button key={'w' + h.from} className={`tfx tfx--warn ${on('h-' + h.from)}`} onClick={() => go('h-' + h.from)}>
+              <span className="tfx__where tnum">{num(idx[h.from])} → {num(idx[h.to])}</span>
+              <span className="tfx__what">“{h.source}” only loosely leads into “{h.next_title}”.</span>
+            </button>
+          ))}
+
+          <div className="tf__legend">
+            <span><i className="tfm__dot tfm__dot--linked" /> picked up elsewhere</span>
+            <span><i className="tfm__dot tfm__dot--local" /> backs its own slide</span>
+            <span><i className="tfm__dot tfm__dot--orphan" /> stray</span>
+          </div>
+        </aside>
       </div>
     </div>
   );
