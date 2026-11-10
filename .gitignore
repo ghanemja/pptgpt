@@ -45,3 +45,6 @@ kits/*
 !kits/README.md
 !kits/example-co/
 kits/*/.cache/
+
+# Local settings and API keys (copy .env.example). Never committed.
+.env

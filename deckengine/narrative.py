@@ -95,7 +95,13 @@ def _outline_hash(outline: list[dict], audience: str | None, mode: str | None) -
 # Both share the same prompt, the same JSON-extraction logic, and the same
 # anti-fabrication validator. The swap is one env var.
 
-_BACKEND     = os.environ.get("DECKENGINE_NARRATIVE_BACKEND", "anthropic").lower()
+_BACKEND     = os.environ.get("DECKENGINE_NARRATIVE_BACKEND", "anthropic").strip().lower()
+# "openai" is the honest name for the OpenAI-compatible backend: it speaks
+# /v1/chat/completions to ANY such endpoint (OpenAI, LM Studio, vLLM, a
+# company gateway, a hosted Gemma). "gemma" is its original name and still
+# works; internally both are "gemma".
+if _BACKEND == "openai":
+    _BACKEND = "gemma"
 _MODEL_NAME  = os.environ.get("DECKENGINE_NARRATIVE_MODEL", "claude-sonnet-4-6")
 _API_KEY     = os.environ.get("ANTHROPIC_API_KEY", "")
 _OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
@@ -106,9 +112,10 @@ _OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
 #   DECKENGINE_NARRATIVE_BACKEND=gemma
 #   LOCAL_LLM_BASE=https://<endpoint>.endpoints.huggingface.cloud/v1
 #   LOCAL_LLM_KEY=<hf token>   LOCAL_LLM_MODEL=gemma
-_GEMMA_BASE  = os.environ.get("LOCAL_LLM_BASE", "").rstrip("/")
-_GEMMA_KEY   = os.environ.get("LOCAL_LLM_KEY", "")
-_GEMMA_MODEL = os.environ.get("LOCAL_LLM_MODEL", "gemma")
+# The OPENAI_* names are accepted too, so an existing OpenAI setup works as is.
+_GEMMA_BASE  = (os.environ.get("LOCAL_LLM_BASE") or os.environ.get("OPENAI_BASE_URL", "")).rstrip("/")
+_GEMMA_KEY   = os.environ.get("LOCAL_LLM_KEY") or os.environ.get("OPENAI_API_KEY", "")
+_GEMMA_MODEL = os.environ.get("LOCAL_LLM_MODEL") or os.environ.get("OPENAI_MODEL", "gemma")
 
 # A pluggable callable so tests (and ad-hoc swaps) can inject a custom LLM.
 _llm_override: Optional[Callable[[str], str]] = None
@@ -337,7 +344,7 @@ def backend_info() -> dict:
     if _llm_override is not None:
         return {"backend": "override", "model": "custom"}
     if _BACKEND == "gemma":
-        return {"backend": "gemma", "model": _GEMMA_MODEL, "base": _GEMMA_BASE}
+        return {"backend": "openai-compatible", "model": _GEMMA_MODEL, "base": _GEMMA_BASE}
     if _BACKEND == "ollama":
         return {"backend": "ollama", "model": _OLLAMA_MODEL, "host": _OLLAMA_HOST}
     return {"backend": "anthropic", "model": _MODEL_NAME}

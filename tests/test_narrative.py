@@ -200,6 +200,36 @@ def test_empty_outline_returns_none():
     assert narrative.analyze_narrative([]) is None
 
 
+
+def _backend_in_subprocess(env):
+    """narrative reads its env at import, so check a config in a fresh process."""
+    import json, subprocess
+    code = ("import json; from deckengine import narrative as n; "
+            "print(json.dumps([n._BACKEND, n.backend_info()]))")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    clean = {k: v for k, v in os.environ.items()
+             if not k.startswith(("OPENAI_", "LOCAL_LLM_", "DECKENGINE_NARRATIVE_"))}
+    out = subprocess.check_output([sys.executable, "-c", code], cwd=root,
+                                  env={**clean, **env}, text=True)
+    return json.loads(out.strip().splitlines()[-1])
+
+
+def test_openai_is_an_alias_for_the_compatible_backend():
+    backend, info = _backend_in_subprocess({
+        "DECKENGINE_NARRATIVE_BACKEND": "OpenAI",
+        "OPENAI_BASE_URL": "http://127.0.0.1:1234/v1/", "OPENAI_MODEL": "llama-3.1-8b"})
+    assert backend == "gemma"
+    assert info == {"backend": "openai-compatible", "model": "llama-3.1-8b",
+                    "base": "http://127.0.0.1:1234/v1"}
+
+
+def test_local_llm_names_still_work_and_win():
+    backend, info = _backend_in_subprocess({
+        "DECKENGINE_NARRATIVE_BACKEND": "gemma",
+        "LOCAL_LLM_BASE": "https://hf.example/v1", "LOCAL_LLM_MODEL": "gemma",
+        "OPENAI_BASE_URL": "https://ignored/v1"})
+    assert backend == "gemma" and info["base"] == "https://hf.example/v1"
+
 if __name__ == "__main__":
     # No pytest. Run each test_ with manual setup/teardown so cache state is clean.
     fns = [(k, v) for k, v in sorted(globals().items()) if k.startswith("test_")]

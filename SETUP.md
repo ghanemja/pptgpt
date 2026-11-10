@@ -68,6 +68,9 @@ Notes:
 
 ## 3. Ollama and the model
 
+(Using Claude, OpenAI, your company's AI gateway or another server
+instead? Skip this step and see **[Use your own model](#use-your-own-model)**.)
+
 1. Install Ollama from <https://ollama.com/download> (macOS / Windows app), or
    on macOS `brew install ollama`.
 2. Start it — open the Ollama app, or run `ollama serve` in a terminal.
@@ -112,14 +115,17 @@ Then open:
 
 Leave the terminal open while you work; **Ctrl+C** stops pptgpt.
 
-Settings you can change when starting (all optional):
+Settings go in a file called `.env` in the pptgpt folder. `start.sh` reads
+it every time it starts; a value set in the terminal wins over the file, so
+`PORT=8010 scripts/start.sh` still works. With no `.env`, pptgpt uses Ollama
+with `gemma3:4b` on port 8000. Which model writes the slides is covered in
+the next section.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PORT` | `8000` | Port to serve on, e.g. `PORT=8010 scripts/start.sh` |
-| `OLLAMA_MODEL` | `gemma3:4b` | Any model you have pulled |
-| `OLLAMA_HOST` | `http://127.0.0.1:11434` | Where Ollama listens |
-| `DECKENGINE_NARRATIVE_BACKEND` | `ollama` | `anthropic` to use the Anthropic API instead (needs `ANTHROPIC_API_KEY`) |
+| `PORT` | `8000` | Port to serve on |
+| `DECKENGINE_NARRATIVE_BACKEND` | `ollama` | Which model writes the slides: `ollama`, `anthropic` or `openai` |
+| `SKIP_MODEL_CHECK` | unset | `1` starts even when the model check fails |
 
 `start.sh` always binds to **127.0.0.1**, so only this computer can open
 pptgpt, and that is why it runs without a login. Do not expose it on the
@@ -131,6 +137,102 @@ On Windows, without bash, start it with:
 $env:BU_AUTH_DISABLED="1"; $env:DECKENGINE_NARRATIVE_BACKEND="ollama"; $env:OLLAMA_MODEL="gemma3:4b"; $env:OLLAMA_HOST="http://127.0.0.1:11434"
 .venv\Scripts\python -m uvicorn server:app --host 127.0.0.1 --port 8000
 ```
+
+(For Anthropic or an OpenAI-compatible endpoint, set that option's variables
+the same way, `$env:NAME="value"`, instead of the Ollama ones. Windows does
+not read `.env` on its own.)
+
+## Use your own model
+
+pptgpt can draft slides with any of three kinds of model. Pick one, then:
+
+1. Copy the example settings file:
+
+```bash
+cp .env.example .env
+```
+
+2. Open `.env` in a text editor, comment out the Ollama block, uncomment
+   the block you want and fill it in (the three options are described
+   below).
+3. Run `scripts/start.sh`. It makes one free request to the model, a list
+   of models with no generation, and shows a ✓, or says exactly what is
+   wrong (bad key, wrong URL, model name not offered) and stops.
+
+`.env` is git-ignored, so your key stays on this machine. Keep it out of
+email and chat like any password.
+
+### Option A: Ollama, a local model (the default)
+
+No key, nothing leaves the machine. Set up in step 3 above.
+
+```dotenv
+DECKENGINE_NARRATIVE_BACKEND=ollama
+OLLAMA_MODEL=gemma3:4b
+OLLAMA_HOST=http://127.0.0.1:11434
+```
+
+`OLLAMA_MODEL` can be any model you have pulled (`ollama list` shows them).
+
+### Option B: Anthropic (Claude)
+
+Install the Anthropic package once:
+
+```bash
+.venv/bin/pip install anthropic
+```
+
+Then in `.env`:
+
+```dotenv
+DECKENGINE_NARRATIVE_BACKEND=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+DECKENGINE_NARRATIVE_MODEL=claude-sonnet-4-6
+```
+
+Get a key at <https://console.anthropic.com> → API keys.
+`DECKENGINE_NARRATIVE_MODEL` is any model id your key can use.
+
+### Option C: any OpenAI-compatible endpoint
+
+This covers OpenAI itself and anything that speaks the same API: a company
+AI gateway, LM Studio, vLLM, llama.cpp's server, a hosted Hugging Face
+endpoint. If its documentation mentions `/v1/chat/completions`, it works.
+
+```dotenv
+DECKENGINE_NARRATIVE_BACKEND=openai
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+```
+
+| You use | `OPENAI_BASE_URL` | `OPENAI_API_KEY` | `OPENAI_MODEL` |
+|---|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | your key | e.g. `gpt-4o-mini` |
+| LM Studio | `http://127.0.0.1:1234/v1` | anything, e.g. `lm-studio` | the model's name in LM Studio |
+| vLLM / llama.cpp | `http://127.0.0.1:8000/v1` (start pptgpt with `PORT=8010`) | whatever you set, or anything | the served model name |
+| Company gateway | the URL IT gives you, ending in `/v1` | the key IT gives you | the name IT gives you |
+
+The base URL ends in `/v1`. Do not add `/chat/completions`; pptgpt adds it.
+If the endpoint lists its models, `start.sh` tells you which names it
+accepts when yours is wrong.
+
+Not supported yet: **Azure OpenAI**, whose URLs carry a deployment name and
+an `api-version`. Use your company gateway if it fronts Azure with a plain
+`/v1` URL.
+
+The older names `DECKENGINE_NARRATIVE_BACKEND=gemma` with `LOCAL_LLM_BASE`,
+`LOCAL_LLM_KEY` and `LOCAL_LLM_MODEL` still work and mean the same thing.
+
+### When the model fails
+
+If a call fails (key revoked, endpoint down, timeout), the server tries one
+other model before giving up: with Ollama or an OpenAI-compatible endpoint,
+Anthropic, if an `ANTHROPIC_API_KEY` is set; with Anthropic, Ollama, if it is
+running. If nothing answers, the browser falls back to a simple built-in
+writer, and slides come out generic. The terminal shows
+`[narrative] … backend failed` when that happens; re-run
+`.venv/bin/python scripts/check_model.py` to see why.
 
 ## 6. Set up your company
 
@@ -171,7 +273,8 @@ Every line should end in `N/N passed`. The JavaScript test needs Node 18+.
 |---|---|
 | `start.sh: Permission denied` | `chmod +x scripts/start.sh` |
 | "Ollama not reachable" | Open the Ollama app or run `ollama serve`; check `curl http://127.0.0.1:11434/api/tags` |
-| Slides all say the same canned things | Ollama isn't answering in time — check the terminal for `[narrative] ollama backend failed` |
+| Slides all say the same canned things | The model isn't answering. Check the terminal for `[narrative] … backend failed`, and run `.venv/bin/python scripts/check_model.py` |
+| `start.sh` stops at the model check | Read the ✗ line: it names the setting to fix in `.env`. See [Use your own model](#use-your-own-model) |
 | "Port 8000 is in use" | `PORT=8010 scripts/start.sh` |
 | No "exact" badge on previews | LibreOffice not installed or not on PATH |
 | Corporate proxy blocks `pip install` | `pip install --proxy http://proxy:port -r requirements.txt`, or ask IT for a package mirror |

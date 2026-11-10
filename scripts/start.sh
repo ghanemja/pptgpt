@@ -18,6 +18,19 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# Settings live in .env (copy .env.example). Anything already set in the
+# shell wins over .env, so `PORT=8010 scripts/start.sh` still works.
+if [ -f "$ROOT/.env" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/^export[[:space:]]*//')"
+    case "$line" in ''|'#'*) continue ;; *=*) ;; *) continue ;; esac
+    k="${line%%=*}"; v="${line#*=}"
+    [[ "$k" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    v="${v%\"}"; v="${v#\"}"; v="${v%\'}"; v="${v#\'}"
+    if [ -z "${!k+x}" ]; then export "$k=$v"; fi
+  done < "$ROOT/.env"
+fi
+
 HOST="127.0.0.1"
 PORT="${PORT:-8000}"
 
@@ -46,17 +59,13 @@ ok "Python $("$PY" -c 'import platform; print(platform.python_version())')"
   || fail "Packages missing. Run: .venv/bin/pip install -r requirements.txt"
 ok "Python packages"
 
-# 3. Ollama + the model (optional, but it is what writes the slides).
-if [ "$DECKENGINE_NARRATIVE_BACKEND" = "ollama" ]; then
-  if tags="$(curl -s -m 3 "$OLLAMA_HOST/api/tags" 2>/dev/null)" && [ -n "$tags" ]; then
-    if printf '%s' "$tags" | grep -q "\"$OLLAMA_MODEL\""; then
-      ok "Ollama at $OLLAMA_HOST with $OLLAMA_MODEL"
-    else
-      warn "Ollama is running but $OLLAMA_MODEL is not pulled. Run: ollama pull $OLLAMA_MODEL"
-    fi
-  else
-    warn "Ollama not reachable at $OLLAMA_HOST — slides will come from the built-in fallback. Start the Ollama app, or run: ollama serve"
-  fi
+# 3. The model that writes the slides — whichever backend .env chose.
+#    One free request (a model list), so a wrong key or URL shows up here
+#    instead of as generic fallback slides later.
+echo "  model: $DECKENGINE_NARRATIVE_BACKEND"
+if [ "${SKIP_MODEL_CHECK:-0}" != "1" ]; then
+  "$PY" "$ROOT/scripts/check_model.py" \
+    || fail "The model is not set up (above). Fix .env (see .env.example / SETUP.md), or start anyway with SKIP_MODEL_CHECK=1"
 fi
 
 # 4. LibreOffice (optional: exact previews, template backdrops, SVG icons).
