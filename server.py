@@ -3,7 +3,6 @@ FastAPI backend — speaks the frontend contract from `frontend/types.md`.
 
 Endpoints
 ---------
-  POST /api/backend       mirror of `window.mockBackend(req)`.
   POST /api/storyboard    mirror of `window.extractStoryboard(req)`.
   POST /api/critique      mirror of `window.generateCritique(req)`.
   POST /api/render        { slides: SlideSpec[] } -> .pptx download.
@@ -30,12 +29,10 @@ Endpoints
 
 Static
 ------
-  GET  /                  serves `frontend/index.html`.
-  GET  /workbench         serves `frontend/workbench.html`.
-  GET  /frontend/*        serves the rest of `frontend/`.
+  Pages and assets are served flat from `frontend/` — see the route list
+  at the "static frontend" section near the end of this file.
 
-Offline. No outbound calls. Same shapes as the mock so the UI swap is
-literally `mockBackend.js` -> `fetch('/api/backend', ...)`.
+Offline. No outbound calls.
 """
 from __future__ import annotations
 import os
@@ -52,7 +49,6 @@ from pydantic import BaseModel
 
 from auth import auth_middleware, mint_token, check_password
 
-from deckengine.synth import backend as synth_backend
 from deckengine.storyboard import extract_storyboard, generate_critique
 from deckengine.spec_render import render_specs, _render_plot_png
 from deckengine.parse import parse_to_ir, parse_deck_to_ir
@@ -101,14 +97,6 @@ app.middleware("http")(auth_middleware)
 
 
 # ---- request models (loose: passthrough dicts) ---------------------------
-
-class BackendReq(BaseModel):
-    rawContent: str = ""
-    mode: str = "draft"
-    answers: dict = {}
-    outline: list[dict] | None = None
-    wantsLiveDirections: bool | None = None
-
 
 class StoryboardReq(BaseModel):
     text: str = ""
@@ -640,11 +628,6 @@ def api_org(slug: str):
         return JSONResponse({"error": str(e)}, status_code=404)
 
 
-@app.post("/api/backend")
-def api_backend(req: BackendReq):
-    return synth_backend(req.model_dump())
-
-
 @app.post("/api/storyboard")
 def api_storyboard(req: StoryboardReq):
     return extract_storyboard(req.model_dump())
@@ -701,11 +684,9 @@ def api_plot(req: PlotReq):
 
 @app.post("/api/design")
 def api_design(req: DesignReq):
-    """The real IR-engine path. Same shape as /api/backend so the UI can use
-    it interchangeably. Goes through parse_to_ir → ambiguity → layout.resolve.
-
-    Unlike /api/backend (which routes through `synth.py` and emits SlideSpec
-    directly), this route exercises §0's content/layout/theme separation."""
+    """The IR-engine path: parse_to_ir → ambiguity → layout.resolve, returned
+    as {slideIR, questions, directions} — the shape `window.mockBackend`
+    returns, so a SlideSpec renderer can draw either."""
     slide = parse_to_ir(req.rawContent or "")
     questions = [q_to_dict(q) for q in detect_questions(slide, req.answers or {})]
 
@@ -1007,16 +988,14 @@ def login(req: LoginReq):
 # ---- static frontend -----------------------------------------------------
 #
 # Layout:
-#   /            -> the v3 landing page (frontend/v2-assets/landing.html)
-#   /storyboard  -> the new storyboard page with thread tracks
-#   /workbench   -> the new three-panel workbench
-#   /canvas      -> the original single-slide canvas (kept for back-compat)
-#   /workbench-v1 -> the previous workbench we built today (kept for diff)
+#   /             -> the landing page (frontend/landing.html)
+#   /workbench    -> the five-phase workbench (frontend/workbench-v2.html)
+#   /workspace    -> the unified workspace (frontend/workspace.html)
+#   /canvas       -> the original single-slide canvas (kept for back-compat)
+#   /workbench-v1 -> the previous workbench (kept for diff)
 #
-# All asset files (css/jsx/js) are served from the `frontend/` directory.
-# The v2 assets live at `frontend/v2-assets/`; the catch-all serves both.
-
-V2_ASSETS = os.path.join(FRONTEND, "v2-assets")
+# Every page and asset lives flat in `frontend/`, so a page's relative
+# `<script src="...">` resolves through the catch-all below.
 
 
 _ASSET_REF = re.compile(r'\b(src|href)="(?!https?:|//|#|data:|mailto:)([^"?#]+\.(?:jsx|js|css))"')
@@ -1039,7 +1018,7 @@ def _serve_html(relpath: str) -> HTMLResponse:
 
     def stamp(m: "re.Match[str]") -> str:
         attr, path = m.group(1), m.group(2)
-        for base in (page_dir, FRONTEND, V2_ASSETS):
+        for base in (page_dir, FRONTEND):
             candidate = os.path.normpath(os.path.join(base, path.lstrip("/")))
             if os.path.isfile(candidate):
                 return f'{attr}="{path}?v={int(os.path.getmtime(candidate))}"'
@@ -1051,14 +1030,14 @@ def _serve_html(relpath: str) -> HTMLResponse:
 @app.get("/", response_class=HTMLResponse)
 def index():
     """v3 landing (scrollytelling marketing page)."""
-    return _serve_html("v2-assets/landing.html")
+    return _serve_html("landing.html")
 
 
 @app.get("/setup", response_class=HTMLResponse)
 @app.get("/setup/", response_class=HTMLResponse)
 def setup():
     """Step 02 · pick the goal. Audience + mode + stakes picker."""
-    return _serve_html("v2-assets/setup.html")
+    return _serve_html("setup.html")
 
 
 @app.get("/storyboard")
@@ -1074,7 +1053,7 @@ def storyboard_redirect():
 @app.get("/workbench/", response_class=HTMLResponse)
 def workbench():
     """The new three-panel workbench."""
-    return _serve_html("v2-assets/workbench-v2.html")
+    return _serve_html("workbench-v2.html")
 
 
 @app.get("/canvas", response_class=HTMLResponse)
@@ -1103,8 +1082,6 @@ def workspace():
 if os.path.isdir(FRONTEND):
     app.mount("/frontend", StaticFiles(directory=FRONTEND), name="frontend")
     app.mount("/assets",   StaticFiles(directory=FRONTEND), name="assets")
-    if os.path.isdir(V2_ASSETS):
-        app.mount("/v2-assets", StaticFiles(directory=V2_ASSETS), name="v2-assets")
     # Mount /uploads so ingest-extracted images are reachable via the
     # paths the IR carries (e.g. /uploads/<deck-id>/slide00_00.png).
     app.mount("/uploads", StaticFiles(directory=UPLOADS), name="uploads")
@@ -1114,16 +1091,11 @@ if os.path.isdir(FRONTEND):
         # Don't shadow API or health
         if filename.startswith(("api/", "health")):
             return Response(status_code=404)
-        # Try v2-assets first so the new pages' relative `<script src="...">`
-        # work without rewriting their HTML to add a path prefix.
-        for base in (V2_ASSETS, FRONTEND):
-            target = os.path.normpath(os.path.join(base, filename))
-            if not target.startswith(base):
-                continue
-            if os.path.isfile(target):
-                # Local dev edits these files constantly, and a stale .jsx in
-                # the browser cache looks exactly like a change that did not
-                # take. Netlify sets its own (short) cache headers in
-                # netlify.toml; this server is only ever the dev server.
-                return FileResponse(target, headers={"Cache-Control": "no-store"})
+        target = os.path.normpath(os.path.join(FRONTEND, filename))
+        if target.startswith(FRONTEND + os.sep) and os.path.isfile(target):
+            # Local dev edits these files constantly, and a stale .jsx in
+            # the browser cache looks exactly like a change that did not
+            # take. Netlify sets its own (short) cache headers in
+            # netlify.toml; this server is only ever the dev server.
+            return FileResponse(target, headers={"Cache-Control": "no-store"})
         return Response(status_code=404)

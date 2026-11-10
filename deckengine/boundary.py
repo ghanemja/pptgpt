@@ -59,7 +59,7 @@ def _box_to_block(b: Box) -> dict:
         **base,
         "text": b.text,
         "font": _font_key(b.font),
-        "size": b.size_pt * (SPEC_H / (CANVAS_H * 72)) * 72,  # pt scaled
+        "size": b.size_pt * SPEC_H / (CANVAS_H * 72),  # pt -> canvas px
         "weight": 700 if b.bold else 400,
         "color": _hash(b.color),
         "align": b.align,

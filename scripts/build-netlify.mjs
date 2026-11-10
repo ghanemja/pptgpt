@@ -23,18 +23,18 @@ const out = join(root, "netlify-dist");
 
 // Files copied through untouched, as `source (relative to frontend/) -> dist name`.
 const ASSETS = [
-  // v2 app — landing, setup, storyboard, workbench
-  ["v2-assets/landing.css", "landing.css"],
-  ["v2-assets/landing.jsx", "landing.jsx"],
-  ["v2-assets/setup.css", "setup.css"],
-  ["v2-assets/setup.jsx", "setup.jsx"],
-  ["v2-assets/storyboard-v2.css", "storyboard-v2.css"],
-  ["v2-assets/storyboard-v2.jsx", "storyboard-v2.jsx"],
-  ["v2-assets/workbench-v2.css", "workbench-v2.css"],
-  ["v2-assets/workbench-v2.jsx", "workbench-v2.jsx"],
-  ["v2-assets/mockBackend.js", "mockBackend.js"],
-  ["v2-assets/previewRenderer.jsx", "previewRenderer.jsx"],
-  ["v2-assets/samples", "samples"],
+  // landing, setup, storyboard, workbench
+  ["landing.css", "landing.css"],
+  ["landing.jsx", "landing.jsx"],
+  ["setup.css", "setup.css"],
+  ["setup.jsx", "setup.jsx"],
+  ["storyboard-v2.css", "storyboard-v2.css"],
+  ["storyboard-v2.jsx", "storyboard-v2.jsx"],
+  ["workbench-v2.css", "workbench-v2.css"],
+  ["workbench-v2.jsx", "workbench-v2.jsx"],
+  ["mockBackend.js", "mockBackend.js"],
+  ["previewRenderer.jsx", "previewRenderer.jsx"],
+  ["samples", "samples"],
 
   // unified workspace
   ["workspace.css", "workspace.css"],
@@ -61,10 +61,10 @@ const PAGES = [
   // behind a splash screen.
   ["workspace.html", "index.html"],
   ["workspace.html", "workspace.html"],
-  ["v2-assets/landing.html", "landing.html"],
-  ["v2-assets/setup.html", "setup.html"],
-  ["v2-assets/storyboard-v2.html", "storyboard.html"],
-  ["v2-assets/workbench-v2.html", "workbench.html"],
+  ["landing.html", "landing.html"],
+  ["setup.html", "setup.html"],
+  ["storyboard-v2.html", "storyboard.html"],
+  ["workbench-v2.html", "workbench.html"],
 ];
 
 /** Rewrite a source page for the flat dist. */

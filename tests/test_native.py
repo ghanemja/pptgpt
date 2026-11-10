@@ -23,7 +23,7 @@ from deckengine.native import (
 )
 
 SAMPLE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                      "frontend", "v2-assets", "samples", "sample.pptx")
+                      "frontend", "samples", "sample.pptx")
 
 SLIDE = {
     "title": "We beat Q3 plan by 14%",

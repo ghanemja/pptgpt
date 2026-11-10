@@ -19,7 +19,7 @@ Env vars (read at process start):
 
 Routes protected by middleware are everything except an allowlist:
     /, /health, /login, /docs, /openapi.json, /redoc,
-    /frontend/*, /assets/*, /v2-assets/*, /*.html, /*.css, /*.js, /*.jsx,
+    /frontend/*, /assets/*, /*.html, /*.css, /*.js, /*.jsx,
     OPTIONS preflight.
 """
 
@@ -126,7 +126,7 @@ PUBLIC_PATHS = {
     # storymap can show "5 slides · 2 images" without auth.
     "/api/peek",
 }
-PUBLIC_PREFIXES = ("/frontend/", "/assets/", "/v2-assets/", "/samples/", "/uploads/")
+PUBLIC_PREFIXES = ("/frontend/", "/assets/", "/samples/", "/uploads/")
 PUBLIC_SUFFIXES = (".html", ".css", ".js", ".jsx", ".png", ".jpg", ".svg", ".ico", ".woff", ".woff2",
                    ".pptx", ".pdf", ".docx", ".txt", ".md")
 
