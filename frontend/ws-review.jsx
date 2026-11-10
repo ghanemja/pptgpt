@@ -16,7 +16,7 @@
    ============================================================ */
 
 const { Ico } = window;
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 const API = window.WS_NO_BACKEND ? ''
   : ((window.BU_API_BASE || '').replace(/\/$/, '')
@@ -50,6 +50,14 @@ function ReviewPhase({ deck, onOpenSlide, onReviewed }) {
   const [strictness, setStrictness] = useState('normal');
   const [off, setOff] = useState([]);          // lenses switched off for this run
   const [report, setReport] = useState(null);
+  const [runId, setRunId] = useState(0);       // a fresh run reopens the stage on its first note
+  const reportRef = useRef(null);
+
+  // The report lands below the form; bring it up rather than leave the
+  // answer off-screen under the button that asked for it.
+  useEffect(() => {
+    if (runId && reportRef.current) reportRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [runId]);
   const [state, setState] = useState('idle');  // idle | running | ok | off
   const [view, setView] = useState(() => {
     try { return localStorage.getItem('pptgpt-review-view') || 'marked'; } catch (e) { return 'marked'; }
@@ -85,7 +93,7 @@ function ReviewPhase({ deck, onOpenSlide, onReviewed }) {
       body: JSON.stringify({ slides: deck.slides, coach: who, overrides }),
     })
       .then(r => (r.ok ? r.json() : Promise.reject()))
-      .then(d => { setReport(d); setState('ok'); if (onReviewed) onReviewed(); })
+      .then(d => { setReport(d); setRunId(x => x + 1); setState('ok'); if (onReviewed) onReviewed(); })
       .catch(() => setState('off'));
   }
 
@@ -171,7 +179,7 @@ function ReviewPhase({ deck, onOpenSlide, onReviewed }) {
       {/* The report gets more room than the form above it: a marked-up
           slide needs gutters either side for its callouts. */}
       {report && state === 'ok' ? (
-        <div className="revwide">
+        <div className="revwide" ref={reportRef}>
           <section className="vsec">
             <div className="revsay">
               <span className="msg__ava">{(report.coach.name || '?').slice(0, 2).toUpperCase()}</span>
@@ -202,41 +210,41 @@ function ReviewPhase({ deck, onOpenSlide, onReviewed }) {
 
             <div className="revview">
               <span className="revview__label">Show notes</span>
-              {[['marked', 'On the slides'], ['list', 'As a list']].map(([k, label]) => (
+              {[['marked', 'Slide by slide'], ['list', 'As a list']].map(([k, label]) => (
                 <button key={k} className={`dircard ${view === k ? 'on' : ''}`}
                   onClick={() => pickView(k)}>{label}</button>
               ))}
             </div>
 
-            <div className="revlist">
-              {report.results.map(r => (
-                <div key={r.slideId || r.index}
-                  className={`revslide revslide--${r.verdict}${view === 'marked' && r.notes.length ? ' revslide--marked' : ''}`}>
-                  <button className="revslide__head" onClick={() => onOpenSlide(r.slideId)}>
-                    <span className="revslide__num tnum">{String(r.index + 1).padStart(2, '0')}</span>
-                    <span className="revslide__title">
-                      {(deck.slides[r.index] && deck.slides[r.index].title) || 'Untitled slide'}
-                    </span>
-                    <span className="revslide__verdict">
-                      {r.verdict === 'clear' ? 'clear' : `${r.notes.length} note${r.notes.length === 1 ? '' : 's'}`}
-                    </span>
-                  </button>
-                  {view === 'marked' && r.notes.length && deck.slides[r.index] && window.AnnotatedSlide ? (
-                    <window.AnnotatedSlide slide={deck.slides[r.index]} notes={r.notes}
-                      onOpen={() => onOpenSlide(r.slideId)} />
-                  ) : r.notes.map((n, i) => (
-                    <div key={i} className={`cnote cnote--${n.severity}`}>
-                      <div className="cnote__head">
-                        <span className="cnote__sev">{SEV_LABEL[n.severity]}</span>
-                        <span className="cnote__lens">{n.lens}</span>
+            {view === 'marked' && window.ReviewStage ? (
+              <window.ReviewStage key={runId} deck={deck} results={report.results} onOpenSlide={onOpenSlide} />
+            ) : (
+              <div className="revlist">
+                {report.results.map(r => (
+                  <div key={r.slideId || r.index} className={`revslide revslide--${r.verdict}`}>
+                    <button className="revslide__head" onClick={() => onOpenSlide(r.slideId)}>
+                      <span className="revslide__num tnum">{String(r.index + 1).padStart(2, '0')}</span>
+                      <span className="revslide__title">
+                        {(deck.slides[r.index] && deck.slides[r.index].title) || 'Untitled slide'}
+                      </span>
+                      <span className="revslide__verdict">
+                        {r.verdict === 'clear' ? 'clear' : `${r.notes.length} note${r.notes.length === 1 ? '' : 's'}`}
+                      </span>
+                    </button>
+                    {r.notes.map((n, i) => (
+                      <div key={i} className={`cnote cnote--${n.severity}`}>
+                        <div className="cnote__head">
+                          <span className="cnote__sev">{SEV_LABEL[n.severity]}</span>
+                          <span className="cnote__lens">{n.lens}</span>
+                        </div>
+                        <div className="cnote__note">{n.note}</div>
+                        {n.ask ? <div className="cnote__ask">“{n.ask}”</div> : null}
                       </div>
-                      <div className="cnote__note">{n.note}</div>
-                      {n.ask ? <div className="cnote__ask">“{n.ask}”</div> : null}
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         </div>
       ) : null}
