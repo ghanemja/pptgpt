@@ -15,6 +15,7 @@ zipped, versioned, or handed to a colleague as a directory.
       kit.json          name, description, linked source folders
       profile.json      scoping questions, narrative arc, style rules
       voice.md          how the company writes
+      criteria.json     what a reviewer checks, in the company's own terms
       template.potx     the master (any .potx / .pptx at the top level)
       examples/         decks the company considers good (.pptx)
       assets/
@@ -692,6 +693,26 @@ def pin_templates(slug: str) -> list[dict[str, Any]]:
     return out
 
 
+def criteria_raw(slug: str) -> Optional[Any]:
+    """The kit's own review criteria as written, or None if it has none.
+
+    Parsed and validated by coach.parse_criteria — the kit owns the file,
+    the coach owns what it means.
+    """
+    try:
+        d = _require(slug)
+    except KitError:
+        return None
+    path = os.path.join(d, "criteria.json")
+    if not os.path.isfile(path):
+        return None
+    with open(path, "r", encoding="utf-8") as fh:
+        try:
+            return json.load(fh)
+        except json.JSONDecodeError as e:
+            raise KitError(f"criteria.json is not valid JSON: {e}")
+
+
 def learned(slug: str) -> Optional[dict[str, Any]]:
     path = os.path.join(_require(slug), "learned.json")
     if not os.path.isfile(path):
@@ -780,6 +801,19 @@ def scan(slug: str) -> dict[str, Any]:
     voice = voice_text(slug)
     learn = learned(slug)
 
+    crit_ok, crit_detail = False, "none — reviewers use the engine's own criteria"
+    try:
+        raw = criteria_raw(slug)
+        if raw is not None:
+            from .coach import parse_criteria, CoachError
+            try:
+                n = len(parse_criteria(raw))
+                crit_ok, crit_detail = True, f"{n} criteri{'on' if n == 1 else 'a'}"
+            except CoachError as e:
+                crit_detail = str(e)
+    except KitError as e:
+        crit_detail = str(e)
+
     newest_example = max((os.path.getmtime(p) for p in examples), default=0)
     stale = bool(learn) and newest_example > float(learn.get("generated_epoch", 0))
 
@@ -809,6 +843,8 @@ def scan(slug: str) -> dict[str, Any]:
          "detail": (f"{len(voice.split())} words" if voice.strip()
                     else "still the starter text — replace it with your guide"),
          "path": "voice.md"},
+        {"key": "criteria", "label": "Review criteria", "ok": crit_ok,
+         "detail": crit_detail, "path": "criteria.json"},
         {"key": "learned", "label": "Learned from examples", "ok": bool(learn) and not stale,
          "detail": ("out of date — examples changed since the last run" if stale else
                     f"{learn['decks']} decks, {learn['slides']} slides" if learn else

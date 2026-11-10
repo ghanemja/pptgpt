@@ -22,6 +22,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from deckengine import coach as C
 
+# Reviewers someone saved on this machine are theirs, not fixtures: every test
+# here reads an empty saved folder unless it sets one up itself.
+C.SAVED_DIR = tempfile.mkdtemp()
+
 WEAK = {
     "title": "Q3 results",
     "bullets": ["Revenue grew strongly", "Churn improved",
@@ -263,6 +267,125 @@ def test_an_empty_deck_reviews_clean():
     r = C.review_deck([], C.load_persona("board-chair"))
     assert r["summary"]["verdict"] == "clear"
     assert r["summary"]["weakest"] == []
+
+
+
+# ---- saved reviewers -------------------------------------------------------
+
+def _saved_dir():
+    return mock.patch.object(C, "SAVED_DIR", tempfile.mkdtemp())
+
+
+def test_a_tuned_reviewer_can_be_saved_and_picked_again():
+    with _saved_dir():
+        got = C.save_persona("Dana, CFO", "board-chair", strictness="soft",
+                             lenses={"ask": 3, "source": 2})
+        assert got["slug"] == "dana-cfo" and got["saved"] and got["basedOn"] == "board-chair"
+        p = C.load_persona("dana-cfo")
+        assert p.saved and p.strictness == "soft"
+        assert p.lenses == {"ask": 3, "source": 2}        # exactly what was ticked
+        assert p.voice.opening == C.load_persona("board-chair").voice.opening
+        slugs = [x["slug"] for x in C.list_personas()]
+        assert "dana-cfo" in slugs and "board-chair" in slugs
+        # and it reads a deck like any persona
+        assert C.review_deck([WEAK], p)["results"][0]["notes"]
+
+
+def test_saving_again_under_the_same_name_updates_it():
+    with _saved_dir():
+        C.save_persona("Dana", "board-chair", lenses={"ask": 3})
+        C.save_persona("Dana", "board-chair", lenses={"title": 2})
+        assert C.load_persona("dana").lenses == {"title": 2}
+        assert [x["slug"] for x in C.list_personas()].count("dana") == 1
+
+
+def test_a_saved_reviewer_cannot_take_a_built_in_name_or_delete_one():
+    with _saved_dir():
+        _expect_error(lambda: C.save_persona("Board chair", "board-chair"), "built-in")
+        _expect_error(lambda: C.delete_persona("board-chair"), "built-in")
+        _expect_error(lambda: C.save_persona("   ", "board-chair"), "name")
+        _expect_error(lambda: C.save_persona("X", "board-chair", lenses={"vibes": 2}), "unknown lens")
+
+
+def test_a_saved_reviewer_can_be_forgotten():
+    with _saved_dir():
+        C.save_persona("Dana", "board-chair")
+        C.delete_persona("dana")
+        _expect_error(lambda: C.load_persona("dana"), "no coach")
+
+
+def test_a_reviewer_saved_from_a_saved_one_remembers_the_original():
+    with _saved_dir():
+        C.save_persona("Dana", "board-chair")
+        assert C.save_persona("Dana harder", "dana", strictness="hard")["basedOn"] == "board-chair"
+
+
+# ---- a company's own criteria ----------------------------------------------
+
+KIT_CRITERIA = {"criteria": [
+    {"lens": "source", "label": "Every number is sourced",
+     "means": "Names the system of record and the cut date."},
+    {"lens": "jargon", "label": "House words", "words": ["robust", "north star"]},
+    {"lens": "density", "label": "Three points, tops", "max_points": 3},
+    {"id": "codenames", "kind": "banned", "label": "No internal codenames",
+     "words": ["Project Falcon"], "severity": "blocker"},
+]}
+
+
+def test_a_kit_restates_the_criteria_and_adds_its_own():
+    crits = C.parse_criteria(KIT_CRITERIA)
+    listed = C.criteria_for(crits)
+    ids = [c.id for c in listed]
+    assert ids[:4] == ["source", "jargon", "density", "kit:codenames"]   # kit's own order first
+    assert set(ids) >= set(C.LENSES)                                     # nothing silently dropped
+    assert listed[0].label == "Every number is sourced" and listed[0].source == "kit"
+    assert next(c for c in listed if c.id == "ask").source == "engine"
+
+
+def test_a_kit_rule_runs_and_reads_in_the_company_words():
+    crits = C.parse_criteria(KIT_CRITERIA)
+    slide = {"title": "Project Falcon beat plan", "bullets": ["a", "b", "c", "d"],
+             "takeaway": "Approve it; Sales owns it."}
+    p = C.Persona(slug="t", name="T", lenses={"kit:codenames": 3, "density": 3, "source": 2})
+    notes = {n["lens"]: n for n in C.critique_deck([slide], p, criteria=crits)[0]["notes"]}
+    assert notes["kit:codenames"]["severity"] == "blocker"
+    assert notes["kit:codenames"]["label"] == "No internal codenames"
+    assert notes["kit:codenames"]["target"] == {"field": "title"}
+    assert "4 points" in notes["density"]["note"]          # the kit's limit of 3, not the default 4
+    assert notes["density"]["label"] == "Three points, tops"
+
+
+def test_a_kit_word_list_replaces_the_engine_one():
+    crits = C.parse_criteria(KIT_CRITERIA)
+    p = C.Persona(slug="t", name="T", lenses={"jargon": 3})
+    leverage = {"title": "We leverage it"}
+    north = {"title": "Our north star is retention"}
+    assert C.critique_deck([leverage], p)[0]["notes"]                       # engine list
+    assert not C.critique_deck([leverage], p, criteria=crits)[0]["notes"]   # kit list does not ban it
+    assert C.critique_deck([north], p, criteria=crits)[0]["notes"]
+
+
+def test_kit_criteria_are_validated():
+    bad = [
+        ({"criteria": [{"lens": "vibes"}]}, "unknown lens"),
+        ({"criteria": [{"lens": "ask", "words": ["x"]}]}, "only jargon and hedge"),
+        ({"criteria": [{"lens": "ask", "max_points": 3}]}, "only density"),
+        ({"criteria": [{"kind": "banned", "id": "x", "label": "X"}]}, "needs words"),
+        ({"criteria": [{"kind": "banned", "id": "Bad Id", "label": "X", "words": ["a"]}]}, "id must"),
+        ({"criteria": [{"kind": "regex", "id": "x", "label": "X"}]}, "kind"),
+        ({"criteria": [{"lens": "ask", "x": 1, "y": 2}]}, "geometry"),
+        ({"criteria": [{"lens": "ask"}, {"lens": "ask"}]}, "twice"),
+    ]
+    for raw, msg in bad:
+        _expect_error(lambda raw=raw: C.parse_criteria(raw), msg)
+
+
+def test_a_persona_can_name_a_kit_rule_whose_kit_is_not_loaded():
+    with _saved_dir():
+        C.save_persona("Dana", "board-chair", lenses={"ask": 3, "kit:codenames": 2})
+        p = C.load_persona("dana")
+        assert p.lenses["kit:codenames"] == 2
+        C.critique_deck([WEAK], p)          # nothing to run it with: skipped, not an error
 
 
 if __name__ == "__main__":

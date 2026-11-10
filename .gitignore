@@ -45,3 +45,7 @@ kits/*
 !kits/README.md
 !kits/example-co/
 kits/*/.cache/
+
+# Reviewers people tuned and saved in the Review phase. Personal; the shipped
+# personas in coaches/*.json are what the project ships.
+coaches/saved/

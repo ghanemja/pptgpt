@@ -71,8 +71,9 @@ from deckengine.kit import KitError
 from deckengine.kit_ingest import learn as kit_learn, norms as kit_norms
 from deckengine.coach import (
     list_personas, load_persona, critique_slide, review_deck, LENSES as COACH_LENSES,
-    CoachError,
+    CoachError, save_persona, delete_persona, parse_criteria, criteria_for, criterion_dict,
 )
+from deckengine.scorecard import score_panel
 from deckengine.template import (
     save_template, load_template, list_templates, delete_template,
     template_path, to_dict as tpl_to_dict, TemplateError,
@@ -134,6 +135,22 @@ class CritiqueDeckReq(BaseModel):
     coach: str = "board-chair"
     overrides: dict | None = None   # {strictness, lenses} tuned for this run
     org: str | None = None          # judge by this company's learned norms
+
+
+class ScorecardReq(BaseModel):
+    slides: list[dict] = []
+    coaches: list[str] = ["board-chair"]   # the panel
+    audience: str = "exec"                 # the room the deck is for
+    purpose: str = ""                      # the decision it asks for (from scoping)
+    org: str | None = None                 # house norms and criteria
+
+
+class SaveCoachReq(BaseModel):
+    name: str
+    basedOn: str = "board-chair"    # the persona it was tuned from (its voice)
+    strictness: str | None = None
+    lenses: dict | None = None      # {lens or kit:<id>: weight}; absent = off
+    tagline: str = ""
 
 
 class PreviewReq(BaseModel):
@@ -256,6 +273,18 @@ def api_preview_png(req: PreviewReq):
 # A kit is a folder under kits/<slug>/. Everything below reads or writes that
 # folder and nothing else, so uploading here, pointing at a folder, and
 # dragging files in by hand all end up identical. See kits/README.md.
+
+def _kit_criteria(org: str | None):
+    """A company's own review criteria, parsed; None when it has none.
+
+    Raises CoachError/KitError on a criteria file we will not use, so the
+    person who wrote it hears what is wrong instead of a silent fallback.
+    """
+    if not org:
+        return None
+    raw = kitmod.criteria_raw(org)
+    return parse_criteria(raw) if raw is not None else None
+
 
 def _kit_norms(org: str | None):
     if not org:
@@ -431,7 +460,28 @@ def api_kit_asset(slug: str, file: str):
 
 @app.get("/api/coaches")
 def api_coaches():
-    """The critic personas this install ships."""
+    """The critic personas this install ships, then the ones people saved."""
+    return {"coaches": list_personas()}
+
+
+@app.post("/api/coaches")
+def api_save_coach(req: SaveCoachReq):
+    """Keep a tuned reviewer under a name, to pick again later."""
+    try:
+        saved = save_persona(req.name, req.basedOn, strictness=req.strictness,
+                             lenses=req.lenses, tagline=req.tagline)
+    except CoachError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return {"coach": saved, "coaches": list_personas()}
+
+
+@app.delete("/api/coaches/{slug}")
+def api_delete_coach(slug: str):
+    """Forget a saved reviewer. Shipped personas stay."""
+    try:
+        delete_persona(slug)
+    except CoachError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     return {"coaches": list_personas()}
 
 
@@ -447,13 +497,55 @@ def api_critique_slide(req: CritiqueSlideReq):
     except CoachError as e:
         return JSONResponse({"error": str(e)}, status_code=404)
     norms = _kit_norms(req.org)
-    return critique_slide(req.slide, persona, context={"next": req.next, "norms": norms})
+    try:
+        crits = {c.id: c for c in (_kit_criteria(req.org) or [])}
+    except (CoachError, KitError):
+        crits = {}                  # the review phase reports a bad file; the coach just reads
+    return critique_slide(req.slide, persona,
+                          context={"next": req.next, "norms": norms, "criteria": crits})
+
+
+@app.post("/api/scorecard")
+def api_scorecard(req: ScorecardReq):
+    """A panel of reviewers, each scoring the deck by aspect, for this room.
+
+    Cheap and deterministic, so the workspace calls it as the deck is edited
+    and shows the scores moving. A reviewer that no longer exists (a saved
+    one deleted elsewhere) is reported in `missing` rather than failing the
+    whole panel.
+    """
+    personas, missing = [], []
+    for slug in req.coaches[:8]:
+        try:
+            personas.append(load_persona(slug))
+        except CoachError:
+            missing.append(slug)
+    try:
+        crits = _kit_criteria(req.org)
+    except (CoachError, KitError):
+        crits = None
+    out = score_panel(req.slides, personas, audience=req.audience, purpose=req.purpose,
+                      norms=_kit_norms(req.org), criteria=crits)
+    out["missing"] = missing
+    return out
 
 
 @app.get("/api/coach_lenses")
-def api_coach_lenses():
-    """Every lens a persona can be tuned with, for the review's own UI."""
-    return {"lenses": sorted(COACH_LENSES)}
+def api_coach_lenses(org: str | None = None):
+    """Every lens a persona can be tuned with, for the review's own UI.
+
+    `criteria` is the same set as the configurator should show it: the
+    company kit's own criteria first, in its words, then the rest. A kit
+    whose criteria.json we will not use says why in `error`.
+    """
+    error = None
+    try:
+        kit = _kit_criteria(org)
+    except (CoachError, KitError) as e:
+        kit, error = None, f"criteria.json: {e}"
+    return {"lenses": sorted(COACH_LENSES),
+            "criteria": [criterion_dict(c) for c in criteria_for(kit)],
+            "kit": bool(kit), "error": error}
 
 
 @app.post("/api/critique_deck")
@@ -461,7 +553,10 @@ def api_critique_deck(req: CritiqueDeckReq):
     """The whole deck, read by one persona, with deck-level counts."""
     try:
         persona = load_persona(req.coach)
-        return review_deck(req.slides, persona, req.overrides, _kit_norms(req.org))
+        return review_deck(req.slides, persona, req.overrides, _kit_norms(req.org),
+                           _kit_criteria(req.org))
+    except KitError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     except CoachError as e:
         status = 404 if "no coach" in str(e) or "bad coach" in str(e) else 400
         return JSONResponse({"error": str(e)}, status_code=status)

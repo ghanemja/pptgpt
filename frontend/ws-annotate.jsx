@@ -260,7 +260,7 @@ function ReviewStage({ deck, results, onOpenSlide }) {
                     <div className="checkitem__head">
                       <span className="checkitem__num tnum">{i + 1}</span>
                       <span className="checkitem__sev">{ANN_SEV[nt.severity] || nt.severity}</span>
-                      <span className="checkitem__lens">{nt.lens}</span>
+                      <span className="checkitem__lens">{nt.label || nt.lens}</span>
                     </div>
                     <div className="checkitem__note">{nt.note}</div>
                     {nt.ask ? <div className="checkitem__ask">“{nt.ask}”</div> : null}

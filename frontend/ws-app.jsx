@@ -706,6 +706,16 @@ function App() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // The score strip stays where you left it: open while you work, if you
+  // opened it — watching it move is the point.
+  const [scoresOpen, setScoresOpenRaw] = useState(() => {
+    try { return localStorage.getItem('pptgpt-scores-open') === '1'; } catch (e) { return false; }
+  });
+  const setScoresOpen = v => setScoresOpenRaw(prev => {
+    const next = typeof v === 'function' ? v(prev) : v;
+    try { localStorage.setItem('pptgpt-scores-open', next ? '1' : '0'); } catch (e) {}
+    return next;
+  });
   const [historyFilter, setHistoryFilter] = useState('all');
   const [coachOpen, setCoachOpen] = useState(false);
   // Phase 05 is 'done' once the deck has been read by somebody.
@@ -1306,6 +1316,13 @@ function App() {
               onChange={e => setDeck(p => ({ ...p, title: e.target.value }))} spellCheck={false} />
           </div>
           <span className="topbar__spacer" />
+          <button className={`topbar__hist ${scoresOpen ? 'on' : ''}`}
+            onClick={() => setScoresOpen(o => !o)}
+            disabled={!deck.slides.length}
+            title={deck.slides.length ? 'Score the deck live, by a panel of reviewers' : 'Add a slide first'}>
+            <Ico name="check" size={15} />
+            <span>Scores</span>
+          </button>
           <button className={`topbar__hist ${coachOpen ? 'on' : ''}`}
             onClick={() => { setCoachOpen(o => !o); setHistoryOpen(false); }}
             disabled={!active}
@@ -1327,9 +1344,18 @@ function App() {
         </div>
 
         <div className="stage">
+          {scoresOpen && deck.slides.length && phase !== 'scope' && phase !== 'review' && window.ScorePanel ? (
+            <window.ScorePanel
+              slides={deck.slides} audience={audience}
+              purpose={scopeAnswers.decision || ''} orgSlug={orgSlug}
+              onClose={() => setScoresOpen(false)}
+              onPickSlide={id => { setDeck(p => ({ ...p, activeId: id })); setPhase('deck'); }}
+            />
+          ) : null}
           {phase === 'review' ? (
             hasSlides && window.ReviewPhase ? (
               <window.ReviewPhase
+                orgSlug={orgSlug} orgName={org && org.name}
                 deck={deck}
                 onOpenSlide={id => { setDeck(p => ({ ...p, activeId: id })); setPhase('deck'); }}
                 onReviewed={() => setReviewed(true)}
