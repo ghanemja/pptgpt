@@ -92,7 +92,8 @@ font, size or colour onto a run.
   new file is registered in `frontend/workspace.html` and
   `scripts/build-netlify.mjs`. `ws-kit.jsx` is kit setup, `ws-library.jsx`
   the asset library (sets `slide.image = {kit, file, label}` — a reference,
-  never a position). `window.WS_ORG` names the selected company on every API
+  never a position). `ws-thread.jsx` is Story → Threads, drawing
+  `threadmap.py`'s graph (fast read first, the model's read after). `window.WS_ORG` names the selected company on every API
   call; read it at call time, as `window.aiGenerate` must be (the backend
   wrapper replaces it after load).
 - `deckengine/preview.py` — EXACT slide previews: one spec through

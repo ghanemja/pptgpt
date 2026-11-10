@@ -69,6 +69,8 @@ def compute_thread_map(
     recommendations: Optional[list[dict]] = None,
     accepted_ids: Optional[Iterable[str]] = None,
     mode: str = "potential",  # 'potential' (all advisories) | 'accepted'
+    engine: str = "auto",     # 'auto' (LLM first) | 'fast' (skip the LLM tier)
+    sides: str = "both",      # 'both' | 'before' (skip the simulation)
 ) -> dict:
     """Return {'before': view, 'after': view}.
 
@@ -80,17 +82,22 @@ def compute_thread_map(
     recs = recommendations or []
     accepted = set(accepted_ids or [])
 
-    before = _view(outline)
+    before = _view(outline, engine=engine)
     if mode == "accepted":
         applicable = [r for r in recs if r.get("id") in accepted]
     else:
         applicable = list(recs)
 
-    after_outline = _apply_advisories(outline, applicable)
-    after = _view(after_outline)
-
-    # Carry across the diff so the UI can highlight what changed
-    diff = _diff_views(before, after)
+    # The simulated side costs as much as the real one — on the LLM tier that
+    # is a second model call. A caller that only wants to read the deck as it
+    # stands asks for `sides='before'` and pays once.
+    if sides == "before":
+        after, diff, applicable = None, None, []
+    else:
+        after_outline = _apply_advisories(outline, applicable)
+        after = _view(after_outline, engine=engine)
+        # Carry across the diff so the UI can highlight what changed
+        diff = _diff_views(before, after)
 
     return {
         "before": before,
@@ -103,7 +110,7 @@ def compute_thread_map(
 
 # ---- view (graph + ribbons) ---------------------------------------------
 
-def _view(outline: list[dict]) -> dict:
+def _view(outline: list[dict], *, engine: str = "auto") -> dict:
     """Compute one graph + ribbon view for an outline.
 
     Cascade: narrative (LLM) > semantic (embeddings) > lexical (tokens).
@@ -118,8 +125,10 @@ def _view(outline: list[dict]) -> dict:
             "engine": "empty",
         }
 
-    # Tier 1: real model — reads the deck and reasons about narrative
-    if narrative.available():
+    # Tier 1: real model — reads the deck and reasons about narrative. It is
+    # the best read and by far the slowest (a local 4B model takes tens of
+    # seconds), so an interactive caller can ask to start below it.
+    if engine != "fast" and narrative.available():
         narr = narrative.analyze_narrative(outline)
         if narr is not None:
             view = narrative.to_threadmap_view(narr, outline)

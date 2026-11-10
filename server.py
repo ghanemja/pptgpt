@@ -198,6 +198,8 @@ class ThreadMapReq(BaseModel):
     recommendations: list[dict] | None = None
     acceptedIds: list[str] | None = None
     mode: str = "potential"     # 'potential' (all advisories) | 'accepted'
+    engine: str = "auto"        # 'auto' (LLM first) | 'fast' (embeddings first)
+    sides: str = "both"         # 'both' | 'before' (skip the simulated side)
 
 
 class NarrativeReq(BaseModel):
@@ -823,6 +825,8 @@ def api_thread_map(req: ThreadMapReq):
         recommendations=req.recommendations,
         accepted_ids=req.acceptedIds,
         mode=req.mode or "potential",
+        engine=req.engine or "auto",
+        sides=req.sides or "both",
     )
 
 

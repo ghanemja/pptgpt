@@ -141,6 +141,67 @@ def test_deterministic():
     assert a["before"]["ribbons"]          == b["before"]["ribbons"]
 
 
+
+def _counting_model():
+    """A model that is 'available' and records every call it gets. It fails
+    each call, so the cascade falls through and nothing is cached — the
+    count is exactly how many times the slow tier was asked."""
+    from deckengine import narrative
+    calls = []
+
+    def fn(prompt):
+        calls.append(prompt)
+        raise RuntimeError("stub model: refuse so the cascade falls through")
+
+    narrative.reset_cache()
+    narrative.set_llm(fn)
+    return narrative, calls
+
+
+def test_fast_engine_never_asks_the_model():
+    narrative, calls = _counting_model()
+    try:
+        out = compute_thread_map(_messy_outline(), engine="fast")
+        assert calls == [], f"fast read called the model {len(calls)}x"
+        assert out["before"]["engine"] in ("semantic", "lexical")
+        assert out["after"]["engine"] in ("semantic", "lexical")
+    finally:
+        narrative.set_llm(None)
+
+
+def test_auto_engine_asks_the_model_first():
+    narrative, calls = _counting_model()
+    try:
+        compute_thread_map(_messy_outline())
+        assert len(calls) == 2, f"auto/both should read both sides, got {len(calls)}"
+    finally:
+        narrative.set_llm(None)
+
+
+def test_before_only_pays_for_one_read_and_simulates_nothing():
+    narrative, calls = _counting_model()
+    try:
+        recs = [{"id": "r1", "action": "merge", "slide_ids": ["s1", "s2"]}]
+        out = compute_thread_map(_messy_outline(), recommendations=recs, sides="before")
+        assert len(calls) == 1, f"sides='before' should be one model read, got {len(calls)}"
+        assert out["after"] is None and out["diff"] is None
+        assert out["applied"] == []
+        assert out["before"]["graph"]["nodes"], "the deck as it stands is still read"
+    finally:
+        narrative.set_llm(None)
+
+
+def test_fast_and_auto_agree_when_no_model_is_reachable():
+    """Without a model the two engines are the same read — so the UI's fast
+    first paint is never contradicted by the upgrade."""
+    from deckengine import narrative
+    narrative.set_llm(None)
+    if narrative.available():
+        return                      # a real model is configured here; nothing to compare
+    a = compute_thread_map(_messy_outline(), engine="fast", sides="before")["before"]
+    b = compute_thread_map(_messy_outline(), sides="before")["before"]
+    assert a["graph"]["edges"] == b["graph"]["edges"] and a["engine"] == b["engine"]
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     passed = 0

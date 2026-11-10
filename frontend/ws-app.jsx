@@ -12,6 +12,7 @@ const { useState, useEffect, useRef, useCallback, useLayoutEffect } = React;
 // answers, which is after this line runs. Read it at call time instead.
 const { SLIDE_W, SLIDE_H, PALETTES, AUDIENCES, FEATURES, FEATURE_ICON, Ico, SlideCard, uid, Storyboard } = window;
 const { PHASES, PhaseRail, ScopePhase, VisualsPhase, PhaseEmpty, useOrg, briefFrom, scopeProgress, TOOL_PHASE } = window;
+const { ThreadGraph } = window;
 
 const LS_KEY = (typeof window !== 'undefined' && window.WS_LS_KEY) || 'pptgpt-ws-v2';
 const FEATURE_ORDER = ['create', 'data', 'refine', 'condense'];
@@ -655,6 +656,7 @@ function App() {
   // The applied template: brand + constraints for this deck. Persisted with
   // the deck state so a reload keeps drawing onto the same master.
   const [template, setTemplate] = useState(saved && saved.template ? saved.template : null);
+  const [storyView, setStoryView] = useState('board');   // 'board' | 'threads'
 
   const deck = decks.find(d => d.id === deckId) || decks[0];
   function setDeck(updater) {
@@ -1346,6 +1348,18 @@ function App() {
               cta="Start from the brief" onCta={() => setPhase('scope')}
             />
           ) : hasDeck && phase === 'story' && !loading ? (
+            <div className="storywrap">
+              <div className="storytabs">
+                <button className={`storytab ${storyView === 'board' ? 'on' : ''}`} onClick={() => setStoryView('board')}>Board</button>
+                <button className={`storytab ${storyView === 'threads' ? 'on' : ''}`} onClick={() => setStoryView('threads')}>Threads</button>
+              </div>
+              {storyView === 'threads' ? (
+                <div className="stage__scroll stage__scroll--phase">
+                  <div className="phasewrap">
+                    <ThreadGraph deck={deck} onPick={id => { setDeck(p => ({ ...p, activeId: id })); setStoryView('board'); }} />
+                  </div>
+                </div>
+              ) : (
             <Storyboard
               deck={deck} feature={feature}
               onPick={id => setDeck(p => ({ ...p, activeId: id }))}
@@ -1358,6 +1372,8 @@ function App() {
               advisories={advisories}
               onAccept={acceptAdvisory} onDismiss={dismissAdvisory}
             />
+              )}
+            </div>
           ) : (
             <Work
               deck={deck} loading={loading} feature={feature}

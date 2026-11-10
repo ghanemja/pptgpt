@@ -94,8 +94,20 @@ Bugs found and fixed on the way:
   (`test_condense_non_list_response_returns_none`), so Scope → storyboard
   falls back to the canned writer with that model. Either accept a single
   object as a one-slide spine, or tighten the condense prompt.
-- `stash@{0}` "thread graph + fast thread_map options (WIP)" — finish or drop
-  (owner's call).
+- Under the project `.venv` (which has sentence-transformers) three
+  `tests/test_threadmap.py` tests fail — they assume the word-overlap path.
+  Pre-existing at 7db7e84; the suite is green under a Python without it.
+
+## Thread graph (was `stash@{0}`, finished)
+
+Story has two tabs: **Board** and **Threads**. `frontend/ws-thread.jsx`
+draws `threadmap.py`'s graph — beats in order, links arced above, orphans
+dashed, hard cuts marked. It reads twice: `engine: 'fast'` (embeddings or
+shared words, paints at once), then the model in the background, which
+replaces it only if it says something. Both ask `sides: 'before'`, so
+nothing pays for the simulated "after" side. Fixed on the way: orphan
+reasons are a dict (never shown before), and edge widths are normalised
+per deck (counts drew 25px strokes).
 
 ## Decisions already made — don't relitigate
 - The folder is the source of truth; the UI only writes into it.
