@@ -129,7 +129,7 @@ scripts/start.sh
 It checks each of the above, tells you what is missing, and starts the server.
 Then open:
 
-**<http://127.0.0.1:8000/workspace>**
+**<http://127.0.0.1:8000/>**
 
 Leave the terminal open while you work; **Ctrl+C** stops pptgpt.
 
@@ -267,7 +267,7 @@ exist at the same path, or be pointed to again.
 ## 7. Check it works
 
 1. `scripts/start.sh` shows ✓ for Python, packages, Ollama and LibreOffice.
-2. Open <http://127.0.0.1:8000/workspace>. In **Scope → Organization** choose
+2. Open <http://127.0.0.1:8000/>. In **Scope → Organization** choose
    **Example Co** (the bundled example kit).
 3. Its template applies by itself ("Applied the example-co-template
    template").

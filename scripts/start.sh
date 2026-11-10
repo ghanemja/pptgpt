@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Start pptgpt on this machine.
 #
-#   scripts/start.sh            # http://127.0.0.1:8000/workspace
+#   scripts/start.sh            # http://127.0.0.1:8000/
 #   PORT=8010 scripts/start.sh  # another port
 #
 # Binds to 127.0.0.1 ONLY. pptgpt has no login, so this is what keeps it
@@ -99,7 +99,7 @@ finally:
 EOF
 
 echo
-echo "  Open  http://$HOST:$PORT/workspace"
+echo "  Open  http://$HOST:$PORT/"
 echo "  Kits  $ROOT/kits   (guide: kits/README.md)"
 echo "  Stop  Ctrl+C"
 echo

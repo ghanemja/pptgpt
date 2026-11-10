@@ -6,29 +6,55 @@
   # directory first.
   command = "node scripts/build-netlify.mjs && node scripts/gen-config.mjs"
 
-# Pretty URLs are on by default — Netlify will serve /workbench as
-# /workbench.html, /storyboard as /storyboard.html, etc.
-#
-# /setup was a thin warmup page that duplicated workbench step 01
-# without its upload + paste affordances. Redirected away so the
-# canonical 5-phase app at /workbench is the single entry point.
+# One app: the workspace at "/". The old pages were deleted; their URLs
+# redirect there so bookmarks still land somewhere useful.
+[[redirects]]
+  from = "/landing"
+  to = "/"
+  status = 301
+[[redirects]]
+  from = "/landing.html"
+  to = "/"
+  status = 301
 [[redirects]]
   from = "/setup"
-  to = "/workbench"
+  to = "/"
   status = 301
 [[redirects]]
   from = "/setup.html"
-  to = "/workbench"
+  to = "/"
   status = 301
-# /storyboard was a different demo with different data; redirect to the
-# canonical step 03 inside /workbench so there's only one storyboard.
 [[redirects]]
   from = "/storyboard"
-  to = "/workbench"
+  to = "/"
   status = 301
 [[redirects]]
   from = "/storyboard.html"
-  to = "/workbench"
+  to = "/"
+  status = 301
+[[redirects]]
+  from = "/workbench"
+  to = "/"
+  status = 301
+[[redirects]]
+  from = "/workbench.html"
+  to = "/"
+  status = 301
+[[redirects]]
+  from = "/workbench-v1"
+  to = "/"
+  status = 301
+[[redirects]]
+  from = "/workbench-v1.html"
+  to = "/"
+  status = 301
+[[redirects]]
+  from = "/canvas"
+  to = "/"
+  status = 301
+[[redirects]]
+  from = "/canvas.html"
+  to = "/"
   status = 301
 
 [[headers]]

@@ -208,9 +208,10 @@ to openable `.pptx`. The `/api/design` endpoint exercises the §0 path
 (parse_to_ir → ambiguity scorer → layout.resolve → render). It is the only
 server-side slide pipeline: the old `synth.py` direct-SlideSpec path (a
 Python port of `frontend/mockBackend.js` with its own hard-coded pixel
-geometry, served as `/api/backend`) was removed. The legacy `/canvas` and
-`/workbench-v1` pages and the `/workbench` page get their per-mode
-directions from `frontend/mockBackend.js` in the browser.
+geometry, served as `/api/backend`) was removed. The old pages (landing,
+setup, storyboard, `/workbench`, `/workbench-v1`, `/canvas`) and
+`mockBackend.js` are deleted too: the workspace is the only page, served at
+`/`, and the old URLs redirect there. Do not bring a second page back.
 
 Done in v1:
 1. All five archetype resolvers (+ R2.5 invariant tests, 24/24 green).

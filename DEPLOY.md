@@ -24,5 +24,5 @@ To preview exactly what Netlify will publish:
 ```bash
 node scripts/build-netlify.mjs && node scripts/gen-config.mjs
 python3 -m http.server 8005 --directory netlify-dist
-# open http://localhost:8005/workspace.html
+# open http://localhost:8005/
 ```

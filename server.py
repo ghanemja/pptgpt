@@ -1061,12 +1061,9 @@ def health():
 
 # ---- static frontend -----------------------------------------------------
 #
-# Layout:
-#   /             -> the landing page (frontend/landing.html)
-#   /workbench    -> the five-phase workbench (frontend/workbench-v2.html)
-#   /workspace    -> the unified workspace (frontend/workspace.html)
-#   /canvas       -> the original single-slide canvas (kept for back-compat)
-#   /workbench-v1 -> the previous workbench (kept for diff)
+# There is one page: the workspace (frontend/workspace.html), served at "/".
+# The old pages (landing, setup, storyboard, workbench, workbench-v1, canvas)
+# are deleted; their URLs redirect to "/" so old bookmarks land in the app.
 #
 # Every page and asset lives flat in `frontend/`, so a page's relative
 # `<script src="...">` resolves through the catch-all below.
@@ -1103,53 +1100,22 @@ def _serve_html(relpath: str) -> HTMLResponse:
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    """v3 landing (scrollytelling marketing page)."""
-    return _serve_html("landing.html")
-
-
-@app.get("/setup", response_class=HTMLResponse)
-@app.get("/setup/", response_class=HTMLResponse)
-def setup():
-    """Step 02 · pick the goal. Audience + mode + stakes picker."""
-    return _serve_html("setup.html")
-
-
-@app.get("/storyboard")
-@app.get("/storyboard/")
-def storyboard_redirect():
-    """Legacy /storyboard kept duplicating the workbench's step 03 with
-    different demo data, which confused users about which one was real.
-    There is now ONE storyboard — phase 3 of /workbench."""
-    return RedirectResponse(url="/workbench", status_code=308)
-
-
-@app.get("/workbench", response_class=HTMLResponse)
-@app.get("/workbench/", response_class=HTMLResponse)
-def workbench():
-    """The new three-panel workbench."""
-    return _serve_html("workbench-v2.html")
-
-
-@app.get("/canvas", response_class=HTMLResponse)
-@app.get("/canvas/", response_class=HTMLResponse)
-def canvas():
-    """Back-compat: the original single-slide canvas (v1)."""
-    return _serve_html("index.html")
-
-
-@app.get("/workbench-v1", response_class=HTMLResponse)
-@app.get("/workbench-v1/", response_class=HTMLResponse)
-def workbench_v1():
-    """Back-compat: the workbench we built earlier today, kept for diff."""
-    return _serve_html("workbench.html")
-
-
-@app.get("/workspace", response_class=HTMLResponse)
-@app.get("/workspace/", response_class=HTMLResponse)
-def workspace():
-    """The unified Create/Data/Refine/Condense workspace, wired to a real
-    generation backend via workspace-backend.js."""
+    """The app: the unified workspace."""
     return _serve_html("workspace.html")
+
+
+_OLD_PAGES = ("workspace", "workbench", "workbench-v1", "canvas", "setup",
+              "storyboard", "landing")
+
+
+def _to_root():
+    return RedirectResponse(url="/", status_code=308)
+
+
+for _page in _OLD_PAGES:
+    for _suffix in ("", "/", ".html"):
+        app.add_api_route(f"/{_page}{_suffix}", _to_root, methods=["GET"],
+                          include_in_schema=False)
 
 
 # Asset mounts + catch-all

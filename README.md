@@ -72,7 +72,7 @@ Full install for a work machine: [SETUP.md](SETUP.md). Day to day:
 
 ```bash
 scripts/start.sh                               # checks deps, serves 127.0.0.1:8000
-# open http://127.0.0.1:8000/workspace
+# open http://127.0.0.1:8000/
 ```
 
 Or by hand:
@@ -80,20 +80,8 @@ Or by hand:
 ```bash
 pip install -r requirements.txt
 python -m uvicorn server:app --reload          # offline API on :8000
-# open http://localhost:8000/workspace — the unified workspace
-# open http://localhost:8000/workbench — five-phase workbench
-# open http://localhost:8000/          — landing page
+# open http://localhost:8000/ — the workspace (the only page)
 ```
-
-## Modes (the workbench knows five)
-
-| Mode | What you paste | What you get |
-|---|---|---|
-| `draft` | rough notes | one styled slide, three directions |
-| `refine` | what you have + what feels off | reworked single slide |
-| `condense` | full deck, `---` separators | short deck, source-anchored |
-| `visualize` | a math concept | 3b1b-style explainer with a tunable plot |
-| `synthesize` | a table or k:v pairs | chart slide with the right hero |
 
 ## API
 
@@ -118,14 +106,12 @@ POST /api/plot            { block, params } → PNG (server-side rasterized plot
 
 See `frontend/types.md` for the SlideSpec contract.
 
-There is one server-side slide pipeline: the IR engine. The workbench's
-per-mode directions (draft/refine/condense/visualize/synthesize) still come
-from `frontend/mockBackend.js`, the in-browser demo backend the static
-Netlify deploy runs on. A Python port of it (`deckengine/synth.py`, served
-as `/api/backend`) used to run beside the engine; it was removed so
-geometry has one owner on the server.
+There is one server-side slide pipeline: the IR engine, and one page: the
+workspace at `/`. The old landing, setup, storyboard, workbench and canvas
+pages (and `mockBackend.js`, their in-browser demo backend) were deleted;
+their URLs redirect to `/`.
 
-All pages and assets live flat in `frontend/` — one copy of each file.
+All assets live flat in `frontend/` — one copy of each file.
 `scripts/build-netlify.mjs` assembles the static deploy from there.
 
 ## The UI contract (for the Claude Design canvas)

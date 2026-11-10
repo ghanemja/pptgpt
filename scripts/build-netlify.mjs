@@ -23,17 +23,6 @@ const out = join(root, "netlify-dist");
 
 // Files copied through untouched, as `source (relative to frontend/) -> dist name`.
 const ASSETS = [
-  // landing, setup, storyboard, workbench
-  ["landing.css", "landing.css"],
-  ["landing.jsx", "landing.jsx"],
-  ["setup.css", "setup.css"],
-  ["setup.jsx", "setup.jsx"],
-  ["storyboard-v2.css", "storyboard-v2.css"],
-  ["storyboard-v2.jsx", "storyboard-v2.jsx"],
-  ["workbench-v2.css", "workbench-v2.css"],
-  ["workbench-v2.jsx", "workbench-v2.jsx"],
-  ["mockBackend.js", "mockBackend.js"],
-  ["previewRenderer.jsx", "previewRenderer.jsx"],
   ["samples", "samples"],
   ["vendor", "vendor"],
 
@@ -60,15 +49,9 @@ const ASSETS = [
 
 // Pages, as `source -> dist name`. Each is rewritten by transformHtml().
 const PAGES = [
-  // The workspace IS the product, so it owns "/". The marketing landing page
-  // keeps its own URL at /landing for linking, but no longer gates the app
-  // behind a splash screen.
+  // One app. The workspace owns "/"; /workspace.html stays for old links.
   ["workspace.html", "index.html"],
   ["workspace.html", "workspace.html"],
-  ["landing.html", "landing.html"],
-  ["setup.html", "setup.html"],
-  ["storyboard-v2.html", "storyboard.html"],
-  ["workbench-v2.html", "workbench.html"],
 ];
 
 /** Rewrite a source page for the flat dist. */

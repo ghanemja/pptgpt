@@ -61,9 +61,8 @@ LIBS: list[Lib] = [
         "jszip-3.10.1/jszip.min.js", "MIT OR GPL-3.0"),
 ]
 
-# The union of every family and weight the stylesheets imported from Google
-# Fonts (landing.css, styles.css, storyboard-v2.css, workbench.css,
-# workbench-v2.css, workspace.css). One request, one fonts.css.
+# Every family and weight the stylesheets imported from Google Fonts (the old
+# pages are deleted; workspace.css is the one left). One request, one fonts.css.
 FONT_FAMILIES = [
     "IBM+Plex+Sans:wght@400;500;600;700",
     "IBM+Plex+Mono:wght@400;500;600",
