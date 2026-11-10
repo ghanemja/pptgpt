@@ -152,13 +152,13 @@ def available() -> bool:
     return False
 
 
-def _llm_call_anthropic(prompt: str, system: str = "") -> str:
+def _llm_call_anthropic(prompt: str, system: str = "", max_tokens: Optional[int] = None) -> str:
     """Anthropic API. Requires anthropic SDK + ANTHROPIC_API_KEY."""
     import anthropic
     client = anthropic.Anthropic(api_key=_API_KEY)
     resp = client.messages.create(
         model=_MODEL_NAME,
-        max_tokens=2048,
+        max_tokens=max_tokens or 2048,
         temperature=0.2,
         system=system or _SYSTEM_PROMPT,
         messages=[{"role": "user", "content": prompt}],
@@ -173,11 +173,16 @@ def _llm_call_anthropic(prompt: str, system: str = "") -> str:
     return "\n".join(parts)
 
 
-def _llm_call_ollama(prompt: str, system: str = "") -> str:
+def _llm_call_ollama(prompt: str, system: str = "", max_tokens: Optional[int] = None) -> str:
     """Local Ollama. Hits the /api/chat HTTP endpoint — no SDK dependency.
 
     The prompt is wrapped with the same system message used for Anthropic so
     Gemma sees identical instructions. Output format is identical.
+
+    `max_tokens` caps generation (num_predict). A caller that knows its
+    output is short should pass it: in JSON mode a small model that closes a
+    string with a curly quote keeps the string open and rambles to the cap,
+    and at 2048 tokens that outlasts the 180 s timeout.
     """
     import json as _json
     import urllib.request
@@ -186,7 +191,7 @@ def _llm_call_ollama(prompt: str, system: str = "") -> str:
         "stream": False,
         "options": {
             "temperature": 0.2,
-            "num_predict": 2048,
+            "num_predict": max_tokens or 2048,
         },
         "messages": [
             {"role": "system", "content": system or _SYSTEM_PROMPT},
@@ -295,7 +300,7 @@ def last_used_backend() -> str:
     return _last_used
 
 
-def _llm_call_default(prompt: str, system: str = "") -> str:
+def _llm_call_default(prompt: str, system: str = "", max_tokens: Optional[int] = None) -> str:
     """Try each backend in the chain. First one that returns text wins. The
     last exception is re-raised only if every backend fails."""
     global _last_used
@@ -303,11 +308,11 @@ def _llm_call_default(prompt: str, system: str = "") -> str:
     for b in _backend_chain():
         try:
             if b == "ollama":
-                text = _llm_call_ollama(prompt, system)
+                text = _llm_call_ollama(prompt, system, max_tokens)
             elif b == "gemma":
                 text = _llm_call_gemma(prompt, system)
             else:
-                text = _llm_call_anthropic(prompt, system)
+                text = _llm_call_anthropic(prompt, system, max_tokens)
             if text and text.strip():
                 _last_used = b
                 return text
@@ -323,20 +328,22 @@ def _llm_call_default(prompt: str, system: str = "") -> str:
     raise RuntimeError("no narrative backend produced output")
 
 
-def _llm_call(prompt: str, system: str = "") -> str:
+def _llm_call(prompt: str, system: str = "", max_tokens: Optional[int] = None) -> str:
     if _llm_override is not None:
         global _last_used
         _last_used = "override"
         return _llm_override(prompt)
-    return _llm_call_default(prompt, system)
+    return _llm_call_default(prompt, system, max_tokens)
 
 
-def call(prompt: str, system: str) -> str:
+def call(prompt: str, system: str, max_tokens: Optional[int] = None) -> str:
     """Public swap point for callers outside narrative analysis (e.g. the
     workspace slide generator). Same backend chain, override, and
     caching-free semantics as `_llm_call` — just with an explicit system
-    prompt instead of the narrative-analysis one."""
-    return _llm_call(prompt, system)
+    prompt instead of the narrative-analysis one. `max_tokens` caps the
+    reply on the Ollama and Anthropic backends (the OpenAI-compatible one
+    keeps its own budget, which a reasoning model spends thinking)."""
+    return _llm_call(prompt, system, max_tokens)
 
 
 def backend_info() -> dict:

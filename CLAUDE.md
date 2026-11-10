@@ -100,7 +100,12 @@ font, size or colour onto a run.
   derived from the humanplease writing skill (pinned copy in
   `deckengine/vendor/humanplease/`, refreshed only by
   `scripts/sync_humanplease.py`, never fetched at runtime). `workspace_gen`
-  appends it to every feature's prompt after the house style. Content rules
+  appends it to every feature's prompt after the house style and before
+  the output contract. Two forms: full for larger models, a short one for
+  small local models (`voice_form`, by model size; `DECKENGINE_VOICE`
+  overrides). Schema slots are `""` with each field's rule on its own
+  line, never inside the JSON (a 4B model copied the old in-slot rules
+  onto slides). Content rules
   only; `tests/test_workspace_gen.py` keeps it short, geometry-free and in
   step with the vendored commit. `scripts/eval_voice.py` A/Bs it.
 - `deckengine/kit_ingest.py` — `learn(slug)`: MEASURES the example decks

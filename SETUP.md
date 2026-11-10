@@ -125,6 +125,7 @@ the next section.
 |---|---|---|
 | `PORT` | `8000` | Port to serve on |
 | `DECKENGINE_NARRATIVE_BACKEND` | `ollama` | Which model writes the slides: `ollama`, `anthropic` or `openai` |
+| `DECKENGINE_VOICE` | picked by model | Slide-voice rules sent with each prompt: `full`, `short` (the default for local models of 12B or less) or `off` |
 | `SKIP_MODEL_CHECK` | unset | `1` starts even when the model check fails |
 
 `start.sh` always binds to **127.0.0.1**, so only this computer can open
@@ -273,6 +274,7 @@ Every line should end in `N/N passed`. The JavaScript test needs Node 18+.
 |---|---|
 | `start.sh: Permission denied` | `chmod +x scripts/start.sh` |
 | "Ollama not reachable" | Open the Ollama app or run `ollama serve`; check `curl http://127.0.0.1:11434/api/tags` |
+| `[narrative] anthropic backend failed … No module named 'anthropic'` after an Ollama timeout | With `ANTHROPIC_API_KEY` set, a failed Ollama call falls back to Anthropic, which needs the SDK. `requirements.txt` lists it, but a venv built before that (or with the line removed) lacks it: `.venv/bin/pip install anthropic`, or unset `ANTHROPIC_API_KEY` to stay fully local. Frequent Ollama timeouts themselves usually mean the machine is busy or the model is too big for it |
 | Slides all say the same canned things | The model isn't answering. Check the terminal for `[narrative] … backend failed`, and run `.venv/bin/python scripts/check_model.py` |
 | `start.sh` stops at the model check | Read the ✗ line: it names the setting to fix in `.env`. See [Use your own model](#use-your-own-model) |
 | "Port 8000 is in use" | `PORT=8010 scripts/start.sh` |

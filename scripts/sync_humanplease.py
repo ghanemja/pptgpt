@@ -83,7 +83,8 @@ def main() -> int:
     print(f"vendored humanplease @ {sha[:7]} ({subject}) -> {os.path.relpath(DEST, ROOT)}")
     if prev and prev != sha:
         print(f"\nThe pinned commit changed ({prev[:7]} -> {sha[:7]}). Re-derive "
-              "deckengine/humanplease_slides.md from the new skills and update its header.")
+              "both forms in deckengine/humanplease_slides.md (full, and the short one\n"
+              "for small models) from the new skills and update its header.")
     return 0
 
 

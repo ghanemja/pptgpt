@@ -151,6 +151,7 @@ _CURRENT = {"title": "Q3 results", "metric": "+14%", "bullets": ["a", "b"], "tak
 
 
 def _prompts(**kw):
+    kw.setdefault("voice", "full")      # independent of this machine's backend env
     return {
         f: workspace_gen._build_prompt(f, "We beat Q3 plan by 14%", "exec",
                                        _CURRENT if f == "refine" else None, [], **kw)
@@ -179,7 +180,12 @@ def test_house_style_also_reaches_refine_and_comes_first():
 
 def test_voice_block_is_content_only():
     import re
-    vb = workspace_gen.voice_block()
+    for form in ("full", "short"):
+        _check_content_only(workspace_gen.voice_block(form))
+
+
+def _check_content_only(vb):
+    import re
     assert len(vb) <= 1500, f"voice block is {len(vb)} chars; small models need it short"
     lowered = vb.lower()
     for word in ("colour", "color", "font", "pixel", "inch", "position", "width",
@@ -263,6 +269,104 @@ def test_standup_tone_does_not_ask_for_invented_owners():
         p = workspace_gen._build_prompt(f, "Outage on Tuesday", "standup",
                                         _CURRENT if f == "refine" else None, [])
         assert tone in p, f"standup tone missing from the {f} prompt"
+
+# ---- small-model reliability ---------------------------------------------
+
+def test_short_voice_is_short_and_keeps_the_rules_that_matter():
+    full, short = workspace_gen.voice_block("full"), workspace_gen.voice_block("short")
+    assert short and full and short not in full and full not in short
+    assert "short form" not in full and "<!--" not in short, "the form marker leaked"
+    assert len(short) <= 0.75 * len(full), f"short form is {len(short)} chars vs {len(full)}"
+    low = short.lower()
+    assert "never add a number" in low and "null" in low          # no invented facts
+    for w in ("delve", "leverage", "seamless", "transformative"):
+        assert w in low
+    assert "em dash" in low and "exclamation" in low
+    # nothing a small model could copy onto a slide as if it were content
+    assert "[" not in short, "short form carries an example placeholder"
+    assert "out loud" not in low
+
+
+def test_voice_form_is_picked_by_model_size():
+    ms = workspace_gen.model_size_b
+    assert ms("gemma3:4b") == 4 and ms("gemma4:e4b") == 4 and ms("gemma4:e2b") == 2
+    assert ms("gemma4:26b") == 26 and ms("qwen2.5:14b-instruct") == 14
+    assert ms("llama3.1:8b") == 8 and ms("gemma4") is None and ms("claude-sonnet-4-6") is None
+    orig, env = narrative.backend_info, os.environ.pop("DECKENGINE_VOICE", None)
+    try:
+        for info, want in [({"backend": "ollama", "model": "gemma3:4b"}, "short"),
+                           ({"backend": "ollama", "model": "gemma4"}, "short"),
+                           ({"backend": "ollama", "model": "gemma4:31b"}, "full"),
+                           ({"backend": "openai-compatible", "model": "gemma"}, "short"),
+                           ({"backend": "anthropic", "model": "claude-sonnet-4-6"}, "full")]:
+            narrative.backend_info = lambda info=info: info
+            assert workspace_gen.voice_form(True) == want, (info, want)
+        assert workspace_gen.voice_form(False) == "off"
+        assert workspace_gen.voice_form("short") == "short"
+        os.environ["DECKENGINE_VOICE"] = "off"
+        assert workspace_gen.voice_form(True) == "off"
+        p = workspace_gen._build_prompt("create", "x", "exec", None, [], voice=True)
+        assert "How to write the text" not in p
+    finally:
+        narrative.backend_info = orig
+        os.environ.pop("DECKENGINE_VOICE", None)
+        if env is not None:
+            os.environ["DECKENGINE_VOICE"] = env
+
+
+def test_templates_have_no_copyable_placeholder_text():
+    # gemma3:4b copied "ALL CAPS context <=5 words" onto a slide's eyebrow.
+    # Every string slot in a template is now "", and the field rules sit
+    # outside the JSON on their own lines.
+    import re
+    for voice in ("full", "short", False):
+        for f, p in _prompts(voice=voice).items():
+            if f == "refine":
+                assert "one of text, chart, plot" in p, "refine must keep a chart slide a chart"
+            templates = re.findall(r'^\{"kind".*\}$', p, re.M)
+            assert templates, f"{f}: no JSON template line"
+            for t in templates:
+                slots = re.findall(r'"(eyebrow|title|metric|metricSub|takeaway)":"([^"]*)"', t)
+                assert slots and all(v == "" for _, v in slots), f"{f}: {slots}"
+                bullets = re.search(r'"bullets":\[([^\]]*)\]', t)
+                if bullets:
+                    assert set(re.findall(r'"([^"]*)"', bullets.group(1))) <= {""}
+                assert "ALL CAPS" not in t and "<=" not in t, f"{f}: rule text inside the JSON"
+            assert "ALL CAPS" not in p, f"{f}: casing rule fights the voice; SlideCard uppercases"
+            # the output contract comes after the voice, right before the input
+            if voice:
+                assert p.index("How to write the text") < p.index(templates[0]), f
+
+
+def test_curly_quote_close_is_repaired_not_left_to_run_away():
+    # Reproduced on gemma3:4b: the takeaway closed with \u201d, JSON mode kept
+    # the string open, and the model rambled to its token cap.
+    runaway = ('{"kind":"text","title":"Checkout was down 47 minutes","bullets":["Redis pool set to 0"],'
+               '"takeaway":"Validate config in CI.\u201d} H/T: [author] \u2013 Add [add Q3 revenue] to the')
+    narrative.set_llm(_stub(runaway))
+    r = workspace_gen.generate_slide(feature="create", prompt="x", audience="exec",
+                                     current=None, palette="warm", file_names=[])
+    assert r and r["takeaway"] == "Validate config in CI." and r["bullets"] == ["Redis pool set to 0"]
+    # ...also when the model eventually closes a straight quote far downstream
+    late = '{"title":"x","takeaway":"Fix it.\u201d} rambling on \" and on"}'
+    assert workspace_gen._extract_json_value(late) == {"title": "x", "takeaway": "Fix it."}
+    # a real quotation inside a string is left alone
+    ok = '{"title":"They said \u201cnot yet\u201d, then left"}'
+    assert workspace_gen._extract_json_value(ok)["title"] == "They said \u201cnot yet\u201d, then left"
+
+
+def test_reply_is_capped_so_a_runaway_cannot_hit_the_timeout():
+    seen = {}
+    orig = narrative.call
+    narrative.call = lambda p, s, max_tokens=None: seen.setdefault("mt", max_tokens) and json.dumps(CREATE_RESPONSE)
+    try:
+        orig_av, narrative.available = narrative.available, (lambda: True)
+        workspace_gen.generate_slide(feature="create", prompt="x", audience="exec",
+                                     current=None, palette="warm", file_names=[])
+    finally:
+        narrative.call, narrative.available = orig, orig_av
+    assert seen["mt"] and seen["mt"] <= 800
+
 
 if __name__ == "__main__":
     import inspect
