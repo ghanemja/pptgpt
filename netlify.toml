@@ -1,9 +1,9 @@
 [build]
   publish = "netlify-dist"
   # netlify-dist/ is generated, not committed. build-netlify.mjs assembles it
-  # from frontend/; gen-config.mjs then injects BU_API_BASE (this project's HF
-  # Space URL) into netlify-dist/config.js. Order matters — the build wipes the
-  # directory first. See PORTFOLIO_ENV.md in brain-university for env-var setup.
+  # from frontend/; gen-config.mjs then writes netlify-dist/config.js
+  # (BU_API_BASE, empty unless set). Order matters — the build wipes the
+  # directory first.
   command = "node scripts/build-netlify.mjs && node scripts/gen-config.mjs"
 
 # Pretty URLs are on by default — Netlify will serve /workbench as

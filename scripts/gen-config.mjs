@@ -5,7 +5,7 @@
 // Netlify runs this via netlify.toml's build command. Locally it's a no-op
 // unless you set BU_API_BASE.
 //
-//   BU_API_BASE=https://jang0294-pptgpt.hf.space node scripts/gen-config.mjs
+//   BU_API_BASE=https://your-backend.example node scripts/gen-config.mjs
 
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

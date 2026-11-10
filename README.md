@@ -1,13 +1,3 @@
----
-title: pptgpt
-emoji: 🖼️
-colorFrom: blue
-colorTo: purple
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # DeckEngine
 
 A local-first, open-source slide generator built on one idea:
@@ -73,7 +63,7 @@ python tests/test_layout.py      # 24/24 — every resolver
 python tests/test_ingest.py      # 6/6   — .pptx → IR safety
 python tests/test_condense.py    # 8/8   — no fabrication
 python tests/test_ambiguity.py   # 10/10 — scorer + tie detection
-BU_AUTH_DISABLED=1 python tests/smoke_e2e.py  # every endpoint
+python tests/smoke_e2e.py  # every endpoint
 ```
 
 ## Run

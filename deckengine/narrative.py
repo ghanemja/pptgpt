@@ -106,12 +106,10 @@ _MODEL_NAME  = os.environ.get("DECKENGINE_NARRATIVE_MODEL", "claude-sonnet-4-6")
 _API_KEY     = os.environ.get("ANTHROPIC_API_KEY", "")
 _OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
 _OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
-# Gemma via an OpenAI-compatible /v1 endpoint (the shared HF Inference
-# Endpoint). Reuses the same LOCAL_LLM_* env as Brain University, so one
-# config wires both apps to the same hosted Gemma.
+# Gemma (or any model) behind an OpenAI-compatible /v1 endpoint.
 #   DECKENGINE_NARRATIVE_BACKEND=gemma
-#   LOCAL_LLM_BASE=https://<endpoint>.endpoints.huggingface.cloud/v1
-#   LOCAL_LLM_KEY=<hf token>   LOCAL_LLM_MODEL=gemma
+#   LOCAL_LLM_BASE=https://<your endpoint>/v1
+#   LOCAL_LLM_KEY=<its API key, if it needs one>   LOCAL_LLM_MODEL=gemma
 # The OPENAI_* names are accepted too, so an existing OpenAI setup works as is.
 _GEMMA_BASE  = (os.environ.get("LOCAL_LLM_BASE") or os.environ.get("OPENAI_BASE_URL", "")).rstrip("/")
 _GEMMA_KEY   = os.environ.get("LOCAL_LLM_KEY") or os.environ.get("OPENAI_API_KEY", "")
